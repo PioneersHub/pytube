@@ -50,6 +50,17 @@ def load_all_confirmed():
         (conf.dirs.work_dir / 'pretalx' / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
 
 
+def load_all_speakers():
+    pretalx_client = PretalxClient()
+    subs_count, subs = pretalx_client.speakers(
+        conf.pretalx.event_slug,
+        params={'questions': 'all'})
+
+    (conf.dirs.work_dir / 'pretalx_speakers').mkdir(parents=True, exist_ok=True)
+    for sub in subs:
+        (conf.dirs.work_dir / 'pretalx_speakers' / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
+
+
 def assign_video_to_channel():
     collect_tracks = defaultdict(list)
     collect_tracks_map = {}
@@ -110,7 +121,7 @@ def move_videos_to_upload_channel():
             logger.warning(f'Video {code} recording is missing')
             missing.add((code, info['title']))
             continue
-        move_us.add((video_map[code], code, tracks_map[code], ))
+        move_us.add((video_map[code], code, tracks_map[code],))
         logger.debug(f'{code} -> {tracks_map[code]}')
         for record in move_us:
             logger.info(f'Moving {record[1]} to {record[2]}')
@@ -118,11 +129,14 @@ def move_videos_to_upload_channel():
             dst = conf.dirs.video_dir / 'uploads' / record[2] / record[0].name
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, dst)
+            with (conf.dirs.video_dir / 'downloads/processed.txt').open("a") as f:
+                f.write_text(f'{record[1]}\n')
     a = 44
 
 
 if __name__ == '__main__':
     # load_all_confirmed()
+    load_all_speakers()
     # assign_video_to_channel()
-    move_videos_to_upload_channel()
+    # move_videos_to_upload_channel()
     a = 44

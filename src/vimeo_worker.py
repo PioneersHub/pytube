@@ -59,6 +59,15 @@ def download_video(record, idx, total):
         return
     download = conf.dirs.video_dir / 'downloads' / f'{record.pretalx_id}' / f'{record.pretalx_id}-{record.title[:50].strip()}.mp4'
 
+    try:
+        # text file once the video is processed
+        processed = (conf.dirs.video_dir / 'downloads/processed.txt').read_text().splitlines()
+    except FileNotFoundError:
+        processed = []
+    if record.pretalx_id in processed:
+        logger.info(f'Skipping {record.pretalx_id}, already processed.')
+        return
+
     if download.exists():
         logger.info(f'Skipping {record.pretalx_id}, downloaded already.')
         return
