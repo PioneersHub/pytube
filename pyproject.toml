@@ -1,0 +1,64 @@
+[project]
+name = "Vimeo to YouTube"
+version = "0.1.0"
+description = "Download videos from Vimeo to publish on YouTube, add metadata from pretalx."
+authors = [
+    {name = "Alexander CS Hendorf", email = "hendorf@gmail.com"}
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.10",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/PioneersHub/vimeo2youtube"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    # pyflakes
+    "F",
+    # pycodestyle
+    "E", "W",
+    # flake8-builtins
+    "A",
+    # flake8-bugbear
+    "B",
+    # flake8-comprehensions
+    "C4",
+    # flake8-simplify
+    "SIM",
+    # flake8-unused-arguments
+    "ARG",
+    # pylint
+    "PL",
+    # tidy
+    "TID",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pyupgrade
+    "UP"
+]
+ignore = [
+    # may cause conflicts with ruff formatter
+    "E501",
+    "W191"
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = "reStructuredText"

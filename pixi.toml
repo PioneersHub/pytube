@@ -1,0 +1,52 @@
+[project]
+name = "vimeo2youtube"
+version = "0.1.0"
+description = "Add a short description here"
+authors = ["Alexander CS Hendorf <hendorf@gmail.com>"]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tasks]
+postinstall = "pip install --no-build-isolation --no-deps --disable-pip-version-check -e ."
+
+[dependencies]
+python = ">=3.10,<3.13"
+pixi-pycharm = ">=0.0.5,<0.1"
+openpyxl = ">=3.1.4,<3.2"
+omegaconf = ">=2.3.0,<2.4"
+aiohttp = ">=3.9.5,<3.10"
+
+[pypi-dependencies]
+pytanis = "*"
+pyvimeo = "*"
+colorama = "*"
+structlog = "*"
+rich = "*"
+google-api-python-client = "*"
+oauth2client = "*"
+
+[tool.pixi.dependencies]
+ruff = ">=0.4.8,<0.5"
+
+[feature.lint.dependencies]
+pre-commit = "*"
+[feature.lint.tasks]
+lint = "pre-commit run --all"
+
+[feature.test.dependencies]
+pytest = "*"
+pytest-md = "*"
+pytest-emoji = "*"
+hypothesis = "*"
+pytest-cov = "*"
+[feature.test.tasks]
+test = "pytest"
+
+
+[environments]
+default = ["test"]
+lint = ["lint"]
+py312 = ["py312", "test"]
+
+[feature.py312.dependencies]
+python = "3.12.*"

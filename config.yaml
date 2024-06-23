@@ -1,0 +1,46 @@
+# BASIC CONFIGURATION, DO NOT ALTER
+# Put your configuration in `config.local.yaml`
+# ########################################
+# VIMEO
+# ########################################
+---
+vimeo:
+  client_id: ""
+  client_secret: ""
+  access_token: ""
+# ########################################
+# ########################################
+dirs:
+  work_dir: "./_tmp"
+  video_dir: "./_tmp/videos"
+# ########################################
+# # GOOGLE SHEETS
+# ########################################
+spreadsheets:
+  # Google Spreadsheet mapping room: id
+  ids:
+    "room": "google-id"
+  # Google Sheet names as a list
+  sheets:
+    - "Sheet 1"
+# ########################################
+# Pretalx
+pretalx:
+  event_slug: "pretalx-uri-slug"
+  # Videos need to be split between the PyCon DE and PyData YouTube channels
+  video_to_track:
+    "CODE": "Track"
+  # identify channel by track name or snippet
+  track_to_channel:
+    "pycon": "pycon"
+    "pydata": "pydata"
+# ########################################
+# Event
+event_name: "PyCon DE & PyData Berlin 2024"
+# ########################################
+# YouTube
+# ########################################
+youtube:
+  client_secrets_file: "client_secrets.json"
+  api_key: ""
+# ########################################
