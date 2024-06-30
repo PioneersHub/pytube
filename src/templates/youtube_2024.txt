@@ -1,0 +1,43 @@
+Recorded at PyCon DE & PyData Berlin 2024, {{date}}
+{{session_link}}
+
+Description:
+{{ description }}
+
+Speakers:
+{% for item in speakers %}{{item[0]}}
+{{item[1]}}{% if loop.last %}{% else %}
+{% endif %}
+{% endfor %}
+
+About the PyCon DE & PyData Berlin conference:
+PyCon DE & PyData Berlin is a major conference event dedicated to the Python programming language and its applications in data science. Our event brings together AI engineers, software engineers, data scientists, team managers, data engineers and enthusiasts from various industries and academia to share knowledge and explore the latest trends and technologies in Python, AI and data analysis. The conference features a range of activities including keynote speeches, tutorials, talks and networking sessions, providing attendees with valuable insights and hands-on experience. It's a premier gathering for anyone interested in Python, AI and data science, fostering community engagement and professional development.
+
+Follow us:
+   •  LinkedIn: https://www.linkedin.com/company/28908640/
+   •  X: https://www.x.com/pyconde
+   •  X: https://www.x.com/pydataberlin
+
+Links:
+   •  Conference Website: http://pycon.de
+   •  Related Sessions: http://2024.pycon.de/program/categories/{{ tag }}
+
+The conference is organized by
+   •  Python Softwareverband e.V.: http://pysv.org
+   •  NumFOCUS Inc.: http://numfocus.org
+   •  Pioneers Hub gemeinnützige GmbH: http://pioneershub.org
+
+
+If you enjoyed this session, please like, comment, and subscribe to our channel for more insightful talks and discussions.
+Share this video with your network to spread the knowledge!
+
+Hashtags:
+#Python #PyConDE #PyData #OpenSource #AI #DataScience #MachineLearning #SoftwareDevelopment #LLMs #Community
+
+Acknowledgements:
+Special thanks to all the volunteers and sponsors who made this event possible.
+
+{% if pydata %}www.pydata.org
+
+PyData is an educational program of NumFOCUS, a 501(c)3 non-profit organization in the United States. PyData provides a forum for the international community of users and developers of data analysis tools to share ideas and learn from each other. The global PyData network promotes discussion of best practices, new approaches, and emerging technologies for data management, processing, analytics, and visualization. PyData communities approach data science using many languages, including (but not limited to) Python, Julia, and R.
+{% endif %}

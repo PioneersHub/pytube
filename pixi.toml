@@ -24,6 +24,7 @@ structlog = "*"
 rich = "*"
 google-api-python-client = "*"
 oauth2client = "*"
+jinja2 = "*"
 
 [tool.pixi.dependencies]
 ruff = ">=0.4.8,<0.5"

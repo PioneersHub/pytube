@@ -1,9 +1,8 @@
 import urllib.parse
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel
-from pydantic_core._pydantic_core import Url
+from pytanis.pretalx.types import Speaker
 
 from src import logger
 
@@ -41,3 +40,16 @@ class Talk(BaseModel):
 
     def model_post_init(self, ctx):  # noqa: ARG002
         self.vimeo_id = vimeo_id_from_link(self.vimeo_link)
+
+
+class TalkRelease(BaseModel):
+    title: str
+    speakers: list[Speaker]
+    pretalx_id: str
+    description: str
+    room: str
+    day: str
+    vimeo_link: str
+    vimeo_metadata: dict | None = None
+    download_path: Path | None = None
+    vimeo_download_link: str = ""
