@@ -25,6 +25,7 @@ rich = "*"
 google-api-python-client = "*"
 oauth2client = "*"
 jinja2 = "*"
+linkedin-api-client = "*"
 
 [tool.pixi.dependencies]
 ruff = ">=0.4.8,<0.5"
