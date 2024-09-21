@@ -7,10 +7,22 @@ import googleapiclient.errors
 
 from pytanis.pretalx.types import Talk, Speaker, SubmissionSpeaker
 from jinja2 import Environment, PackageLoader, select_autoescape
+from pydantic.networks import AnyUrl
 
+from nlpservice import sized_text, teaser_text
 from src import conf
 from src.models.video_metadata import YouTubeMetadata
 from src.usr import slugify
+
+
+class SpeakerInfo(Speaker):
+    linkedin: AnyUrl | None = None
+    github: AnyUrl | None = None
+    twitter: AnyUrl | None = None
+    company: str | None = None
+    job: str | None = None
+
+
 
 
 class YT:
@@ -140,13 +152,14 @@ class ProcessVideoMetadata:
         self.pretalx_ytchannel_map = {}
         self.yt_metadata = []
         self.template_file = template_file
+        self.template = None
 
         self.load_pretalx_ytchannel_map()
         self.load_yt_metadata()
         self.load_template()
 
     def load_pretalx_ytchannel_map(self):
-        """ pretalx ID - Youtube channel """
+        """ Depend on a previously created mapping file {pretalx ID: YouTube channel} see `video_organizer.py`"""
         self.pretalx_ytchannel_map = json.load((conf.dirs.video_dir / "tracks_map.json").open())
 
     def load_yt_metadata(self):
@@ -169,20 +182,21 @@ class ProcessVideoMetadata:
             self.merge_video_metadata(video)
 
     def merge_video_metadata(self, video):
-        """ Collect and merge video metadata from pretalx submissions & speakers and YouTube """
+        """
+        Collect all metadata for a video and merge it into a single document.
+
+        """
         pretalx_talk = self.load_pretalx_talk(video["pretalx_id"])
         pretalx_speakers = [self.load_pretalx_speaker(x.code) for x in pretalx_talk.speakers]
+
         youtube_channel = self.pretalx_ytchannel_map[video["pretalx_id"]]
         date = pretalx_talk.slot.start.strftime("%d.%m.%Y")
-        speakers_bio = [(x.name, x.biography.replace("\n", " ").replace("\r", " ").replace("  ", " ")) if x.biography else "" for x in pretalx_talk.speakers]
-        description = self.template.render(
-            date= date,
-            session_link=f"https://2024.pycon.de/program/{pretalx_talk.code}",
-            speakers=speakers_bio,
-            description=pretalx_talk.abstract,
-            tag=slugify(pretalx_talk.track.en),
-            pydata=self.pretalx_ytchannel_map[video["pretalx_id"]] == "pydata",
-        )
+
+        speakers_bio = [
+            (x.name, x.biography.replace("\n", " ").replace("\r", " ").replace("  ", " ")) if x.biography else "" for x
+            in pretalx_talk.speakers]
+
+        # YouTube config
         category_id = 28  # categoryId=28 - Wissenschaft
         default_language = 'en'  # 2-letter ISO-639-1-Code
         privacy_status = 'unlisted'
@@ -190,10 +204,34 @@ class ProcessVideoMetadata:
         video_embeddable = True
         recorded_iso = date
 
+        def best_youtube_title(session_title, at="PyCon DE & PyData Berlin 2024"):
+            """ The YouTube title must have max. 100 chars, optimize the title to include the conference """
+            yt_max = 100
+            if len(session_title) > yt_max:
+                return f"{session_title[:yt_max - 1]}…"
+            long_title = f"{session_title} [{at}]"
+            if len(long_title) <= yt_max:
+                return long_title
+            return session_title
+
+        youtube_title = best_youtube_title(pretalx_talk.title)
+
+        text_teaser = ""  # TODO add teaser from file
+
+        description = self.template.render(
+            date=date,
+            session_link=f"https://2024.pycon.de/program/{pretalx_talk.code}",
+            teaser_text=text_teaser,
+            speakers=speakers_bio,
+            description=pretalx_talk.abstract,
+            tag=slugify(pretalx_talk.track.en),
+            pydata=self.pretalx_ytchannel_map[video["pretalx_id"]] == "pydata",
+        )
+
         # <, > not allowed in YT titles, description
         title = pretalx_talk.title.replace('>', '').replace('<', '')
         description = description.replace('>', '').replace('<', '')
-        print("="*50)
+        print("=" * 50)
         print(title)
         print()
         print(description)
@@ -205,7 +243,25 @@ class ProcessVideoMetadata:
 
     def load_pretalx_speaker(self, pretalx_id: str):
         speaker = json.load((conf.dirs.work_dir / f"pretalx_speakers/{pretalx_id}.json").open())
-        return Speaker(**speaker)
+
+        def get_answer_via_id(answers: list[dict], answer_id: int):
+            # answer_id is always > 0
+            record = [x for x in answers if x.get("question", {}).get("id", -1) == answer_id]
+            if record:
+                return record[0]["answer"]
+
+        # TODO: move to config - answer ids are PyCon DE 2024 specific
+        for attr, answer_id in [
+            ("company", 3012),
+            ("job", 3013),
+            ("linkedin", 3017),
+            ("github", 3016),
+            ("twitter", 3015),
+        ]:
+            answer = get_answer_via_id(speaker["answers"], answer_id)
+            if answer:
+                speaker[attr] = answer
+        return SpeakerInfo(**speaker)
 
 
 def map_pretalx_id_youtube_id():

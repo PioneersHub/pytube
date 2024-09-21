@@ -6,6 +6,7 @@ class YouTubeRessource(BaseModel):
     kind: str
     videoId: str
 
+
 class YouTubeMetadata(BaseModel):
     title: str
     description: str = ""

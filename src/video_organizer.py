@@ -1,11 +1,14 @@
+"""
+Script with functions to organize conference videos and assign them to the correct channel.
+"""
 import json
 import shutil
 from collections import defaultdict
 from pathlib import Path
 
 from pydantic import BaseModel
+from records import Records
 
-from pytanis import PretalxClient
 from src import conf, logger
 
 
@@ -20,6 +23,9 @@ class Video(BaseModel):
     speaker: str
 
 
+records = Records()
+
+
 def youtube_title(video: Video):
     # TODO Implement this function
     """ Length is limited. 
@@ -30,7 +36,10 @@ def youtube_title(video: Video):
 
 
 def split_pycon_pydata(video: str):
-    """ Assign videos to PyData or PyCon. In case this cannot be done by track, add the pretalx code in the config """
+    """ Assign videos to PyData or PyCon via the track
+    In case this cannot be done by track,
+    add the pretalx code in the config
+    """
     if video['code'] in conf.pretalx.video_to_track:
         return conf.pretalx.video_to_track[video['code']]
     for snippet in conf.pretalx.track_to_channel:
@@ -39,32 +48,10 @@ def split_pycon_pydata(video: str):
     print(video['code'], video['track']['en'], video['title'])
 
 
-def load_all_confirmed():
-    pretalx_client = PretalxClient()
-    subs_count, subs = pretalx_client.submissions(
-        conf.pretalx.event_slug,
-        params={'questions': 'all', 'state': 'confirmed'})
-
-    (conf.dirs.work_dir / 'pretalx').mkdir(parents=True, exist_ok=True)
-    for sub in subs:
-        (conf.dirs.work_dir / 'pretalx' / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
-
-
-def load_all_speakers():
-    pretalx_client = PretalxClient()
-    subs_count, subs = pretalx_client.speakers(
-        conf.pretalx.event_slug,
-        params={'questions': 'all'})
-
-    (conf.dirs.work_dir / 'pretalx_speakers').mkdir(parents=True, exist_ok=True)
-    for sub in subs:
-        (conf.dirs.work_dir / 'pretalx_speakers' / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
-
-
 def assign_video_to_channel():
     collect_tracks = defaultdict(list)
     collect_tracks_map = {}
-    for sub in load_confirmed_map():
+    for sub in records.confirmed_sessions_map:
         track = split_pycon_pydata(sub)
         collect_tracks[track].append(sub)
         collect_tracks_map[sub['code']] = track
@@ -75,17 +62,11 @@ def assign_video_to_channel():
     return collect_tracks
 
 
-def load_confirmed_map():
-    confirmed_map = {}
-    for x in conf.dirs.work_dir.glob('pretalx/*.json'):
-        data = json.load(x.open())
-        confirmed_map[data['code']] = data
-    json.dump(confirmed_map, (conf.dirs.video_dir / 'confirmed_map.json').open('w'), indent=4)
-    return confirmed_map
-
-
-def load_tracks_map():
-    return json.load((conf.dirs.video_dir / 'tracks_map.json').open())
+def load_tracks_map() -> dict:
+    the_file = conf.dirs.video_dir / 'tracks_map.json'
+    if not the_file.exists():
+        logger.error(f'File {the_file} does not exist, did you run `assign_video_to_channel`?')
+    return json.load(the_file.open())
 
 
 def video_code_map() -> list[Path]:
@@ -98,7 +79,7 @@ def move_videos_to_upload_channel():
     """Move all videos to the correct channel"""
     video_map = video_code_map()
     tracks_map = load_tracks_map()
-    confirmed_map = load_confirmed_map()
+    confirmed_map = records.confirmed_sessions_map
     move_us, do_not_release, missing = set(), set(), set()
     for code, info in confirmed_map.items():
         if code not in video_map:
@@ -131,12 +112,14 @@ def move_videos_to_upload_channel():
             shutil.copyfile(src, dst)
             with (conf.dirs.video_dir / 'downloads/processed.txt').open("a") as f:
                 f.write_text(f'{record[1]}\n')
-    a = 44
 
 
 if __name__ == '__main__':
-    # load_all_confirmed()
-    load_all_speakers()
+    # prepare data from pretalx
+    # records.load_all_confirmed_sessions()
+    # records.load_all_speakers()
+
+    # video
     # assign_video_to_channel()
     # move_videos_to_upload_channel()
     a = 44
