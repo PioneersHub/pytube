@@ -28,6 +28,7 @@ jinja2 = "*"
 linkedin-api-client = "*"
 openai = ">=1.47.0, <2"
 openapi = ">=2.0.0, <3"
+youtube-pydantic-models = ">=0.2.2, <0.3"
 
 [tool.pixi.dependencies]
 ruff = ">=0.4.8,<0.5"

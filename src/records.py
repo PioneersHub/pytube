@@ -7,6 +7,7 @@ This file can be used for multiple use cases like:
 - etc.
 """
 import json
+from datetime import datetime, date
 from pathlib import Path
 from typing_extensions import Self
 
@@ -77,7 +78,7 @@ class PretalxSession(BaseModel):
     speakers: list[SpeakerInfo] | list[str]
 
 
-class SessionRecord(BaseModel):
+class SessionRecord(BaseModel, validate_assignment=True):
     # raw data from pretalx
     pretalx_session: PretalxSession
     pretalx_id: str
@@ -92,6 +93,8 @@ class SessionRecord(BaseModel):
     youtube_channel: str = Field('', description='YouTube channel the video was uploaded to.')
     youtube_video_id: str = Field('', description='YouTube video ID.')
     youtube_description: str = Field('', description='YouTube video description.')
+    youtube_title: str = Field('', description='YouTube title (max. 100 chars).')
+    recorded_date: date | None = Field(None, description='Date the video was recorded.')
 
 
 class Records:
