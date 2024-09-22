@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import json
 
 import google_auth_oauthlib.flow
@@ -12,7 +12,33 @@ from src import conf, logger
 from src.models.video_metadata import YouTubeMetadata
 from src.usr import slugify
 
-from youtube_pydantic_models import YoutubeVideoResource, VideoSnippet, VideoStatus, BaseRecordingDetails
+from pydantic import BaseModel, Field
+
+
+class VideoSnippet(BaseModel):
+    title: str
+    description: str
+    category_id: str | None = Field(default="28")
+    default_audio_language: str | None = Field(default="en")
+    default_language: str | None = Field(default="en")
+
+
+class VideoStatus(BaseModel):
+    privacy_status: str | None = Field(default="unlisted")
+    license: str | None = Field(default="youtube")
+    embeddable: bool | None = Field(default=True)
+    publish_at: datetime | str | None = Field(default=None)
+
+
+class BaseRecordingDetails(BaseModel):
+    recording_date: datetime | str | None = Field(default=None)
+
+
+class YoutubeVideoResource(BaseModel):
+    id: str
+    snippet: VideoSnippet
+    recording_details: BaseRecordingDetails = Field(default_factory=BaseRecordingDetails)
+    status: VideoStatus = Field(default_factory=VideoStatus)
 
 
 class YT:
@@ -20,6 +46,12 @@ class YT:
         # Set up the necessary scopes and API service
         self.scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
         self.youtube = self.get_authenticated_service()
+
+        self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
+        self.video_records_path.mkdir(parents=True, exist_ok=True)
+        # data updated at YouTube
+        self.video_records_path_updated = conf.dirs.video_dir / 'youtube/video_records_updated'
+        self.video_records_path_updated.mkdir(parents=True, exist_ok=True)
 
     def get_authenticated_service(self):
         """ Authentication to access the channel information
@@ -122,7 +154,7 @@ class YT:
         if privacy_status:
             body["status"]["privacyStatus"] = privacy_status
         if publish_date:
-            publish_date = datetime.datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%S%z')
+            publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%S%z')
             body["status"]["publishAt"] = publish_date.isoformat()
 
         # Update video metadata
@@ -261,7 +293,7 @@ class PrepareVideoMetadata:
         if record.recorded_date != recorded_date:
             logger.info(f'Updating YouTube recorded date of {record.pretalx_id}')
             # remove time zone info
-            record.recorded_date = datetime.datetime.strptime(recorded_date.strftime("%d.%m.%Y"), "%d.%m.%Y")
+            record.recorded_date = datetime.strptime(recorded_date.strftime("%d.%m.%Y"), "%d.%m.%Y")
             update_record = True
 
         def render_description(description: str = record.sm_long_text):
@@ -296,34 +328,18 @@ class PrepareVideoMetadata:
             (self.records_path / f'{record.pretalx_id}.json').write_text(record.model_dump_json(indent=4))
             logger.info(f'Saved updated record of {record.pretalx_id}')
 
-        # YouTube static config
-        category_id = "28"  # Science & Technology
-        default_language = 'en'  # 2-letter ISO-639-1-Code
-        privacy_status = 'unlisted'
-        video_license = 'youtube'
-        video_embeddable = True
         recorded_iso: str = record.recorded_date.strftime("%d.%m.%Y")
 
         youtube_video_ressource = YoutubeVideoResource(
             id=youtube_video_id,
-            snippet=VideoSnippet(
+            snippet=dict(
                 title=youtube_title,
                 description=youtube_description,
-                category_id=category_id,
-                default_audio_language=default_language,
-                default_language=default_language,
             ),
-            status=VideoStatus(
-                privacy_status=privacy_status,
-                license=video_license,
-                embeddable=video_embeddable,
-            ),
-            recording_details=BaseRecordingDetails(
-                recording_date=recorded_iso
-            )
+            recording_details=dict(recording_date=recorded_iso),
         )
 
-        (self.video_records_path / f'{record.pretalx_id}.json').write_text(
+        (self.video_records_path / f'{record.pretalx_id}.json').open("w").write(
             youtube_video_ressource.model_dump_json(indent=4))
         print("=" * 50)
         a = 44
@@ -344,13 +360,19 @@ class PrepareVideoMetadata:
             if channel != destination_channel:
                 # wrong channel, skip
                 continue
-            res = ytclient.update_video_metadata(
-                video_id=video.id,
-                title=video.snippet.title,
-                description=video.snippet.description,
-                category_id=video.snippet.category_id,
-                privacy_status=video.status.privacy_status,
-            )
+            try:
+                res = ytclient.update_video_metadata(
+                    video_id=video.id,
+                    title=video.snippet.title,
+                    description=video.snippet.description,
+                    category_id=video.snippet.category_id,
+                    privacy_status=video.status.privacy_status,
+                )
+                youtube_video.rename(ytclient.video_records_path_updated / youtube_video.name)
+                logger.info(f"Updated video: {pretalx_id}, {video.id}")
+            except Exception as e:
+                logger.error(f"Failed to update video {video.id}: {e}")
+                continue
             a = 44
 
 
@@ -375,7 +397,7 @@ if __name__ == "__main__":
 
     meta = PrepareVideoMetadata(template_file="youtube_2024.txt", at="PyCon DE & PyData Berlin 2024")
     # meta.make_all_video_metadata()
-    meta.send_all_video_metadata(destination_channel='pydata')
+    # meta.send_all_video_metadata(destination_channel='pydata')
     # meta.send_all_video_metadata(destination_channel='pycon')
 
     a = 44
