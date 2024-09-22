@@ -30,7 +30,7 @@ pretalx:
   # Videos need to be split between the PyCon DE and PyData YouTube channels
   video_to_track:
     "CODE": "Track"
-  # identify channel by track name or snippet
+  # identify the channel by track name or snippet
   track_to_channel:
     "pycon": "pycon"
     "pydata": "pydata"
