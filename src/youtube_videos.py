@@ -5,24 +5,11 @@ import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
 
-from pytanis.pretalx.types import Talk, Speaker, SubmissionSpeaker
 from jinja2 import Environment, PackageLoader, select_autoescape
-from pydantic.networks import AnyUrl
 
-from nlpservice import sized_text, teaser_text
 from src import conf
 from src.models.video_metadata import YouTubeMetadata
 from src.usr import slugify
-
-
-class SpeakerInfo(Speaker):
-    linkedin: AnyUrl | None = None
-    github: AnyUrl | None = None
-    twitter: AnyUrl | None = None
-    company: str | None = None
-    job: str | None = None
-
-
 
 
 class YT:
@@ -105,7 +92,7 @@ class YT:
                 response = request.execute()
         return videos
 
-    # Function to update video metadata
+    # TODO: Implement the update_video_metadata function
     def update_video_metadata(self, video_id,
                               title=None,
                               description=None,
@@ -147,7 +134,10 @@ class YT:
         return response
 
 
-class ProcessVideoMetadata:
+class PrepareVideoMetadata:
+    """ This class adds YouTube specific metadata to the records created by the records.py script """
+
+
     def __init__(self, template_file: str):
         self.pretalx_ytchannel_map = {}
         self.yt_metadata = []
@@ -186,6 +176,7 @@ class ProcessVideoMetadata:
         Collect all metadata for a video and merge it into a single document.
 
         """
+        # TODO get data from records JSON, make YouTube metadata, add back to record.
         pretalx_talk = self.load_pretalx_talk(video["pretalx_id"])
         pretalx_speakers = [self.load_pretalx_speaker(x.code) for x in pretalx_talk.speakers]
 
@@ -237,32 +228,6 @@ class ProcessVideoMetadata:
         print(description)
         a = 44
 
-    def load_pretalx_talk(self, pretalx_id: str):
-        talk = json.load((conf.dirs.work_dir / f"pretalx/{pretalx_id}.json").open())
-        return Talk(**talk)
-
-    def load_pretalx_speaker(self, pretalx_id: str):
-        speaker = json.load((conf.dirs.work_dir / f"pretalx_speakers/{pretalx_id}.json").open())
-
-        def get_answer_via_id(answers: list[dict], answer_id: int):
-            # answer_id is always > 0
-            record = [x for x in answers if x.get("question", {}).get("id", -1) == answer_id]
-            if record:
-                return record[0]["answer"]
-
-        # TODO: move to config - answer ids are PyCon DE 2024 specific
-        for attr, answer_id in [
-            ("company", 3012),
-            ("job", 3013),
-            ("linkedin", 3017),
-            ("github", 3016),
-            ("twitter", 3015),
-        ]:
-            answer = get_answer_via_id(speaker["answers"], answer_id)
-            if answer:
-                speaker[attr] = answer
-        return SpeakerInfo(**speaker)
-
 
 def map_pretalx_id_youtube_id():
     """ The pretalx id is in the video title after upload.
@@ -297,7 +262,7 @@ if __name__ == "__main__":
 
     # Generate the metadata for the update on YouTube
 
-    meta = ProcessVideoMetadata(template_file="youtube_2024.txt")
+    meta = PrepareVideoMetadata(template_file="youtube_2024.txt")
     meta.merge_all_video_metadata()
 
     # videos = yt_client.list_all_videos(conf.youtube.channels.pycon.id)
