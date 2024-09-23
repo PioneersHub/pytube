@@ -23,7 +23,6 @@ SPREADSHEET_ID = {
 WORKSHEET_NAMES = ["DAY 1", "DAY 2", "DAY 3"]
 
 
-
 def load_sheets() -> dict[str, pd.DataFrame]:
     """ 
     Load Google Sheets into DataFrames
@@ -90,13 +89,13 @@ def process_sheets():
         for i, row in df.iterrows():
             try:
                 t = Talk(
-                        title=row["talk"],
-                        speaker=row["speakers"],
-                        pretalx_id=row["pretalx_id"],
-                        room=room,
-                        day=day,
-                        vimeo_link=row["vimeo_link"],
-                    )
+                    title=row["talk"],
+                    speaker=row["speakers"],
+                    pretalx_id=row["pretalx_id"],
+                    room=room,
+                    day=day,
+                    vimeo_link=row["vimeo_link"],
+                )
             except Exception as e:
                 logger.error(f"Error processing {room} {day} {i} {e}")
                 skipped.append(row)

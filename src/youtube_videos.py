@@ -13,6 +13,8 @@ from src.models.video_metadata import YouTubeMetadata
 from src.usr import slugify
 
 from pydantic import BaseModel, Field
+import platform
+import warnings
 
 
 class VideoSnippet(BaseModel):
@@ -45,19 +47,32 @@ class YT:
     def __init__(self):
         # Set up the necessary scopes and API service
         self.scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-        self.youtube = self.get_authenticated_service()
+        self._youtube = None
 
         self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
         self.video_records_path.mkdir(parents=True, exist_ok=True)
         # data updated at YouTube
         self.video_records_path_updated = conf.dirs.video_dir / 'youtube/video_records_updated'
         self.video_records_path_updated.mkdir(parents=True, exist_ok=True)
+        # videos published on YouTube
+        self.video_records_path_published = conf.dirs.video_dir / 'youtube/video_published'
+        self.video_records_path_published.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def youtube(self):
+        """ Get authenticated service on first call of API"""
+        if not self._youtube:
+            self._youtube = self.get_authenticated_service()
+        return self._youtube
 
     def get_authenticated_service(self):
         """ Authentication to access the channel information
         - Users need to authenticate via a web interface
         - User needs to have rights to access channel
         """
+        exit_if_sequoia = self.check_macos_sequoia()
+        if exit_if_sequoia:
+            raise RuntimeError("macOS Sequoia detected. Exiting.")
         api_service_name = "youtube"
         api_version = "v3"
         client_secrets_file = conf.youtube.client_secrets_file
@@ -167,6 +182,15 @@ class YT:
         print(f"Updated video metadata for video ID: {video_id}")
         return response
 
+    @classmethod
+    def check_macos_sequoia(cls):
+        system = platform.system()
+        version = platform.mac_ver()[0]
+
+        if system == "Darwin" and "15." in version:  # macOS Sequoia is version 15.x
+            warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)
+            return True
+
 
 class PrepareVideoMetadata:
     """ This class adds YouTube specific metadata to the records created by the records.py script
@@ -186,15 +210,21 @@ class PrepareVideoMetadata:
         self._pretalx_youtube_channel_map = {}
         self._pretalx_youtube_id_map = {}
         self.yt_metadata = []
-        self.template = None
+        self._template = None
 
         self.load_yt_metadata()
-        self.load_template()
 
         self.records_path = conf.dirs.work_dir / 'records'
         self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
         self.video_records_path.mkdir(parents=True, exist_ok=True)
         # default values
+
+    @property
+    def template(self):
+        """ Load template on first call """
+        if not self._template:
+            self.load_template()
+        return self._template
 
     @property
     def pretalx_youtube_channel_map(self):
@@ -240,7 +270,7 @@ class PrepareVideoMetadata:
             loader=PackageLoader("src"),
             autoescape=select_autoescape()
         )
-        self.template = env.get_template(self.template_file)
+        self._template = env.get_template(self.template_file)
 
     def make_all_video_metadata(self):
         manifest = json.load((conf.dirs.work_dir / "manifest.json").open())
@@ -377,6 +407,8 @@ class PrepareVideoMetadata:
 
 
 if __name__ == "__main__":
+    # Call the function to perform the check
+
     # After videos are uploaded to YouTube, we need to update the metadata
     # To update the metadata, we need the YouTube video id
     # yt_client = YT()
@@ -399,14 +431,3 @@ if __name__ == "__main__":
     # meta.make_all_video_metadata()
     # meta.send_all_video_metadata(destination_channel='pydata')
     # meta.send_all_video_metadata(destination_channel='pycon')
-
-    a = 44
-    # video_id = "YOUR_VIDEO_ID"
-    # title = "New Title"
-    # description = "New Description"
-    # tags = ["tag1", "tag2"]
-    # category_id = "22"  # Example category ID for 'People & Blogs'
-    # privacy_status = "private"
-    # publish_date = "2024-07-01T15:00:00+00:00"  # Example publish date in ISO 8601 format
-    #
-    # update_video_metadata(video_id, title, description, tags, category_id, privacy_status, publish_date)

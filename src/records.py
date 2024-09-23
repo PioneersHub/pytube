@@ -95,6 +95,9 @@ class SessionRecord(BaseModel, validate_assignment=True):
     youtube_description: str = Field('', description='YouTube video description.')
     youtube_title: str = Field('', description='YouTube title (max. 100 chars).')
     recorded_date: date | None = Field(None, description='Date the video was recorded.')
+    youtube_online_metadata: dict | None = Field(None, description='Metadata as released on YouTube.')
+    linked_in_response: dict | None = Field(None, description='Metadata as released on LinkedIn.')
+    linked_in_post: str | None = Field(None, description='Post as released on LinkedIn.')
 
 
 class Records:

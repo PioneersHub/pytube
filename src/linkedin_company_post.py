@@ -5,20 +5,22 @@ import json
 
 from omegaconf import OmegaConf
 
+from src import logger
+
 
 class LinkedIn:
     def __init__(self, credentials):
-        self.credentials = credentials
+        self.credentials = credentials['LINKED_IN']
 
     @property
-    def company_id(self):
+    def company_id(self) -> str:
         return self.credentials["COMPANY_ID"]
 
     @property
-    def access_token(self):
+    def access_token(self) -> str:
         return self.credentials["ACCESS_TOKEN"]
 
-    def post(self, text):
+    def post(self, text) -> dict | None:
         content = {
             "author": f"urn:li:organization:{self.company_id}",
             "lifecycleState": "PUBLISHED",
@@ -49,12 +51,14 @@ class LinkedIn:
         response = requests.post(url, headers=headers, data=json.dumps(content))
 
         # Check the response
+        data = response.json()
         if response.status_code == 201:
             print("Post shared successfully!")
+            return data
         else:
-            print(f"Failed to share post: {response.status_code}")
-            print(response.json())
+            logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
 
+    # TODO requires community API acccess -> !! this isn ANOTHER LinkedIn App with different credentials !!!
     def get_person_urn_via_link(self, profile_url):
         url = 'https://api.linkedin.com/v2/people/(url=' + profile_url + ')'
         headers = {
@@ -64,6 +68,10 @@ class LinkedIn:
         }
         response = requests.get(url, headers=headers)
         data = response.json()
+        if response.status_code != 200:
+            logger.error(f"Failed to get person URN: {data['status']}: {data['code']} {data['message']}")
+            return
+
         # Extract the member URN from the search results
         if 'id' in data:
             member_urn = f"urn:li:person:{data['id']}"
@@ -72,6 +80,10 @@ class LinkedIn:
         else:
             print("Member not found")
 
+
 if __name__ == "__main__":
     local_credentials = OmegaConf.load(Path(__file__).parents[1] / "_secret" / "linked_in.yml")
     li = LinkedIn(local_credentials)
+    # li.get_person_urn_via_link("https://www.linkedin.com/in/hendorf/")
+    li.post("Hello LinkedIn! This is our new Agent speaking, stay tuned for more updates!")
+    a = 44
