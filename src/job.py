@@ -11,6 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from omegaconf import OmegaConf
+from pytanis.helpdesk import Recipient, Mail, MailClient
 
 from linkedin_company_post import LinkedIn
 from records import SessionRecord
@@ -111,6 +112,20 @@ class Publisher:
                 "youtube_video_id": record.youtube_video_id,
             }
         )
+        agent_id = "b312fd73-b227-4664-a079-6adb2d511e93"
+        team_id = "3f68251e-17e9-436f-90c3-c03b06a72472"
+        recipients = [Recipient(name=x.name, email=x.email) for x in record.speakers]
+        text = f"""Hi {', '.join([x.name for x in recipients])},\nYour talk {record.title} is now online. 📺🎉\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n\n{record.sm_short_text}\n\nAll the best,\nPyCon.DE & PyData Berlin Team"""
+        email = Mail(
+            subject=f"Your talk {record.title} is now online.",
+            text=text,
+            team_id=team_id,
+            recipients=recipients,
+            agent_id=agent_id,
+            status="closed",
+        )
+        (self.speaker_to_email / f"{pretalx_id}.json").write_text(email.model_dump_json(indent=4))
+        logger.info(f"Email prepared for speakers of video {pretalx_id}.")
 
     def post_on_linked_id(self):
         """ Post ONE LinkedIn update."""
@@ -131,9 +146,18 @@ class Publisher:
         """ Post on X."""
         pass
 
-    def email_speaker(self, record: SessionRecord):
+    def email_speakers(self, email):
         """ Email the speaker."""
-        pass
+        to_mail = self.speaker_to_email.glob("*.json")
+        for email in to_mail:
+            mail = Mail.model_validate_json(email.read_text())
+            try:
+                mail_client = MailClient()
+                responses, errors = mail_client.send(mail, dry_run=False)
+                if not errors:
+                    email.rename(self.speaker_emailed / email.name)
+            except Exception as e:
+                logger.error(f"Failed to email speaker: {str(e)}")
 
 
 if __name__ == "__main__":
