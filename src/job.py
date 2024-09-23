@@ -167,12 +167,9 @@ class Publisher:
 
 
 if __name__ == "__main__":
-    for channel in (
-            'pycon',
-            'pydata',
-    ):
-        publisher = Publisher(destination_channel=channel)
-        publisher.release_random_video()
-        publisher.post_on_linked_id()
-        publisher.email_speakers()
-        logger.info("Job completed successfully.")
+    channel = random.choice(['pycon', 'pydata', ])
+    publisher = Publisher(destination_channel=channel)
+    publisher.release_random_video()
+    publisher.post_on_linked_id()
+    publisher.email_speakers()
+    logger.info("Job completed successfully.")
