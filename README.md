@@ -35,6 +35,8 @@ how to add credentials.
 
 ## YouTube
 
+> Warning: The Google-API wrapper currently does not work for macOS Sequoia, yet (22.09.2024).
+
 ### Upload
 
 Videos need to be uploaded via the YouTube **web interface**.  
@@ -70,7 +72,7 @@ https://api.linkedin.com/v2/userinfo
 'sub' is urn:li:person:{sub}
 https://stackoverflow.com/questions/77962676/how-to-get-linkedin-urn
 
-Token generator:
+Token generator  for ACCESS_TOKEN and REFRESH_TOKEN:
 https://www.linkedin.com/developers/tools/oauth/token-generator?
 
 Blogposts:
