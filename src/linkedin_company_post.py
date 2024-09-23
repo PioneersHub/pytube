@@ -21,24 +21,37 @@ class LinkedIn:
         return self.credentials["ACCESS_TOKEN"]
 
     def post(self, text) -> dict | None:
+        # content = {
+        #     "author": f"urn:li:organization:{self.company_id}",
+        #     "lifecycleState": "PUBLISHED",
+        #     "specificContent": {
+        #         "com.linkedin.ugc.ShareContent": {
+        #             "shareCommentary": {
+        #                 "text": text
+        #             },
+        #             "shareMediaCategory": "NONE"
+        #         }
+        #     },
+        #     "visibility": {
+        #         "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        #     }
+        # }
         content = {
             "author": f"urn:li:organization:{self.company_id}",
-            "lifecycleState": "PUBLISHED",
-            "specificContent": {
-                "com.linkedin.ugc.ShareContent": {
-                    "shareCommentary": {
-                        "text": text
-                    },
-                    "shareMediaCategory": "NONE"
-                }
+            "commentary": text,
+            "visibility": "PUBLIC",
+            "distribution": {
+                "feedDistribution": "MAIN_FEED",
+                "targetEntities": [],
+                "thirdPartyDistributionChannels": []
             },
-            "visibility": {
-                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-            }
+            "lifecycleState": "PUBLISHED",
+            "isReshareDisabledByAuthor": False
         }
 
         # LinkedIn API endpoint for sharing posts
-        url = f"https://api.linkedin.com/v2/ugcPosts"
+        # url = f"https://api.linkedin.com/v2/ugcPosts"
+        url = "https://api.linkedin.com/v2/posts"
 
         # Headers for the request
         headers = {

@@ -48,7 +48,7 @@ class Publisher:
         self.speaker_emailed = conf.dirs.work_dir / 'speaker_emailed'
         self.speaker_emailed.mkdir(exist_ok=True, parents=True)
 
-    def release_on_youtube_now(self, video_id: str):
+    def release_on_youtube_now(self, video_id: str, title, description, category_id):
         # Prepare the request body
         body = {
             "id": video_id,
@@ -56,21 +56,25 @@ class Publisher:
             "status": {}
         }
 
-        publish_date = datetime.datetime.now()
+        publish_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
         body["status"]["publishAt"] = publish_date.isoformat()
+        body["status"]["privacyStatus"] = 'private'
+        body["snippet"]["title"] = title
+        body["snippet"]["description"] = description
+        body["snippet"]["categoryId"] = category_id
 
         # Update video metadata
         request = self.yt_client.youtube.videos().update(
-            part="snippet,status",
+            part="status,snippet",
             body=body
         )
-        response = request.execute()
-        data = response.json()
-        if response.status_code != 200:
-            logger.error(f"Failed to update video metadata: {data}")
+        try:
+            response = request.execute()
+            logger.info(f"Video successfully published: {video_id}")
             return response
-        logger.info(f"Video successfully published: {video_id}")
-        return response
+        except Exception as e:
+            logger.error(f"Failed to update video metadata: {str(e)}")
+            return
 
     @property
     def all_unpublished_videos_by_channel(self):
@@ -90,28 +94,30 @@ class Publisher:
             return
         pretalx_id = random.choice(population)
         video_id = self.pretalx_youtube_id_map.get(pretalx_id)
+        record_path = self.video_meta.records_path / f"{pretalx_id}.json"
+        record = SessionRecord.model_validate_json(record_path.read_text())
 
-        res = self.release_on_youtube_now(video_id)
+        res = self.release_on_youtube_now(video_id, record.youtube_title, record.youtube_description, "28")
 
         # update record with full YouTube response
         logger.info(f"Video {pretalx_id} released on YouTube.")
-        record_path = self.video_meta.records_path / f"{pretalx_id}.json"
-        record = SessionRecord.model_validate_json(record_path.read_text())
-        record["youtube_online_metadata"] = res
+
+        record.youtube_online_metadata = res
         record_path.write_text(record.model_dump_json(indent=4))
         logger.info(f"Updated record for video {pretalx_id}.")
+        (self.yt_client.video_records_path_updated / f"{pretalx_id}.json").rename(
+            self.yt_client.video_records_path_published / f"{pretalx_id}.json")
 
         # LinkedIn - save post to file to be posted later
-        post = f"""⭐️ New video release 📺\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n{record.sm_short_text}"""
-        (self.linked_in_to_post / f"{pretalx_id}.json").write_text(
-            {
-                "pretalx_id": pretalx_id,
-                "post": post,
-                "sm_teaser_text": record.sm_teaser_text,
-                "sm_short_text": record.sm_short_text,
-                "youtube_video_id": record.youtube_video_id,
-            }
-        )
+        post = f"""⭐️ New video release 📺\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n{record.sm_long_text}"""
+        json.dump({"pretalx_id": pretalx_id,
+                   "post": post,
+                   "sm_teaser_text": record.sm_teaser_text,
+                   "sm_short_text": record.sm_short_text,
+                   "sm_long_text": record.sm_long_text,
+                   "youtube_video_id": record.youtube_video_id,
+                   }, (self.linked_in_to_post / f"{pretalx_id}.json").open("w"), indent=4)
+
         agent_id = "b312fd73-b227-4664-a079-6adb2d511e93"
         team_id = "3f68251e-17e9-436f-90c3-c03b06a72472"
         recipients = [Recipient(name=x.name, email=x.email) for x in record.speakers]
@@ -146,7 +152,7 @@ class Publisher:
         """ Post on X."""
         pass
 
-    def email_speakers(self, email):
+    def email_speakers(self):
         """ Email the speaker."""
         to_mail = self.speaker_to_email.glob("*.json")
         for email in to_mail:
@@ -163,9 +169,10 @@ class Publisher:
 if __name__ == "__main__":
     for channel in (
             'pycon',
-            # 'pydata'
+            'pydata',
     ):
         publisher = Publisher(destination_channel=channel)
         publisher.release_random_video()
         publisher.post_on_linked_id()
+        publisher.email_speakers()
         logger.info("Job completed successfully.")
