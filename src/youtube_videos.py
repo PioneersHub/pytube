@@ -64,8 +64,8 @@ class YT:
     def youtube(self):
         """ Get authenticated service on first call of API"""
         if not self._youtube:
-            # self._youtube = self.get_authenticated_service()
-            self._youtube = self.get_authenticated_offline_service()
+            self._youtube = self.get_authenticated_service()
+            # self._youtube = self.get_authenticated_offline_service()
         return self._youtube
 
     def get_authenticated_service(self):
@@ -86,13 +86,16 @@ class YT:
         return googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
 
     def get_authenticated_offline_service(self):
+        """ Works for limited use cases only due to general restrictions by YouTube,
+        >>NOT suitable for updating video metadata<<"""
         creds = None
 
         # The token.json stores the user's access and refresh tokens, and is created automatically
         # when the authorization flow completes for the first time.
+        client_secrets_file = conf.youtube.client_secrets_file
         token_path = conf.dirs.root / conf.youtube.token_path
         if token_path.exists():
-            creds = Credentials.from_authorized_user_file('token.json', self.scopes)
+            creds = Credentials.from_authorized_user_file(str(token_path), self.scopes)
 
         # If no valid credentials are available, let the user log in.
         if not creds or not creds.valid:
@@ -101,7 +104,7 @@ class YT:
             else:
                 # Create a flow object, set the client secrets, and ask for offline access
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    'client_secrets.json', self.scopes)
+                    client_secrets_file, self.scopes)
                 creds = flow.run_local_server(port=0)
 
             # Save the credentials for the next run

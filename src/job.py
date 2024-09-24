@@ -56,7 +56,7 @@ class Publisher:
             "status": {}
         }
 
-        publish_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+        publish_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=5)
         body["status"]["publishAt"] = publish_date.isoformat()
         body["status"]["privacyStatus"] = 'private'
         body["snippet"]["title"] = title
