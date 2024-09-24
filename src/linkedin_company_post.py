@@ -1,8 +1,7 @@
+import json
 from pathlib import Path
 
 import requests
-import json
-
 from omegaconf import OmegaConf
 
 from src import logger
@@ -96,7 +95,7 @@ class LinkedIn:
 
         # Check the response
         data = response.json()
-        if response.status_code == 201:
+        if response.status_code == 201:  # noqa PLR2004
             print("Post shared successfully!")
             return data
         else:
@@ -112,7 +111,7 @@ class LinkedIn:
         }
         response = requests.get(url, headers=headers)
         data = response.json()
-        if response.status_code != 200:
+        if response.status_code != 200:  # noqa PLR2004
             logger.error(f"Failed to get person URN: {data['status']}: {data['code']} {data['message']}")
             return
 

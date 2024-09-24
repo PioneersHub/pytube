@@ -1,20 +1,18 @@
-from datetime import datetime
 import json
+import platform
+import warnings
+from datetime import datetime
 
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
-
 from jinja2 import Environment, PackageLoader, select_autoescape
+from pydantic import BaseModel, Field
 
 from records import SessionRecord
 from src import conf, logger
 from src.models.video_metadata import YouTubeMetadata
 from src.usr import slugify
-
-from pydantic import BaseModel, Field
-import platform
-import warnings
 
 
 class VideoSnippet(BaseModel):
@@ -142,7 +140,7 @@ class YT:
                 response = request.execute()
         return videos
 
-    def update_video_metadata(self, video_id,
+    def update_video_metadata(self, video_id,  # noqa: PLR0913
                               title=None,
                               description=None,
                               tags=None,
@@ -188,7 +186,7 @@ class YT:
         version = platform.mac_ver()[0]
 
         if system == "Darwin" and "15." in version:  # macOS Sequoia is version 15.x
-            warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)
+            warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)  # noqa: B028
             return True
 
 
@@ -342,10 +340,10 @@ class PrepareVideoMetadata:
         youtube_description = render_description()
         # <, > not allowed in YT titles, description
         youtube_description = youtube_description.replace('>', '').replace('<', '')
-        if len(youtube_description) > 5000:
+        if len(youtube_description) > conf.youtube.max_description_length:
             logger.info(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>5000')
             render_description(description=record.sm_short_text)
-        if len(youtube_description) > 5000:
+        if len(youtube_description) > conf.youtube.max_description_length:
             logger.error(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>5000')
             render_description(description="")
 
@@ -362,17 +360,16 @@ class PrepareVideoMetadata:
 
         youtube_video_ressource = YoutubeVideoResource(
             id=youtube_video_id,
-            snippet=dict(
-                title=youtube_title,
-                description=youtube_description,
-            ),
-            recording_details=dict(recording_date=recorded_iso),
+            snippet={
+                "title": youtube_title,
+                "description": youtube_description,
+            },
+            recording_details={"recording_date": recorded_iso},
         )
 
         (self.video_records_path / f'{record.pretalx_id}.json').open("w").write(
             youtube_video_ressource.model_dump_json(indent=4))
         print("=" * 50)
-        a = 44
 
     def send_all_video_metadata(self, destination_channel: str):
         logger.info(f"Updating metadata for channel {destination_channel}")
@@ -391,7 +388,7 @@ class PrepareVideoMetadata:
                 # wrong channel, skip
                 continue
             try:
-                res = ytclient.update_video_metadata(
+                ytclient.update_video_metadata(
                     video_id=video.id,
                     title=video.snippet.title,
                     description=video.snippet.description,
@@ -403,7 +400,6 @@ class PrepareVideoMetadata:
             except Exception as e:
                 logger.error(f"Failed to update video {video.id}: {e}")
                 continue
-            a = 44
 
 
 if __name__ == "__main__":

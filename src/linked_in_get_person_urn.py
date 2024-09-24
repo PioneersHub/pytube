@@ -22,8 +22,6 @@ ACCESS_TOKEN = data['access_token']
 print("Access Token:", ACCESS_TOKEN)
 
 ###########
-import requests
-import json
 
 # Replace with the LinkedIn profile URL you want to search for
 profile_url = "https://www.linkedin.com/in/profile-url"

@@ -1,4 +1,5 @@
 from openai import OpenAI
+
 from src import conf
 
 client = OpenAI(api_key=conf.openai.api_key)

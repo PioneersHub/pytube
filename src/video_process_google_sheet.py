@@ -1,7 +1,6 @@
 """
 Read Google Sheet with videos
 """
-import urllib.parse
 from datetime import time
 
 import gspread
@@ -9,7 +8,7 @@ import pandas as pd
 from pytanis import GSheetsClient
 
 from models.talk import Talk
-from src import logger, conf
+from src import conf, logger
 
 SPREADSHEET_ID = {
     "A01": "1ZPjkafz4TtizTtdOa5nDZt5G9zmR9ij92fsg2LFDBsQ",
@@ -24,8 +23,7 @@ WORKSHEET_NAMES = ["DAY 1", "DAY 2", "DAY 3"]
 
 
 def load_sheets() -> dict[str, pd.DataFrame]:
-    """ 
-    Load Google Sheets into DataFrames
+    """ Load Google Sheets into DataFrames
     If the file exists, read it, otherwise read from Google Sheets.
     There is a limit on the number of reads for the Google Sheets API.
     """
@@ -58,7 +56,7 @@ def load_sheets() -> dict[str, pd.DataFrame]:
                         logger.error(f"Error saving {room} {day} {e}")
                     break
                 except gspread.exceptions.APIError as e:
-                    if tries > 3:
+                    if tries > 3:  # noqa PLR2004
                         logger.error(f"Too many tries: giving up {room} {day} {e}")
                         break
                     logger.error(f"APIError reading {room} {day} {e}")
@@ -76,7 +74,7 @@ def process_sheets():
     Produced a manifest.xlsx and manifest_skipped.xlsx
     Manifest.xlsx contains the list of talks to process.
     Skipped_manifest.xlsx contains the list of lines that were skipped to doublecheck.
-    :return: 
+    :return:
     """
     data_collected = load_sheets()
     talks = []
@@ -85,7 +83,7 @@ def process_sheets():
         logger.info(f"Processing {room} {day}")
         # the same columns are expected for all sheets
         df.columns = ["talk", "speakers", "pretalx_id", "vimeo_link"]
-        df = df.fillna("")
+        df = df.fillna("")  # noqa PLW2901
         for i, row in df.iterrows():
             try:
                 t = Talk(
@@ -100,7 +98,7 @@ def process_sheets():
                 logger.error(f"Error processing {room} {day} {i} {e}")
                 skipped.append(row)
                 continue
-            if not t.pretalx_id or len(t.pretalx_id.strip()) != 6 or "vimeo.com" not in t.vimeo_link:
+            if not t.pretalx_id or len(t.pretalx_id.strip()) != 6 or "vimeo.com" not in t.vimeo_link:  # noqa PLR2004
                 # heuristic to skip empty or opt-out comments
                 logger.error(f"Missing pretalx_id {t.title} {t.speaker}")
                 skipped.append(t)

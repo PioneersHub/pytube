@@ -43,4 +43,5 @@ event_name: "PyCon DE & PyData Berlin 2024"
 youtube:
   client_secrets_file: "client_secrets.json"
   api_key: ""
+  max_description_length: 5000
 # ########################################

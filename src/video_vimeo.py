@@ -2,9 +2,9 @@ import json
 import threading
 
 import requests
-from models.talk import Talk
 from vimeo import VimeoClient
 
+from models.talk import Talk
 from src import conf, logger
 
 
@@ -80,15 +80,15 @@ def download_video(record, idx, total):
     json.dump(record.vimeo_metadata, vimeo_metafile.open('w'), indent=4)
     record.vimeo_download_link = extract_download_link(record.vimeo_metadata)
     response = requests.get(record.vimeo_download_link, stream=True)
-    if response.status_code == 200:
-        download.parent.mkdir(parents=True, exist_ok=True)
-        with download.open('wb') as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                if chunk:
-                    f.write(chunk)
-        logger.info(f'Downloaded video to {download.name}')
-    else:
+    if response.status_code != 200:  # noqa PLR2004
         logger.error(f'Failed to download video: {response.status_code}')
+        return
+    download.parent.mkdir(parents=True, exist_ok=True)
+    with download.open('wb') as f:
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk:
+                f.write(chunk)
+    logger.info(f'Downloaded video to {download.name}')
 
 
 def manifest_to_slowly_download_jobs(max_threads=3):

@@ -7,8 +7,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from pydantic import BaseModel
-from records import Records
 
+from records import Records
 from src import conf, logger
 
 
@@ -24,15 +24,6 @@ class Video(BaseModel):
 
 
 records = Records()
-
-
-def youtube_title(video: Video):
-    # TODO Implement this function
-    """ Length is limited. 
-    A video title with max possible information of title, speakers and event."""
-    max_length = 100
-    title = video.title
-    return 'https://www.youtube.com/watch?v='
 
 
 def split_pycon_pydata(video: str):

@@ -7,16 +7,17 @@ This file can be used for multiple use cases like:
 - etc.
 """
 import json
-from datetime import datetime, date
+from contextlib import suppress
+from datetime import date
 from pathlib import Path
-from typing_extensions import Self
+from typing import Self
 
-from pydantic import BaseModel, Field, model_validator, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.networks import AnyHttpUrl
 from pytanis import PretalxClient
 from pytanis.pretalx.types import Submission, SubmissionSpeaker
 
-from nlpservice import teaser_text, sized_text
+from nlpservice import sized_text, teaser_text
 from src import conf, logger
 
 
@@ -252,10 +253,8 @@ class Records:
                 if answer:
                     if attr == 'company':
                         answer = Organization(name=answer)
-                    try:
+                    with suppress(Exception):
                         setattr(obj, attr, answer)
-                    except Exception as e:
-                        pass
             return obj
 
         speakers = []
@@ -287,7 +286,6 @@ class Records:
             except Exception as e:
                 jdata = json.load(x.open())
                 logger.error(f'Error adding descriptions to {jdata["pretalx_id"]}: {e}')
-                a = 44
             speakers = '\n'.join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
             info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
             if not data.sm_teaser_text or replace:
@@ -298,7 +296,6 @@ class Records:
                 data.sm_long_text = sized_text(info, max_tokens=300)
             (self.records / f'{data.pretalx_id}.json').write_text(data.model_dump_json(indent=4))
             logger.info(f'Added descriptions to {data.pretalx_id}')
-            a = 44
 
 
 if __name__ == '__main__':

@@ -11,11 +11,11 @@ from collections import defaultdict
 from pathlib import Path
 
 from omegaconf import OmegaConf
-from pytanis.helpdesk import Recipient, Mail, MailClient
+from pytanis.helpdesk import Mail, MailClient, Recipient
 
 from linkedin_company_post import LinkedIn
 from records import SessionRecord
-from src import logger, conf
+from src import conf, logger
 from youtube_videos import YT, PrepareVideoMetadata
 
 
