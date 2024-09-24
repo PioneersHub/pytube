@@ -6,6 +6,10 @@ from datetime import datetime
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
 from pydantic import BaseModel, Field
 
@@ -60,7 +64,8 @@ class YT:
     def youtube(self):
         """ Get authenticated service on first call of API"""
         if not self._youtube:
-            self._youtube = self.get_authenticated_service()
+            # self._youtube = self.get_authenticated_service()
+            self._youtube = self.get_authenticated_offline_service()
         return self._youtube
 
     def get_authenticated_service(self):
@@ -79,6 +84,33 @@ class YT:
         credentials = flow.run_local_server(port=0)
 
         return googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
+
+    def get_authenticated_offline_service(self):
+        creds = None
+
+        # The token.json stores the user's access and refresh tokens, and is created automatically
+        # when the authorization flow completes for the first time.
+        token_path = conf.dirs.root / conf.youtube.token_path
+        if token_path.exists():
+            creds = Credentials.from_authorized_user_file('token.json', self.scopes)
+
+        # If no valid credentials are available, let the user log in.
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                # Create a flow object, set the client secrets, and ask for offline access
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    'client_secrets.json', self.scopes)
+                creds = flow.run_local_server(port=0)
+
+            # Save the credentials for the next run
+            with token_path.open("w") as token:
+                token.write(creds.to_json())
+
+        # Create a YouTube API service
+        service = build('youtube', 'v3', credentials=creds)
+        return service
 
     def get_channel_id(self):
         """ Required if channel id is unknown """

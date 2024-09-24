@@ -84,7 +84,8 @@ local_conf = OmegaConf.load(local_config_path)
 conf = OmegaConf.merge(global_conf, local_conf)
 
 # make dirs in config to Path objects
+conf.dirs["root"] = Path(__file__).parents[1]
 for k, dir_from_project_root in conf.dirs.items():
-    conf.dirs[k] = Path(__file__).parents[1] / dir_from_project_root
+    conf.dirs[k] = conf.dirs["root"] / dir_from_project_root
 
 __ALL__ = ["logger", "conf"]

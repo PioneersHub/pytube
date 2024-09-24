@@ -48,4 +48,5 @@ youtube:
   client_secrets_file: "client_secrets.json"
   api_key: ""
   max_description_length: 5000
+  token_path: "./_secrets/youtube_token.json"
 # ########################################
