@@ -139,22 +139,8 @@ class Publisher:
         to_post = self.linked_in_to_post.glob("*.json")
         for post in to_post:
             data = json.load(post.open())
-            # media share
-            image_res = self.linkedin.register_image()
-            if image_res is None:
-                return
-            asset_urn = image_res["value"]["asset"]
-            # upload image
-            image_upload_res = self.linkedin.upload_media(
-                url=image_res["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"][
-                    "uploadUrl"],
-                file_path=conf.session_images / f"{data['pretalx_id']}.png"
-            )
-            if image_upload_res is None:
-                # no image or error: fallback to text-only post
-                asset_urn = None
             try:
-                res = self.linkedin.post(data, asset_urn=asset_urn)
+                res = self.linkedin.post(data)
                 if res is None:
                     return
                 data["linked_in_response"] = res
@@ -179,6 +165,24 @@ class Publisher:
                     email.rename(self.speaker_emailed / email.name)
             except Exception as e:
                 logger.error(f"Failed to email speaker: {str(e)}")
+
+    def media_share(self, data):
+        """ Boilerplate code for media sharing on LinkedIn."""
+        # media share
+        image_res = self.linkedin.register_image()
+        if image_res is None:
+            return
+        asset_urn = image_res["value"]["image"]
+        print(asset_urn)
+        upload_url = image_res["value"]["uploadUrl"]
+        # upload image
+        file_path = Path(conf.session_images) / f"{data['pretalx_id']}.png"
+        image_upload_res = self.linkedin.upload_media(
+            url=upload_url,
+            file_path=file_path,
+            content_type=f"image/{file_path.suffix.replace('.', '')}",
+        )
+        return image_upload_res
 
 
 if __name__ == "__main__":

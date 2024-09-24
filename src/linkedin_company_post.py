@@ -1,8 +1,6 @@
 import json
-from pathlib import Path
 
 import requests
-from omegaconf import OmegaConf
 
 from src import logger
 
@@ -14,7 +12,8 @@ class LinkedIn:
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0"
+            "X-Restli-Protocol-Version": "2.0.0",
+            "LinkedIn-Version": "202409",
         }
 
     @property
@@ -30,86 +29,82 @@ class LinkedIn:
         """ Images only"""
         return self.register_media(feed_share="feedshare-image")
 
-    def register_media(self, feed_share) -> dict | None:
+    def register_media(self) -> dict | None:
         """ For images and videos """
-        payload = {
-            "registerUploadRequest": {
-                "recipes": [
-                    f"urn:li:digitalmediaRecipe:{feed_share}"
-                ],
+        contents = {
+            "initializeUploadRequest": {
                 "owner": f"urn:li:organization:{self.company_id}",
-                "serviceRelationships": [
-                    {
-                        "relationshipType": "OWNER",
-                        "identifier": "urn:li:userGeneratedContent"
-                    }
-                ]
             }
         }
-        url = "https://api.linkedin.com/v2/assets?action=registerUpload"
-        response = requests.post(url, headers=self.headers, json=payload)
+        url = "https://api.linkedin.com/rest/images?action=initializeUpload"
+        response = requests.post(url, headers=self.headers, json=contents)
         data = response.json()
-        if response.status_code == 201:  # noqa PLR2004
-            print("Post shared successfully!")
+        if response.status_code == 200:  # noqa PLR2004
+            print("Media registered successfully!")
             return data
         else:
             logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
 
-    def upload_media(self, url, file_path):
+    def upload_media(self, url, file_path, content_type: str = "image/png"):
         """" Upload the file to LinkedIn """
-        headers = {'Authorization': 'Bearer redacted'}
-        with open(file_path, "rb") as f:
-            response = requests.put(url, headers=headers, data=f)
-            logger.info(f"Upload media: {response.status_code}")
-            return response.json()
+        if not file_path.exists():
+            logger.error(f"File not found: {file_path}")
+            return
+        headers = {'Authorization': 'Bearer redacted',
+                   'Content-type': content_type, 'Slug': file_path.name}
+        try:
+            with open(file_path, "rb") as f:
+                response = requests.post(url, headers=headers, files={'file': (file_path.name, f, content_type)})
+                logger.info(f"Uploaded media: {response.status_code}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to upload media: {e}")
 
-    def post(self, data, asset_urn: str | None = None):
+    def post(self, data):
         """ Post a message with optional media attachment to LinkedIn
          :param data: dict with keys 'post' and 'title'
-         :param asset_urn: URN of the media asset as received by LinkedIn after the preceding upload."""
+         :param asset_urn: URN of the media asset as received by LinkedIn after the preceding upload."
+
+         LinkedIn API can be confusing:
+         This method follows this: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin
+         """
         # noinspection SpellCheckingInspection
         content = {
             "author": f"urn:li:organization:{self.company_id}",
-            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
             "lifecycleState": "PUBLISHED",
-            "isReshareDisabledByAuthor": False
-        }
-        if asset_urn is None:
-            # this will create a simple text post
-            content["commentary"] = data["post"],
-            return
-
-        content["specificContent"] = {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {
-                    "text": data["post"]
-                },
-                "shareMediaCategory": "IMAGE",
-                "media": [
-                    {
-                        "status": "READY",
-                        "description": {
-                            "text": data["title"]
-                        },
-                        "media": asset_urn,
-                        "title": {
-                            "text": "LinkedIn Talent Connect 2021"
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {
+                        "text": data["post"]
+                    },
+                    "shareMediaCategory": "ARTICLE",
+                    "media": [
+                        {
+                            "status": "READY",
+                            "description": {
+                                "text": f"Watch {data['title']}"
+                            },
+                            "originalUrl": f"https://www.youtube.com/watch?v={data['youtube_video_id']}",
+                            "title": {
+                                "text": f"📺 Watch the talk {data['title']} on YouTube"
+                            }
                         }
-                    }
-                ]
-            }}
-
+                    ]
+                }
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
         url = "https://api.linkedin.com/v2/ugcPosts"
-        # Make the POST request to share the content
         response = requests.post(url, headers=self.headers, data=json.dumps(content))
-        data = response.json()
         if response.status_code == 201:  # noqa PLR2004
             print("Post shared successfully!")
-            return data
+            return True
         else:
             logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
 
-    # TODO requires community API acccess -> !! this isn ANOTHER LinkedIn App with different credentials !!!
+    # TODO requires community API access -> !! this isn ANOTHER LinkedIn App with different credentials !!!
     def get_person_urn_via_link(self, profile_url):
         url = 'https://api.linkedin.com/v2/people/(url=' + profile_url + ')'
         headers = {
@@ -130,11 +125,3 @@ class LinkedIn:
             return member_urn
         else:
             print("Member not found")
-
-
-if __name__ == "__main__":
-    local_credentials = OmegaConf.load(Path(__file__).parents[1] / "_secret" / "linked_in.yml")
-    li = LinkedIn(local_credentials)
-    # li.get_person_urn_via_link("https://www.linkedin.com/in/hendorf/")
-    li.post("Hello LinkedIn! This is our new Agent speaking, stay tuned for more updates!")
-    a = 44
