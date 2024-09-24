@@ -10,6 +10,12 @@ from src import logger
 class LinkedIn:
     def __init__(self, credentials):
         self.credentials = credentials['LINKED_IN']
+        # same for all requests
+        self.headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0"
+        }
 
     @property
     def company_id(self) -> str:
@@ -19,81 +25,83 @@ class LinkedIn:
     def access_token(self) -> str:
         return self.credentials["ACCESS_TOKEN"]
 
-    def post(self, data) -> dict | None:
-        # content = {
-        #     "author": f"urn:li:organization:{self.company_id}",
-        #     "lifecycleState": "PUBLISHED",
-        #     "specificContent": {
-        #         "com.linkedin.ugc.ShareContent": {
-        #             "shareCommentary": {
-        #                 "text": data["post"]
-        #             },
-        #             "shareMediaCategory": "NONE"
-        #         }
-        #     },
-        #     "visibility": {
-        #         "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
-        #     }
-        # }
+    # noinspection SpellCheckingInspection
+    def register_image(self):
+        """ Images only"""
+        return self.register_media(feed_share="feedshare-image")
+
+    def register_media(self, feed_share) -> dict | None:
+        """ For images and videos """
+        payload = {
+            "registerUploadRequest": {
+                "recipes": [
+                    f"urn:li:digitalmediaRecipe:{feed_share}"
+                ],
+                "owner": f"urn:li:organization:{self.company_id}",
+                "serviceRelationships": [
+                    {
+                        "relationshipType": "OWNER",
+                        "identifier": "urn:li:userGeneratedContent"
+                    }
+                ]
+            }
+        }
+        url = "https://api.linkedin.com/v2/assets?action=registerUpload"
+        response = requests.post(url, headers=self.headers, json=payload)
+        data = response.json()
+        if response.status_code == 201:  # noqa PLR2004
+            print("Post shared successfully!")
+            return data
+        else:
+            logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
+
+    def upload_media(self, url, file_path):
+        """" Upload the file to LinkedIn """
+        headers = {'Authorization': 'Bearer redacted'}
+        with open(file_path, "rb") as f:
+            response = requests.put(url, headers=headers, data=f)
+            logger.info(f"Upload media: {response.status_code}")
+            return response.json()
+
+    def post(self, data, asset_urn: str | None = None):
+        """ Post a message with optional media attachment to LinkedIn
+         :param data: dict with keys 'post' and 'title'
+         :param asset_urn: URN of the media asset as received by LinkedIn after the preceding upload."""
+        # noinspection SpellCheckingInspection
         content = {
             "author": f"urn:li:organization:{self.company_id}",
-            "commentary": data["post"],
-            "visibility": "PUBLIC",
-            "distribution": {
-                "feedDistribution": "MAIN_FEED",
-                "targetEntities": [],
-                "thirdPartyDistributionChannels": []
-            },
-            # "content": {
-            #     "contentEntities": [
-            #         {
-            #             "entityLocation": f"https://www.youtube.com/watch?v={data['youtube_video_id']}",
-            #             "thumbnails": [
-            #                 {
-            #                     "resolvedUrl": f"https://img.youtube.com/vi/{data['youtube_video_id']}/hqdefault.jpg"
-            #                 }
-            #             ]
-            #         }
-            #     ],
-            #     "title": data['title'],
-            # },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
             "lifecycleState": "PUBLISHED",
             "isReshareDisabledByAuthor": False
         }
-        # content = {
-        #     "author": f"urn:li:organization:{self.company_id}",
-        #     "commentary": data["post"],
-        #     "visibility": "PUBLIC",
-        #     "distribution": {
-        #         "feedDistribution": "MAIN_FEED",
-        #         "thirdPartyDistributionChannels": []
-        #     },
-        #     "content": {
-        #         "media": [{
-        #             "status": "READY",
-        #             "description": {"title": f"Watch the video: {data['title']}"},
-        #             "originalUrl": f"https://www.youtube.com/watch?v={data['youtube_video_id']}",
-        #             "title": data['title']
-        #         }
-        #         ],
-        #     },
-        # }
+        if asset_urn is None:
+            # this will create a simple text post
+            content["commentary"] = data["post"],
+            return
 
-        # LinkedIn API endpoint for sharing posts
-        # url = f"https://api.linkedin.com/v2/ugcPosts"
-        url = "https://api.linkedin.com/v2/posts"
+        content["specificContent"] = {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {
+                    "text": data["post"]
+                },
+                "shareMediaCategory": "IMAGE",
+                "media": [
+                    {
+                        "status": "READY",
+                        "description": {
+                            "text": data["title"]
+                        },
+                        "media": asset_urn,
+                        "title": {
+                            "text": "LinkedIn Talent Connect 2021"
+                        }
+                    }
+                ]
+            }}
 
-        # Headers for the request
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0"
-        }
-
+        url = "https://api.linkedin.com/v2/ugcPosts"
         # Make the POST request to share the content
-        response = requests.post(url, headers=headers, data=json.dumps(content))
-
-        # Check the response
+        response = requests.post(url, headers=self.headers, data=json.dumps(content))
         data = response.json()
         if response.status_code == 201:  # noqa PLR2004
             print("Post shared successfully!")

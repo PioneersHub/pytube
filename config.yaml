@@ -38,6 +38,10 @@ pretalx:
 # Event
 event_name: "PyCon DE & PyData Berlin 2024"
 # ########################################
+# Local path to content images
+session_images: ""
+# ########################################
+# ########################################
 # YouTube
 # ########################################
 youtube:

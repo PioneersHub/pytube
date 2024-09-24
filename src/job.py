@@ -139,8 +139,22 @@ class Publisher:
         to_post = self.linked_in_to_post.glob("*.json")
         for post in to_post:
             data = json.load(post.open())
+            # media share
+            image_res = self.linkedin.register_image()
+            if image_res is None:
+                return
+            asset_urn = image_res["value"]["asset"]
+            # upload image
+            image_upload_res = self.linkedin.upload_media(
+                url=image_res["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"][
+                    "uploadUrl"],
+                file_path=conf.session_images / f"{data['pretalx_id']}.png"
+            )
+            if image_upload_res is None:
+                # no image or error: fallback to text-only post
+                asset_urn = None
             try:
-                res = self.linkedin.post(data)
+                res = self.linkedin.post(data, asset_urn=asset_urn)
                 if res is None:
                     return
                 data["linked_in_response"] = res
