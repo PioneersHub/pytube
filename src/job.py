@@ -109,9 +109,10 @@ class Publisher:
             self.yt_client.video_records_path_published / f"{pretalx_id}.json")
 
         # LinkedIn - save post to file to be posted later
-        post = f"""⭐️ New video release 📺\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n{record.sm_long_text}"""
+        post = f"""⭐️ New video release 📺: {record.title}\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://www.youtube.com/watch?v={record.youtube_video_id}\n\n{record.sm_long_text}"""
         json.dump({"pretalx_id": pretalx_id,
                    "post": post,
+                   "title": record.title,
                    "sm_teaser_text": record.sm_teaser_text,
                    "sm_short_text": record.sm_short_text,
                    "sm_long_text": record.sm_long_text,
@@ -139,7 +140,7 @@ class Publisher:
         for post in to_post:
             data = json.load(post.open())
             try:
-                res = self.linkedin.post(data["post"])
+                res = self.linkedin.post(data)
                 if res is None:
                     return
                 data["linked_in_response"] = res
