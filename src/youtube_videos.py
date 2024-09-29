@@ -204,8 +204,15 @@ class YT:
         if privacy_status:
             body["status"]["privacyStatus"] = privacy_status
         if publish_date:
-            publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%S%z')
-            body["status"]["publishAt"] = publish_date.isoformat()
+            # required by YouTube
+            body["status"]["privacyStatus"] = 'private'
+            if isinstance(publish_date, str):
+                publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%S%z')
+            elif isinstance(publish_date, datetime):
+                publish_date = publish_date.strftime('%Y-%m-%dT%H:%M:%S%z')
+            else:
+                raise ValueError("Publish date must be a string or datetime object")
+            body["status"]["publishAt"] = publish_date
 
         # Update video metadata
         request = self.youtube.videos().update(
@@ -431,6 +438,7 @@ class PrepareVideoMetadata:
                     description=video.snippet.description,
                     category_id=video.snippet.category_id,
                     privacy_status=video.status.privacy_status,
+                    publish_date=video.status.publish_at
                 )
                 youtube_video.rename(ytclient.video_records_path_updated / youtube_video.name)
                 logger.info(f"Updated video: {pretalx_id}, {video.id}")
@@ -456,10 +464,10 @@ class PrepareVideoMetadata:
         """ Sets the publishing date at YouTube for videos"""
         with record.open("r") as f:
             record_data = json.load(f)
-        record_data["status"]["publishAt"] = publish_date.isoformat()
+        record_data["status"]["publish_at"] = publish_date.isoformat()
         print("Updated publish date to", publish_date.isoformat())
-        # with record.open("w") as f:
-        #     json.dump(record_data, f, indent=4)
+        with record.open("w") as f:
+            json.dump(record_data, f, indent=4)
 
     def update_publish_dates(self, states: str | list[str], start: datetime, delta: timedelta | None = None,
                              end: datetime | None = None, steps: int | None = None):
@@ -522,8 +530,8 @@ if __name__ == "__main__":
     meta = PrepareVideoMetadata(template_file="youtube_2024.txt", at="PyCon DE & PyData Berlin 2024")
 
     # meta.make_all_video_metadata()
-    # meta.send_all_video_metadata(destination_channel='pydata')
-    # meta.send_all_video_metadata(destination_channel='pycon')
+    # meta.update_publish_dates(states=['video_records', 'video_records_updated'],
+    #                           start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))
+    meta.send_all_video_metadata(destination_channel='pydata')
+    meta.send_all_video_metadata(destination_channel='pycon')
 
-    meta.update_publish_dates(states=['video_records', 'video_records_updated'],
-                              start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))

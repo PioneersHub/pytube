@@ -183,3 +183,20 @@ class Publisher:
             content_type=f"image/{file_path.suffix.replace('.', '')}",
         )
         return image_upload_res
+
+    def unpublished_totals(self):
+        unpublished = self.all_unpublished_videos_by_channel
+        for channel, videos in unpublished.items():
+            logger.info(f"Unpublished videos for channel {channel}: {len(videos)}")
+
+
+if __name__ == "__main__":
+    channel = random.choice(['pycon', 'pydata', ])
+    publisher = Publisher(destination_channel=channel)
+    publisher.unpublished_totals()
+    # publisher.release_random_video()
+    # TODO: check videos not released in the YT API
+    #  or reply on publishing date in the metadata
+    publisher.post_on_linked_id()
+    publisher.email_speakers()
+    logger.info("Job completed successfully.")
