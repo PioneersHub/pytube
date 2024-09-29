@@ -1,7 +1,9 @@
 import json
 import platform
+import random
 import warnings
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
@@ -219,10 +221,10 @@ class YT:
     def check_macos_sequoia(cls):
         system = platform.system()
         version = platform.mac_ver()[0]
-
-        if system == "Darwin" and "15." in version:  # macOS Sequoia is version 15.x
+        if system == "Darwin" and version.startswith("15."):  # macOS Sequoia is version 15.x
             warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)  # noqa: B028
             return True
+        return False
 
 
 class PrepareVideoMetadata:
@@ -436,6 +438,65 @@ class PrepareVideoMetadata:
                 logger.error(f"Failed to update video {video.id}: {e}")
                 continue
 
+    def update_video_metadata(self, states: str | list[str], func: callable):
+        """ Update record files with video metadata created already.
+        :param states: str or list of str, values: 'video_records', 'video_records_updated'
+        :param func: custom method to apply to the record
+        """
+        if isinstance(states, str):
+            states = [states]
+        for state in states:
+            if state not in ('video_records', 'video_records_updated'):
+                continue
+            for record in (self.video_records_path.parent / state).glob("*.json"):
+                func(record)
+
+    @classmethod
+    def update_publish_date(cls, record: Path, publish_date: datetime):
+        """ Sets the publishing date at YouTube for videos"""
+        with record.open("r") as f:
+            record_data = json.load(f)
+        record_data["status"]["publishAt"] = publish_date.isoformat()
+        print("Updated publish date to", publish_date.isoformat())
+        # with record.open("w") as f:
+        #     json.dump(record_data, f, indent=4)
+
+    def update_publish_dates(self, states: str | list[str], start: datetime, delta: timedelta | None = None,
+                             end: datetime | None = None, steps: int | None = None):
+        if isinstance(states, str):
+            states = [states]
+        now = datetime.now(tz=UTC)
+        gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
+        records = []
+        for state in states:
+            if state not in ('video_records', 'video_records_updated'):
+                continue
+            records.extend(list((self.video_records_path.parent / state).glob("*.json")))
+        random.shuffle(records)
+        for record, publish_at in zip(records, gen, strict=False):
+            self.update_publish_date(record, publish_at)
+            # move to queue for YouTube metadata updates
+            record.rename(self.video_records_path / record.name)
+
+    @staticmethod
+    def publish_dates_generator(start: datetime, delta: timedelta | None = None, end: datetime | None = None,
+                                steps: int | None = None) -> datetime:
+        """ Create a list of publishing dates for the videos """
+        if end is None and delta is None:
+            raise ValueError("Either end (datetime) or delta (release every timeperiod) must be provided")
+        if delta is not None:
+            while True:
+                yield start
+                start += delta
+        if not isinstance(steps, int):
+            raise ValueError("Steps must be an integer")
+        if steps <= 1:
+            raise ValueError("Steps must be provided")
+        period = (end - start) / steps
+        # noinspection PyTypeChecker
+        for i in range(steps):
+            yield start + period * i
+
 
 if __name__ == "__main__":
     # Call the function to perform the check
@@ -459,6 +520,10 @@ if __name__ == "__main__":
     # Generate the metadata for the update on YouTube
 
     meta = PrepareVideoMetadata(template_file="youtube_2024.txt", at="PyCon DE & PyData Berlin 2024")
+
     # meta.make_all_video_metadata()
     # meta.send_all_video_metadata(destination_channel='pydata')
     # meta.send_all_video_metadata(destination_channel='pycon')
+
+    meta.update_publish_dates(states=['video_records', 'video_records_updated'],
+                              start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))

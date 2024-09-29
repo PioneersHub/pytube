@@ -183,12 +183,3 @@ class Publisher:
             content_type=f"image/{file_path.suffix.replace('.', '')}",
         )
         return image_upload_res
-
-
-if __name__ == "__main__":
-    channel = random.choice(['pycon', 'pydata', ])
-    publisher = Publisher(destination_channel=channel)
-    publisher.release_random_video()
-    publisher.post_on_linked_id()
-    publisher.email_speakers()
-    logger.info("Job completed successfully.")

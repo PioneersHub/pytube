@@ -40,6 +40,7 @@ lint = "pre-commit run --all"
 [feature.test.dependencies]
 pytest = "*"
 pytest-md = "*"
+pytest-mock = ">=3.14.0, <4"
 pytest-emoji = "*"
 hypothesis = "*"
 pytest-cov = "*"
