@@ -2,7 +2,7 @@ import requests
 
 # TODO
 
-# Replace with your LinkedIn app credentials
+# Replace the below with your LinkedIn app credentials
 CLIENT_ID = 'your_client_id'
 CLIENT_SECRET = 'your_client_secret'
 REDIRECT_URI = 'your_redirect_uri'
@@ -23,7 +23,7 @@ print("Access Token:", ACCESS_TOKEN)
 
 ###########
 
-# Replace with the LinkedIn profile URL you want to search for
+# Replace the below with the LinkedIn profile URL you want to search for
 profile_url = "https://www.linkedin.com/in/profile-url"
 
 # LinkedIn API endpoint for search

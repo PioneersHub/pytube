@@ -1,4 +1,4 @@
-# Vimeo 2 YouTube
+# PyTube
 
 Prepare videos hosted on Vimeo to be uploaded to YouTube. 
 

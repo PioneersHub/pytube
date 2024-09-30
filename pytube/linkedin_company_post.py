@@ -2,7 +2,7 @@ import json
 
 import requests
 
-from src import logger
+from pytube import logger
 
 
 class LinkedIn:
@@ -45,7 +45,8 @@ class LinkedIn:
         else:
             logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
 
-    def upload_media(self, url, file_path, content_type: str = "image/png"):
+    @classmethod
+    def upload_media(cls, url, file_path, content_type: str = "image/png"):
         """" Upload the file to LinkedIn """
         if not file_path.exists():
             logger.error(f"File not found: {file_path}")
@@ -63,7 +64,6 @@ class LinkedIn:
     def post(self, data):
         """ Post a message with optional media attachment to LinkedIn
          :param data: dict with keys 'post' and 'title'
-         :param asset_urn: URN of the media asset as received by LinkedIn after the preceding upload."
 
          LinkedIn API can be confusing:
          This method follows this: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin

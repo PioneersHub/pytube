@@ -2,10 +2,10 @@ import json
 import threading
 
 import requests
+from models.talk import Talk
 from vimeo import VimeoClient
 
-from models.talk import Talk
-from src import conf, logger
+from pytube import conf, logger
 
 
 def read_manifest():

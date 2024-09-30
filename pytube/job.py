@@ -11,13 +11,14 @@ from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path
 
+from linkedin_company_post import LinkedIn
+from models.sessions import SessionRecord
+from models.video import YoutubeVideoResource
 from omegaconf import OmegaConf
 from pytanis.helpdesk import Mail, MailClient, Recipient
+from youtube_videos import YT, PrepareVideoMetadata
 
-from linkedin_company_post import LinkedIn
-from records import SessionRecord
-from src import conf, logger
-from youtube_videos import YT, PrepareVideoMetadata, YoutubeVideoResource
+from pytube import conf, logger
 
 
 class Publisher:
@@ -246,7 +247,7 @@ class Publisher:
             if youtube_video_status["status"]["privacyStatus"] != "public":
                 continue
             pretalx_id = self.youtube_pretalx_id_map[youtube_video_status["id"]]
-            logger.info(f"Video {pretalx_id} is now public, prepring posts and emails.")
+            logger.info(f"Video {pretalx_id} is now public, preparing posts and emails.")
             video_record_path = self.video_meta.video_records_path.parent / "video_records_updated" / f"{pretalx_id}.json"
             video_record = YoutubeVideoResource.model_validate_json(video_record_path.read_text())
             video_record.status.privacy_status = youtube_video_status["status"]["privacyStatus"]

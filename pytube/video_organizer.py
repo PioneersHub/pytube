@@ -7,9 +7,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from pydantic import BaseModel
-
 from records import Records
-from src import conf, logger
+
+from pytube import conf, logger
 
 
 class Video(BaseModel):

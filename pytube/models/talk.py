@@ -4,7 +4,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from pytanis.pretalx.types import Speaker
 
-from src import logger
+from pytube import logger
 
 
 def vimeo_id_from_link(link: str) -> str:

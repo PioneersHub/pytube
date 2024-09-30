@@ -5,6 +5,7 @@ from unicodedata import normalize
 def slugify(text, delim="-"):
     """Generates a slightly worse ASCII-only slug."""
 
+    # noinspection SpellCheckingInspection
     _punct_re = re.compile(r'[\t !"#$%&\'()*\-/<=>?@\[\\\]^_`{|},.:]+')
     _regex = re.compile("[^a-z0-9]")
     # The First parameter is the replacement, the second parameter is your input string

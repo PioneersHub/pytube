@@ -1,0 +1,16 @@
+site_name: Py Tube
+site_url: https://pioneershub.github.io/pytube/
+site_author: Alexander Hendorf
+site_description: >-
+  Manage and release conference videos on YouTube
+  utilizing the talk and speaker information
+  from [pretalx](https://github.com/pretalx/pretalx).
+# Repository
+repo_name: PioneersHub/PyTube
+repo_url: https://github.com/PioneersHub/PyTube
+
+# Copyright
+copyright: Copyright &copy; 2024 Pioneers Hub gGmbH
+
+theme:
+  name: material

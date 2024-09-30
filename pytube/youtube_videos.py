@@ -2,7 +2,8 @@ import json
 import platform
 import random
 import warnings
-from datetime import UTC, datetime, timedelta
+from collections.abc import Generator
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import google_auth_oauthlib.flow
@@ -13,39 +14,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
-from pydantic import BaseModel, Field
-
 from records import SessionRecord
-from src import conf, logger
-from src.models.video_metadata import YouTubeMetadata
-from src.usr import slugify
 
-
-class VideoSnippet(BaseModel):
-    title: str
-    description: str
-    category_id: str | None = Field(default="28")
-    default_audio_language: str | None = Field(default="en")
-    default_language: str | None = Field(default="en")
-    published_at: datetime | str | None = Field(default=None)
-
-
-class VideoStatus(BaseModel):
-    privacy_status: str | None = Field(default="unlisted")
-    license: str | None = Field(default="youtube")
-    embeddable: bool | None = Field(default=True)
-    publish_at: datetime | str | None = Field(default=None)
-
-
-class BaseRecordingDetails(BaseModel):
-    recording_date: datetime | str | None = Field(default=None)
-
-
-class YoutubeVideoResource(BaseModel):
-    id: str
-    snippet: VideoSnippet
-    recording_details: BaseRecordingDetails = Field(default_factory=BaseRecordingDetails)
-    status: VideoStatus = Field(default_factory=VideoStatus)
+from pytube import conf, logger
+from pytube.models.video import YouTubeMetadata, YoutubeVideoResource
+from pytube.usr import slugify
 
 
 class YT:
@@ -141,7 +114,7 @@ class YT:
         """
 
         :param channel_id:
-        :param max_pages: Some channels have a lot of content - we ar only interested in the recent uplaods
+        :param max_pages: Some channels have a lot of content - we ar only interested in the recent uploads
         :return:
         """
         videos = []
@@ -258,16 +231,16 @@ class YT:
 
 
 class PrepareVideoMetadata:
+    # noinspection GrazieInspection
     """ This class adds YouTube specific metadata to the records created by the records.py script
-    For the descriptions we use a Jinja2 template.
-    Many values are hard coded, as they are not expected to change often, e.g.,
-        category_id = 28 - Science & Technology
-        default_language = 'en' - English
-        privacy_status = 'unlisted'
-        video_license = 'youtube'
-        video_embeddable = True
-
-    """
+        For the descriptions we use a Jinja2 template.
+        Many values are hard coded, as they are not expected to change often, e.g.,
+            category_id = 28 - Science & Technology
+            default_language = 'en' - English
+            privacy_status = 'unlisted'
+            video_license = 'youtube'
+            video_embeddable = True
+        """
 
     def __init__(self, template_file: str, at):
         self.template_file = template_file
@@ -470,7 +443,7 @@ class PrepareVideoMetadata:
                 continue
 
     def update_video_metadata(self, states: str | list[str], func: callable):
-        """ Update record files with video metadata created already.
+        """ update record files with video metadata created already.
         :param states: str or list of str, values: 'video_records', 'video_records_updated'
         :param func: custom method to apply to the record
         """
@@ -496,7 +469,6 @@ class PrepareVideoMetadata:
                              end: datetime | None = None, steps: int | None = None):
         if isinstance(states, str):
             states = [states]
-        now = datetime.now(tz=UTC)
         gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
         records = []
         for state in states:
@@ -511,7 +483,7 @@ class PrepareVideoMetadata:
 
     @staticmethod
     def publish_dates_generator(start: datetime, delta: timedelta | None = None, end: datetime | None = None,
-                                steps: int | None = None) -> datetime:
+                                steps: int | None = None) -> Generator[datetime]:
         """ Create a list of publishing dates for the videos """
         if end is None and delta is None:
             raise ValueError("Either end (datetime) or delta (release every timeperiod) must be provided")

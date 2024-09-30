@@ -5,21 +5,14 @@ from datetime import time
 
 import gspread
 import pandas as pd
+from models.talk import Talk
 from pytanis import GSheetsClient
 
-from models.talk import Talk
-from src import conf, logger
+from pytube import conf, logger
 
-SPREADSHEET_ID = {
-    "A01": "1ZPjkafz4TtizTtdOa5nDZt5G9zmR9ij92fsg2LFDBsQ",
-    "A03-A04": "12B7AckS_0KrmZp14nlfh2I84aXcY-D3WZWFo1MlwHtQ",
-    "A05-A06": "1UWUAntKxxOhSJJifo47BpoBPg6dcwkmd22rVlBbAj1w",
-    "B05-B06": "1RhQD5UoIT1REUDOd_JoMjwtNi4eAOI6GAnoIFGaKagU",
-    "B07-B08": "1VzGtu6F5UptniPs213vplPHAoqUIQ_vRuc2w4MG0ySM",
-    "B09": "1lCVKvKVv6l4Mr2IZ96f-q5OC5Ub32bAfkR-dlgGDKQE",
-    "C01": "1EmndtCnWwoOyTvHTszgN5wqKbFW9G4ca6RvM21XmsTM",
-}
-WORKSHEET_NAMES = ["DAY 1", "DAY 2", "DAY 3"]
+# noinspection SpellCheckingInspection
+SPREADSHEET_ID = conf.spreadsheets.ids
+WORKSHEET_NAMES = conf.spreadsheets.sheets
 
 
 def load_sheets() -> dict[str, pd.DataFrame]:
