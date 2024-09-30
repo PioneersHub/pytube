@@ -2,12 +2,12 @@ import json
 
 import requests
 
-from pytube import logger
+from pytube import conf, logger
 
 
 class LinkedInPost:
-    def __init__(self, credentials):
-        self.credentials = credentials['LINKED_IN']
+    def __init__(self):
+        self.credentials = conf['linked_in']
         # same for all requests
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -18,11 +18,11 @@ class LinkedInPost:
 
     @property
     def company_id(self) -> str:
-        return self.credentials["COMPANY_ID"]
+        return self.credentials["company_id"]
 
     @property
     def access_token(self) -> str:
-        return self.credentials["ACCESS_TOKEN"]
+        return self.credentials["access_token"]
 
     # noinspection SpellCheckingInspection
     def register_image(self):

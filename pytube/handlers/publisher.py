@@ -9,7 +9,6 @@ from handlers import LinkedInPost
 from handlers.youtube import YT, PrepareVideoMetadata
 from models.sessions import SessionRecord
 from models.video import YoutubeVideoResource
-from omegaconf import OmegaConf
 from pytanis.helpdesk import Mail, MailClient, Recipient
 
 from pytube import conf, logger
@@ -26,8 +25,7 @@ class Publisher:
         self.destination_channel = destination_channel
         self.youtube_offline = youtube_offline
         self.youtube_client = YT(youtube_offline=self.youtube_offline)
-        local_credentials = OmegaConf.load(Path(__file__).parents[1] / "_secret" / "linked_in.yml")
-        self.linkedin = LinkedInPost(local_credentials)
+        self.linkedin = LinkedInPost()
         self.video_meta = PrepareVideoMetadata(template_file="", at="")  # required for mappings
         self.pretalx_youtube_id_map = self.video_meta.pretalx_youtube_id_map
         self.pretalx_youtube_channel_map = self.video_meta.pretalx_youtube_channel_map

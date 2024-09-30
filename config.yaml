@@ -54,3 +54,12 @@ youtube:
   max_description_length: 5000
   token_path: "./_secret/youtube_token.json"
 # ########################################
+# LinkeIn
+# ########################################
+linkedin  :
+  access_token: ""
+  refresh_token: ""
+  client_id: ""
+  client_secret: ""
+  company_id: ""
+# ########################################
