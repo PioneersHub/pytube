@@ -1,4 +1,4 @@
-# Pre-Processing Metadata to `Records`
+# Processing Pipeline
 
 For each video a record is created.
 
