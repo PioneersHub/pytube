@@ -27,6 +27,7 @@ class VideoSnippet(BaseModel):
     category_id: str | None = Field(default="28")
     default_audio_language: str | None = Field(default="en")
     default_language: str | None = Field(default="en")
+    published_at: datetime | str | None = Field(default=None)
 
 
 class VideoStatus(BaseModel):
@@ -48,10 +49,12 @@ class YoutubeVideoResource(BaseModel):
 
 
 class YT:
-    def __init__(self):
+    def __init__(self, youtube_offline: bool = False):
         # Set up the necessary scopes and API service
         self.scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
         self._youtube = None
+
+        self.youtube_offline = youtube_offline
 
         self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
         self.video_records_path.mkdir(parents=True, exist_ok=True)
@@ -66,8 +69,12 @@ class YT:
     def youtube(self):
         """ Get authenticated service on first call of API"""
         if not self._youtube:
-            self._youtube = self.get_authenticated_service()
-            # self._youtube = self.get_authenticated_offline_service()
+            if self.youtube_offline:
+                # API calls that work with service accounts
+                self._youtube = self.get_authenticated_offline_service()
+            else:
+                # API calls that require 'live' user authentication
+                self._youtube = self.get_authenticated_service()
         return self._youtube
 
     def get_authenticated_service(self):
@@ -116,6 +123,9 @@ class YT:
         # Create a YouTube API service
         service = build('youtube', 'v3', credentials=creds)
         return service
+
+    def get_authenticated_service_via_api_key(self):
+        self._youtube = build('youtube', 'v3', developerKey=conf.youtube.api_key)
 
     def get_channel_id(self):
         """ Required if channel id is unknown """
@@ -224,14 +234,27 @@ class YT:
         print(f"Updated video metadata for video ID: {video_id}")
         return response
 
-    @classmethod
-    def check_macos_sequoia(cls):
+    def check_macos_sequoia(self):
+        if self.youtube_offline:
+            # does not apply when using a service account
+            return False
         system = platform.system()
         version = platform.mac_ver()[0]
         if system == "Darwin" and version.startswith("15."):  # macOS Sequoia is version 15.x
             warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)  # noqa: B028
             return True
         return False
+
+    def check_video_status_by_youtube_ids(self, video_id: str | list[str]):
+        if isinstance(video_id, str):
+            video_id = [video_id]
+        video_ids = ",".join(video_id)
+        request = self.youtube.videos().list(
+            part="status",
+            id=video_ids
+        )
+        response = request.execute()
+        return response
 
 
 class PrepareVideoMetadata:
@@ -511,15 +534,15 @@ if __name__ == "__main__":
 
     # After videos are uploaded to YouTube, we need to update the metadata
     # To update the metadata, we need the YouTube video id
-    # yt_client = YT()
-    # channel_id = yt_client.get_channel_id()
+    # youtube_client = YT()
+    # channel_id = youtube_client.get_channel_id()
 
     # unpublished videos data can be retrieved via an unpublished playlist only
 
-    # videos = yt_client.list_all_videos_in_playlist(conf.youtube.channels.pycon.playlist_id)
+    # videos = youtube_client.list_all_videos_in_playlist(conf.youtube.channels.pycon.playlist_id)
     # json.dump(videos, (conf.dirs.video_dir/f"youtube_pycon_playlist.json").open("w"), indent=4)
 
-    # videos = yt_client.list_all_videos_in_playlist(conf.youtube.channels.pydata.playlist_id)
+    # videos = youtube_client.list_all_videos_in_playlist(conf.youtube.channels.pydata.playlist_id)
     # json.dump(videos, (conf.dirs.video_dir / f"youtube_pydata_playlist.json").open("w"), indent=4)
 
     # Match the pretalx id with the YouTube video id
@@ -534,4 +557,3 @@ if __name__ == "__main__":
     #                           start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))
     meta.send_all_video_metadata(destination_channel='pydata')
     meta.send_all_video_metadata(destination_channel='pycon')
-
