@@ -1,20 +1,18 @@
 # PyTube
 
-Prepare videos hosted on Vimeo to be uploaded to YouTube. 
+Manage and release conference videos on YouTube
+using the talk and speaker information
+from [Pretalx](https://github.com/pretalx/pretalx).
 
-To share the videos, the following steps are required:
+## Main Features
 
-1. Download videos from Vimeo
-2. Indentify and separate videos to upload them to the correct YouTube channel. Filter videos not to be shared.
-3. Upload videos to the designated YouTube channel.
-4. Collect metadata (e.g., speaker, title, description, link to slides)  
-   and make a `record` (JSON) file for each video with all metadata:
-   a. Via the Pretalx API: session and speaker information  
-   b. Add descriptions from data collected in a. for social media sharing with OpenAI's GPT-3
-   c. Cleanup and amke information provided consistent (Links to LinkedIn, GitHub,...)
-5. Add YouTube metadata (title, description, tags, thumbnail) to the record files.
+* Manage the release of videos on YouTube:
+    * Video descriptions
+    * Publishing date
+    * Monitoring of the release status and triggering of Social Media posts
+    * Management of videos in multiple channels
+* Create descriptions based on the data in Pretalx with NLP
+* Create and post Social Media posts
+* Email notifications to speakers
 
-
-
-
-
+Read the [documentation](https://pioneershub.github.io/PyTube/).
