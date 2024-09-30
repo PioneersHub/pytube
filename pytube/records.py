@@ -228,5 +228,5 @@ if __name__ == '__main__':
     r = Records(qmap=questions_map)
     r.load_all_confirmed_sessions()
     r.load_all_speakers()
-    # r.create_records()
+    r.create_records()
     r.add_descriptions(replace=False)

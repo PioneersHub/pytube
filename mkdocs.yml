@@ -1,3 +1,4 @@
+---
 site_name: Py Tube
 site_url: https://pioneershub.github.io/pytube/
 site_author: Alexander Hendorf
@@ -9,8 +10,54 @@ site_description: >-
 repo_name: PioneersHub/PyTube
 repo_url: https://github.com/PioneersHub/PyTube
 
-# Copyright
-copyright: Copyright &copy; 2024 Pioneers Hub gGmbH
+#
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Scripts: scripts.md
+  - Metadata:
+      - Pre-Processing: processing.md
+      - NLP Descriptions: openai.md
+  - YouTube: youtube.md
+  - Spread the Word:
+      - LinkedIn: linkedin.md
+      - Email: emails.md
 
 theme:
   name: material
+  language: en
+  palette:
+    primary: custom
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - social
+  - privacy
+  - tags
+
+extra:
+  consent:
+    title: Cookie consent
+    description: >-
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+    actions:
+      - accept
+      - manage
+
+# Copyright
+copyright: >
+  Copyright &copy; 2024 Pioneers Hub gGmbH –
+  <a href="#__consent">Change cookie settings</a>

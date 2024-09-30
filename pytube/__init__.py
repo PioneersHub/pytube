@@ -8,6 +8,8 @@ from omegaconf import OmegaConf
 
 os.environ["FORCE_COLOR"] = "1"
 
+__version__ = "0.5.0"
+
 cr = structlog.dev.ConsoleRenderer(
     columns=[
         # Render the timestamp without the key name in yellow.
