@@ -1,8 +1,8 @@
 from datetime import date
 from typing import Self
 
-from pydantic import BaseModel, Field, AnyHttpUrl, model_validator, field_validator
-from pytanis.pretalx.types import SubmissionSpeaker, Submission
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator, model_validator
+from pytanis.pretalx.types import Submission, SubmissionSpeaker
 
 
 class Organization(BaseModel):

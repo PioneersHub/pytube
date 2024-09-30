@@ -10,8 +10,8 @@ import json
 from contextlib import suppress
 from pathlib import Path
 
+from handlers import sized_text, teaser_text
 from models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
-from nlpservice import sized_text, teaser_text
 from pytanis import PretalxClient
 from pytanis.pretalx.types import Submission
 
@@ -214,19 +214,3 @@ class Records:
                 data.sm_long_text = sized_text(info, max_tokens=300)
             (self.records / f'{data.pretalx_id}.json').write_text(data.model_dump_json(indent=4))
             logger.info(f'Added descriptions to {data.pretalx_id}')
-
-
-if __name__ == '__main__':
-    questions_map = {
-        "company": 3012,
-        "job": 3013,
-        "linkedin": 3017,
-        "github": 3016,
-        "x_handle": 3015,
-        "as_tweet": 3022,
-    }
-    r = Records(qmap=questions_map)
-    r.load_all_confirmed_sessions()
-    r.load_all_speakers()
-    r.create_records()
-    r.add_descriptions(replace=False)

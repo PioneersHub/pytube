@@ -14,11 +14,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
-from records import SessionRecord
+from models.sessions import SessionRecord
+from models.video import YouTubeMetadata, YoutubeVideoResource
+from usr import slugify
 
 from pytube import conf, logger
-from pytube.models.video import YouTubeMetadata, YoutubeVideoResource
-from pytube.usr import slugify
 
 
 class YT:
@@ -229,6 +229,42 @@ class YT:
         response = request.execute()
         return response
 
+    def get_youtube_ids_for_uploads(self, youtube_channel: str):
+        """ Save the YouTube video ids for the uploads to the channel to file.
+        This file is required for the metadata management to map the pretalx id with the YouTube video id.
+        :param youtube_channel: str, the channel name to get the video ids for, must match the name in the config
+        """
+        # After videos are uploaded to YouTube, we need to update the metadata
+        # To update the metadata, we need the YouTube video id
+        # unpublished videos data can be retrieved via an unpublished playlist only
+        # youtube_pydata_playlist
+        videos = self.list_all_videos_in_playlist(conf.youtube.channels[youtube_channel].playlist_id)
+        json.dump(videos, (conf.dirs.video_dir / f"youtube_{youtube_channel}_playlist.json").open("w"),
+                  indent=4)
+
+    def get_channel_id_for_config(self):
+        """Log the channel ID for the config.
+        The channel id can be accessed via a OAuth2 login.
+        """
+        channel_id = self.get_channel_id()
+        logger.info(f"Channel ID: {channel_id}")
+
+    @classmethod
+    def map_pretalx_id_youtube_id(cls):
+        """ The pretalx id is in the video title after upload.
+        We need to create a map of pretalx id to the YouTube video id
+        before updating the data on YouTube. """
+        videos = []
+        for channel in conf.youtube.channels:
+            data = json.load((conf.dirs.video_dir / f"youtube_{channel}_playlist.json").open())
+            videos.extend(data)
+        pretalx_yt_map = {}
+        for video in videos:
+            pretalx_id = video["snippet"]["title"].strip()[:6]
+            youtube_id = video["snippet"]["resourceId"]["videoId"]
+            pretalx_yt_map[pretalx_id] = youtube_id
+        json.dump(pretalx_yt_map, (conf.dirs.video_dir / "pretalx_yt_map.json").open("w"), indent=4)
+
 
 class PrepareVideoMetadata:
     # noinspection GrazieInspection
@@ -282,24 +318,12 @@ class PrepareVideoMetadata:
     def youtube_id_pretalx_map(self):
         return {v: k for k, v in self.pretalx_youtube_id_map.items()}
 
-    @classmethod
-    def map_pretalx_id_youtube_id(cls):
-        """ The pretalx id is in the video title after upload.
-        We need to create a map of pretalx id to the YouTube video id
-        before updating the data on YouTube. """
-        pydata = json.load((conf.dirs.video_dir / "youtube_pydata_playlist.json").open())
-        pycon = json.load((conf.dirs.video_dir / "youtube_pycon_playlist.json").open())
-        pretalx_yt_map = {}
-        for video in pydata + pycon:
-            pretalx_id = video["snippet"]["title"].strip()[:6]
-            youtube_id = video["snippet"]["resourceId"]["videoId"]
-            pretalx_yt_map[pretalx_id] = youtube_id
-        json.dump(pretalx_yt_map, (conf.dirs.video_dir / "pretalx_yt_map.json").open("w"), indent=4)
-
     def load_yt_metadata(self):
-        pydata = json.load((conf.dirs.video_dir / "youtube_pydata_playlist.json").open())
-        pycon = json.load((conf.dirs.video_dir / "youtube_pycon_playlist.json").open())
-        for video in pydata + pycon:
+        videos = []
+        for channel in conf.youtube.channels:
+            data = json.load((conf.dirs.video_dir / f"youtube_{channel}_playlist.json").open())
+            videos.extend(data)
+        for video in videos:
             ytv = YouTubeMetadata(**video["snippet"])
             self.yt_metadata.append(ytv)
 
@@ -499,33 +523,3 @@ class PrepareVideoMetadata:
         # noinspection PyTypeChecker
         for i in range(steps):
             yield start + period * i
-
-
-if __name__ == "__main__":
-    # Call the function to perform the check
-
-    # After videos are uploaded to YouTube, we need to update the metadata
-    # To update the metadata, we need the YouTube video id
-    # youtube_client = YT()
-    # channel_id = youtube_client.get_channel_id()
-
-    # unpublished videos data can be retrieved via an unpublished playlist only
-
-    # videos = youtube_client.list_all_videos_in_playlist(conf.youtube.channels.pycon.playlist_id)
-    # json.dump(videos, (conf.dirs.video_dir/f"youtube_pycon_playlist.json").open("w"), indent=4)
-
-    # videos = youtube_client.list_all_videos_in_playlist(conf.youtube.channels.pydata.playlist_id)
-    # json.dump(videos, (conf.dirs.video_dir / f"youtube_pydata_playlist.json").open("w"), indent=4)
-
-    # Match the pretalx id with the YouTube video id
-    # map_pretalx_id_youtube_id()
-
-    # Generate the metadata for the update on YouTube
-
-    meta = PrepareVideoMetadata(template_file="youtube_2024.txt", at="PyCon DE & PyData Berlin 2024")
-
-    # meta.make_all_video_metadata()
-    # meta.update_publish_dates(states=['video_records', 'video_records_updated'],
-    #                           start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))
-    meta.send_all_video_metadata(destination_channel='pydata')
-    meta.send_all_video_metadata(destination_channel='pycon')

@@ -1,4 +1,4 @@
-# BASIC CONFIGURATION, DO NOT ALTER
+# BASIC CONFIGURATION - DO NOT ALTER
 # Put your configuration in `config.local.yaml`
 # ########################################
 # VIMEO
@@ -19,7 +19,7 @@ dirs:
 spreadsheets:
   # Google Spreadsheet mapping room: id
   ids:
-    "room": "google-id"
+    room: "google-id"
   # Google Sheet names as a list
   sheets:
     - "Sheet 1"
@@ -29,11 +29,15 @@ pretalx:
   event_slug: "pretalx-uri-slug"
   # Videos need to be split between the PyCon DE and PyData YouTube channels
   video_to_track:
-    "CODE": "Track"
+    CODE: "Track"
   # identify the channel by track name or snippet
   track_to_channel:
-    "pycon": "pycon"
-    "pydata": "pydata"
+    pycon: "pycon"
+    pydata: "pydata"
+  questions_map:
+    # attribute: id
+    # attributes must exist in SpeakerInfo data class
+    some_attribute: 0
 # ########################################
 # Event
 event_name: "PyCon DE & PyData Berlin 2024"

@@ -24,6 +24,7 @@ Homepage = "https://github.com/PioneersHub/vimeo2youtube"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+extend-exclude = [".md"]
 
 [tool.ruff.lint]
 select = [

@@ -14,24 +14,7 @@ To share the videos, the following steps are required:
    c. Cleanup and amke information provided consistent (Links to LinkedIn, GitHub,...)
 5. Add YouTube metadata (title, description, tags, thumbnail) to the record files.
 
-## Configration
 
-There is a general configuration file `config.yaml` that provides the general structure.
-
-Individual configurations are stored in the local file `config_local.yaml` which must not be shared.
-
-- Vimeo API access
-- Google Spreadsheet IDs: They contain the Vimeo video links and Pretalx ID)
-- Pretalx: Event information, custom assignments of session ID to a release channel (pycon/pydata)
-  Note: Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
-- YouTube: API access
-- OpenAI: API access
-
-### Credentials for Pythanis
-
-Pretalx, Google and Helpdesk (sending Emails):  
-[See here](https://florianwilhelm.info/pytanis/latest/usage/installation/#retrieving-the-credentials-and-tokens) 
-how to add credentials.
 
 
 

@@ -1,9 +1,3 @@
-"""
-Run jobs:
-- Release on YouTube
-- Publish LinkedIn post
-- Email speaker to inform about the release
-"""
 import datetime
 import json
 import random
@@ -11,17 +5,22 @@ from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path
 
-from linkedin import LinkedInPost
+from handlers import LinkedInPost
+from handlers.youtube import YT, PrepareVideoMetadata
 from models.sessions import SessionRecord
 from models.video import YoutubeVideoResource
 from omegaconf import OmegaConf
 from pytanis.helpdesk import Mail, MailClient, Recipient
-from youtube import YT, PrepareVideoMetadata
 
 from pytube import conf, logger
 
 
 class Publisher:
+    """
+    Handle the release of videos on YouTube and the creation of LinkedIn posts and emails to speakers.
+    Manage the status of video releases and move files accordingly.
+    """
+
     def __init__(self, destination_channel: str | None, youtube_offline: bool = False):
         logger.info(f"Updating metadata for channel {destination_channel}")
         self.destination_channel = destination_channel
@@ -232,6 +231,8 @@ class Publisher:
         return [x for x in self.scheduled_videos if x.status.publish_at < now]
 
     def process_recent_video_releases(self):
+        """Confirm the release status of videos that should be published by now according to the video records.
+        Triggers the preparation of LinkedIn posts and emails for the speakers."""
         ids = [video.id for video in self.recently_released]
         try:
             # Switches to simpler API key authentication for searches.
@@ -257,13 +258,3 @@ class Publisher:
             self.prepare_linkedin_post(record)
             self.prepare_email_speakers(record)
             video_record_path.rename(self.youtube_client.video_records_path_published / record_path.name)
-
-
-if __name__ == "__main__":
-    # TODO: Add CLI arguments
-    publisher = Publisher(destination_channel=None, youtube_offline=True)
-    publisher.unpublished_totals()
-    publisher.process_recent_video_releases()
-    publisher.post_on_linked_id()
-    publisher.email_speakers()
-    logger.info("Job completed successfully.")
