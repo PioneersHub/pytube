@@ -7,7 +7,7 @@ from pytube import conf, logger
 
 class LinkedInPost:
     def __init__(self):
-        self.credentials = conf['linked_in']
+        self.credentials = conf.linkedin
         # same for all requests
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -18,11 +18,11 @@ class LinkedInPost:
 
     @property
     def company_id(self) -> str:
-        return self.credentials["company_id"]
+        return self.credentials.company_id
 
     @property
     def access_token(self) -> str:
-        return self.credentials["access_token"]
+        return self.credentials.access_token
 
     # noinspection SpellCheckingInspection
     def register_image(self):

@@ -28,7 +28,9 @@ theme:
   language: en
   palette:
     primary: custom
-
+  features:
+    - navigation.instant
+  site_url: https://pioneershub.github.io/PyTube/
 markdown_extensions:
   - admonition
   - pymdownx.superfences:
