@@ -5,7 +5,7 @@ import requests
 from pytube import logger
 
 
-class LinkedIn:
+class LinkedInPost:
     def __init__(self, credentials):
         self.credentials = credentials['LINKED_IN']
         # same for all requests
@@ -47,7 +47,7 @@ class LinkedIn:
 
     @classmethod
     def upload_media(cls, url, file_path, content_type: str = "image/png"):
-        """" Upload the file to LinkedIn """
+        """" Upload the file to LinkedInPost """
         if not file_path.exists():
             logger.error(f"File not found: {file_path}")
             return
@@ -62,10 +62,10 @@ class LinkedIn:
             logger.error(f"Failed to upload media: {e}")
 
     def post(self, data):
-        """ Post a message with optional media attachment to LinkedIn
+        """ Post a message with optional media attachment to LinkedInPost
          :param data: dict with keys 'post' and 'title'
 
-         LinkedIn API can be confusing:
+         LinkedInPost API can be confusing:
          This method follows this: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/share-on-linkedin
          """
         # noinspection SpellCheckingInspection
@@ -104,7 +104,7 @@ class LinkedIn:
         else:
             logger.error(f"Failed to share post: {data['status']}: {data['code']} {data['message']}")
 
-    # TODO requires community API access -> !! this isn ANOTHER LinkedIn App with different credentials !!!
+    # TODO requires community API access -> !! this isn ANOTHER LinkedInPost App with different credentials !!!
     def get_person_urn_via_link(self, profile_url):
         url = 'https://api.linkedin.com/v2/people/(url=' + profile_url + ')'
         headers = {

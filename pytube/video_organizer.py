@@ -6,22 +6,9 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
-from pydantic import BaseModel
 from records import Records
 
 from pytube import conf, logger
-
-
-class Video(BaseModel):
-    id: str
-    title: str
-    description: str
-    duration: int
-    url: str
-    thumbnail: str
-    tags: list[str]
-    speaker: str
-
 
 records = Records()
 

@@ -111,4 +111,3 @@ def process_sheets():
 if __name__ == "__main__":
     process_sheets()
     logger.info("Finished processing sheets.")
-    a = 44

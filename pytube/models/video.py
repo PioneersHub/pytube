@@ -42,3 +42,14 @@ class YouTubeMetadata(BaseModel):
     channelTitle: str  # noqa N815
     publishedAt: datetime  # noqa N815
     resourceId: YouTubeRessource  # noqa N815
+
+
+class Video(BaseModel):
+    id: str
+    title: str
+    description: str
+    duration: int
+    url: str
+    thumbnail: str
+    tags: list[str]
+    speaker: str
