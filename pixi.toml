@@ -1,6 +1,6 @@
 [project]
 name = "PyTube"
-version = "0.6.0"
+version = "0.7.0"
 description = "Add a short description here"
 authors = ["Alexander CS Hendorf <alexander@pioneershub.org>"]
 channels = ["conda-forge"]
