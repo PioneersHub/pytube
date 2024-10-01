@@ -84,7 +84,7 @@ Individual configurations are stored in the local file `config_local.yaml` which
     * Google Spreadsheets (optional). Often used for managing custom information like opt-outs.
 
 !!! note
-Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
+    Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
 
 ### Credentials for Pythanis
 
