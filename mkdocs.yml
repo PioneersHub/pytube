@@ -5,8 +5,8 @@ site_author: Alexander Hendorf
 site_description: >-
   Manage and release conference videos on YouTube using the talk and speaker information in Pretalx.
 # Repository
-repo_name: PioneersHub/PyTube
-repo_url: https://github.com/PioneersHub/PyTube
+repo_name: PioneersHub/pytube
+repo_url: https://github.com/PioneersHub/pytube
 
 #
 nav:
@@ -30,7 +30,7 @@ theme:
     primary: custom
   features:
     - navigation.instant
-  site_url: https://pioneershub.github.io/PyTube/
+  site_url: https://pioneershub.github.io/pytube/
 
 markdown_extensions:
   - admonition
