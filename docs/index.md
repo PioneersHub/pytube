@@ -1,8 +1,7 @@
-# Welcome to PyTube
+# Release Conference Videos on YouTube
 
-Manage and release conference videos on YouTube
-using the talk and speaker information
-from [Pretalx](https://github.com/pretalx/pretalx).
+Manage and release conference videos on YouTube using the talk and speaker infos
+in [Pretalx](https://github.com/pretalx/pretalx)
 
 ## Main Features
 
