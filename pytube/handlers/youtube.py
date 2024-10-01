@@ -3,7 +3,7 @@ import platform
 import random
 import warnings
 from collections.abc import Generator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import google_auth_oauthlib.flow
@@ -489,10 +489,16 @@ class PrepareVideoMetadata:
         with record.open("w") as f:
             json.dump(record_data, f, indent=4)
 
-    def update_publish_dates(self, states: str | list[str], start: datetime, delta: timedelta | None = None,
-                             end: datetime | None = None, steps: int | None = None):
+    def update_publish_dates(self, states: str | list[str] | tuple[str] = ('video_records', 'video_records_updated'),
+                             start: datetime | None = None,
+                             delta: timedelta | None = None,
+                             end: datetime | None = None,
+                             steps: int | None = None):
+        """" Update or add periodical publishing dates for videos randomly."""
         if isinstance(states, str):
             states = [states]
+        if start is None:
+            start = datetime.now(UTC)
         gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
         records = []
         for state in states:
@@ -504,6 +510,8 @@ class PrepareVideoMetadata:
             self.update_publish_date(record, publish_at)
             # move to queue for YouTube metadata updates
             record.rename(self.video_records_path / record.name)
+            logger.info(f"Updated publish date for {record.name} in the video file."
+                        "Please do not forget to publish the update.")
 
     @staticmethod
     def publish_dates_generator(start: datetime, delta: timedelta | None = None, end: datetime | None = None,

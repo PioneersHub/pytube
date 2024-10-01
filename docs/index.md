@@ -34,23 +34,25 @@ from [Pretalx](https://github.com/pretalx/pretalx).
 ``` mermaid
 graph LR;
 
-    P[Pretalx];
-    R[Records];
-    N[descriptions];
-    V[Video metadata];
+    P[1 Pretalx];
+    R[2 Records];
+    N[3 descriptions];
+    V[4 Video metadata];
     F((Process));
     G((Process));
     H((Process));
-    VS[YouTube];
-    S[Post/Email];
-    P ---> R;
-    R --- N --add --> R;
-    F --- R;
-    F --- V;
-    G --- V;
-    G --- VS;
-    H --- VS;
-    H --- S;
+    VS[5 YouTube];
+    S[6 Post/Email];
+    X((End));
+    P --> R;
+    R --> N --add --> R;
+    F --process--> R;
+    F --create---> V;
+    G --check ready--> V;
+    G --update--> VS;
+    H --check done--> VS;
+    H --send--> S;
+    S --> X;
     
 ```
 

@@ -30,7 +30,7 @@ The methods update the records and their file location (status) accordingly.
 ```python
 from datetime import UTC, datetime, timedelta
 
-from handlers import PrepareVideoMetadata
+from handlers.youtube import PrepareVideoMetadata
 
 from pytube import conf
 
@@ -41,6 +41,8 @@ meta.update_publish_dates(states=['video_records', 'video_records_updated'],
 for channel in conf.youtube.channels:
     meta.send_all_video_metadata(destination_channel=channel)
 ```
+
+More about scheduling videos can be found [here](youtube.md#scheduling-videos).
 
 ## Notify
 
