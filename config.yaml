@@ -54,7 +54,7 @@ youtube:
   max_description_length: 5000
   token_path: "./_secret/youtube_token.json"
 # ########################################
-# LinkeIn
+# LinkedIn
 # ########################################
 linkedin  :
   access_token: ""
@@ -62,4 +62,15 @@ linkedin  :
   client_id: ""
   client_secret: ""
   company_id: ""
+# ########################################
+# MKDocs
+# standard configuration used to manipulate social cards
+mkdocs:
+  social_cards:
+    # relative paths from the repository root
+    cache_dir: "./.cache/plugin/social"
+    site_dir: "./site/assets/images/social"
+  # convention, rename your logo accordingly
+  logo_path: "./docs/assets/images/social_card_logo.png"
+# ########################################
 # ########################################
