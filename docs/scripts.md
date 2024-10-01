@@ -54,3 +54,7 @@ A script that should be run regularly until all videos are published.
 4. Send emails to speakers
 
 Run `scripts/notify.py`
+
+## Other Scripts
+
+The `scripts` directory contains additional scripts for various tasks, feel free to explore them.
