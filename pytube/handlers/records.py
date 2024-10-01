@@ -11,6 +11,7 @@ from contextlib import suppress
 from pathlib import Path
 
 from handlers import sized_text, teaser_text
+from httpx import QueryParams
 from models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 from pytanis import PretalxClient
 from pytanis.pretalx.types import Submission
@@ -68,7 +69,7 @@ class Records:
             return
         subs_count, subs = self.pretalx_client.submissions(
             conf.pretalx.event_slug,
-            params={'questions': 'all', 'state': 'confirmed'})
+            params=QueryParams(**{'questions': 'all', 'state': 'confirmed'}))
         logger.info(f'Loaded {subs_count} confirmed sessions')
 
         logger.info('Writing confirmed sessions to disk')
@@ -91,7 +92,7 @@ class Records:
             return
         subs_count, subs = self.pretalx_client.speakers(
             conf.pretalx.event_slug,
-            params={'questions': 'all'})
+            params=QueryParams(**{'questions': 'all'}))
         logger.info(f'Loaded {subs_count} speakers')
         logger.info('Writing speakers to disk')
         if self.reload:
@@ -204,6 +205,7 @@ class Records:
                 jdata = json.load(x.open())
                 logger.error(f'Error adding descriptions to {jdata["pretalx_id"]}: {e}')
                 return
+            # noinspection PyUnresolvedReferences
             speakers = '\n'.join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
             info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
             if not data.sm_teaser_text or replace:

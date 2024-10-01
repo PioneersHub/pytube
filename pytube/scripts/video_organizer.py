@@ -5,6 +5,7 @@ import json
 import shutil
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 from handlers.records import Records
 
@@ -13,7 +14,7 @@ from pytube import conf, logger
 records = Records()
 
 
-def split_pycon_pydata(video: str):
+def split_pycon_pydata(video: dict):
     """ Assign videos to PyData or PyCon via the track
     In case this cannot be done by track,
     add the pretalx code in the config
@@ -47,7 +48,7 @@ def load_tracks_map() -> dict:
     return json.load(the_file.open())
 
 
-def video_code_map() -> list[Path]:
+def video_code_map() -> dict[Any, Any]:
     """Mapping of all downloaded videos"""
     downloaded = Path(conf.dirs.video_dir / 'downloads').rglob('*.mp4')
     return {x.stem.split('-')[0]: x for x in downloaded}

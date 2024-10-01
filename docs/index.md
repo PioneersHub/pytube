@@ -84,7 +84,7 @@ Individual configurations are stored in the local file `config_local.yaml` which
     * Google Spreadsheets (optional). Often used for managing custom information like opt-outs.
 
 !!! note
-    Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
+Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
 
 ### Credentials for Pythanis
 
@@ -104,3 +104,9 @@ A future version should support a shared space or document database.
 
 Sending Emails is currently only supported via the Helpdesk API.  
 Other ways to send emails should be supported in the future.
+
+## Realization
+
+[Pioneers Hub](https://www.pioneershub.org/en/) helps to build and maintain thriving communities of experts in tech and
+research to share knowledge, collaborate and innovate together.
+![Pioneers Hub Logo](assets/images/Pioneers-Hub-Logo-vereinfacht-inline.svg)
