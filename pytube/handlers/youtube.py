@@ -15,8 +15,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
 from models.sessions import SessionRecord
-from models.video import YouTubeMetadata, YoutubeVideoResource
-from usr import slugify
+from models.video import BaseRecordingDetails, VideoSnippet, YouTubeMetadata, YoutubeVideoResource
+from usr.usr import slugify
 
 from pytube import conf, logger
 
@@ -424,11 +424,11 @@ class PrepareVideoMetadata:
 
         youtube_video_ressource = YoutubeVideoResource(
             id=youtube_video_id,
-            snippet={
+            snippet=VideoSnippet(**{
                 "title": youtube_title,
                 "description": youtube_description,
-            },
-            recording_details={"recording_date": recorded_iso},
+            }),
+            recording_details=BaseRecordingDetails(**{"recording_date": recorded_iso}),
         )
 
         (self.video_records_path / f'{record.pretalx_id}.json').open("w").write(

@@ -37,6 +37,7 @@ class SpeakerInfo(SubmissionSpeaker):
             self.x_handle = f"@{self.x_handle}"
         return self
 
+    # noinspection PyNestedDecorators
     @field_validator('linkedin', mode='before')
     @classmethod
     def moderate_linkedin_url(cls, v: str) -> Self:
@@ -47,6 +48,7 @@ class SpeakerInfo(SubmissionSpeaker):
             return f"https://linkedin.com/{v}"
         return v
 
+    # noinspection PyNestedDecorators
     @field_validator('github', mode='before')
     @classmethod
     def moderate_github_url(cls, v: str) -> Self:

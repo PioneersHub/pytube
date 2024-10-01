@@ -27,7 +27,7 @@ class LinkedInPost:
     # noinspection SpellCheckingInspection
     def register_image(self):
         """ Images only"""
-        return self.register_media(feed_share="feedshare-image")
+        return self.register_media()
 
     def register_media(self) -> dict | None:
         """ For images and videos """

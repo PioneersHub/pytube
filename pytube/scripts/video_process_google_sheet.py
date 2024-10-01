@@ -1,7 +1,7 @@
 """
 Read Google Sheet with videos
 """
-from datetime import time
+import time
 
 import gspread
 import pandas as pd
@@ -15,7 +15,7 @@ SPREADSHEET_ID = conf.spreadsheets.ids
 WORKSHEET_NAMES = conf.spreadsheets.sheets
 
 
-def load_sheets() -> dict[str, pd.DataFrame]:
+def load_sheets() -> dict[tuple[str, str], pd.DataFrame]:
     """ Load Google Sheets into DataFrames
     If the file exists, read it, otherwise read from Google Sheets.
     There is a limit on the number of reads for the Google Sheets API.
@@ -99,10 +99,10 @@ def process_sheets():
             talks.append(t)
             logger.debug(f"Processed {t.title} {t.speaker} {t.pretalx_id} {t.vimeo_link}")
         logger.info(f"Processed {len(talks)} talks for {room} {day}")
-    manifest = pd.DataFrame([t.dict() for t in talks])
+    manifest = pd.DataFrame([t.model_dump() for t in talks])
     manifest.to_excel(conf.dirs.work_dir / "manifest.xlsx", index=False)
     manifest.to_json(conf.dirs.work_dir / "manifest.json", orient="records")
-    manifest_skipped = pd.DataFrame([t.dict() for t in skipped])
+    manifest_skipped = pd.DataFrame([t.model_dump() for t in skipped])
     manifest_skipped.to_excel(conf.dirs.work_dir / "manifest_skipped.xlsx", index=False)
     logger.info("Done")
     return manifest.to_dict(orient="records")

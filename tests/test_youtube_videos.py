@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.youtube_videos import YT, PrepareVideoMetadata
+from pytube.handlers.youtube import YT, PrepareVideoMetadata
 
 
 @patch('src.youtube_videos.YT.check_macos_sequoia')
@@ -128,10 +128,12 @@ def test_publish_dates_generator_raises_value_error_with_invalid_steps():
     start = datetime(2023, 1, 1)
     end = datetime(2023, 1, 4)
     with pytest.raises(ValueError, match="Steps must be an integer"):
+        # noinspection PyTypeChecker
         list(PrepareVideoMetadata.publish_dates_generator(start=start, end=end, steps="invalid"))
 
     with pytest.raises(ValueError, match="Steps must be provided"):
         list(PrepareVideoMetadata.publish_dates_generator(start=start, end=end, steps=1))
+
 
 @patch('src.youtube_videos.platform.system')
 @patch('src.youtube_videos.platform.mac_ver')

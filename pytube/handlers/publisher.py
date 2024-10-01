@@ -83,7 +83,7 @@ class Publisher:
         return self.youtube_client.video_records_path_updated.glob("*.json")
 
     @property
-    def all_unpublished_video_records(self) -> dict:
+    def all_unpublished_video_records(self) -> list[YoutubeVideoResource]:
         """ All unpublished video records."""
         return [YoutubeVideoResource.model_validate_json(video.read_text()) for video in self.unpublished_videos]
 
