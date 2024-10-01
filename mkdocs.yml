@@ -47,9 +47,7 @@ plugins:
   - social:
       cards_layout_options:
         background_color: "#ffffff"
-        background_image: layouts/example_certificate.png
         color: "#000000"
-        logo: fontawesome/brands/mermaid
   - search
   - tags
 

@@ -26,4 +26,9 @@ jobs:
             mkdocs-material-
       - run: pip install mkdocs-material["imaging"]
       - run: pip install mkdocs
-      - run: mkdocs gh-deploy --force
+      - name: Build site
+        run: mkdocs build
+      - name: Add logo to social cards
+        run: python pytube/usr/add_logo_to_social_cards.py
+      - name: Deploy to GitHub pages
+        run: mkdocs gh-deploy --force

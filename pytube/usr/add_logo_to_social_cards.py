@@ -30,3 +30,12 @@ for social_card in chain(path_to_social_cards_cache.glob('*.png'), path_to_socia
 
     # Save the new social card image
     social_card_image.save(social_card, quality=95)
+
+# Bugfix: social card links are all lower case, but GitHub pages is case-sensitive
+for page in path_to_social_cards_site.parents[2].rglob('*.html'):
+    try:
+        content = page.read_text()
+        content = content.replace('https://pioneershub.github.io/pytube/', 'https://pioneershub.github.io/PyTube/')
+        page.write_text(content)
+    except UnicodeDecodeError:
+        pass
