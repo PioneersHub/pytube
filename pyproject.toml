@@ -1,6 +1,6 @@
 [project]
 name = "Vimeo to YouTube"
-version = "0.6.0"
+version = "0.7.0"
 description = "Download videos from Vimeo to publish on YouTube, add metadata from pretalx."
 authors = [
     { name = "Alexander CS Hendorf", email = "hendorf@gmail.com" }
