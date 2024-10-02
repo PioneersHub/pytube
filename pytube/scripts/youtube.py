@@ -1,8 +1,23 @@
 from datetime import UTC, datetime, timedelta
 
 from handlers.youtube import YT, PrepareVideoMetadata
+from usr.usr import slugify
 
 from pytube import conf
+
+
+class CustomPrepareVideoMetadata(PrepareVideoMetadata):
+    """
+    Patch PrepareVideoMetadata to customize attributes used in the description template.
+    """
+    @classmethod
+    def customize_description_args(cls, description_kwargs, record):
+        """Customized the description arguments."""
+        description_kwargs.update({
+            "tag": slugify(record.pretalx_session.session.track.en),
+            "pydata": record.youtube_channel == "pydata"
+        })
+        return description_kwargs
 
 
 def prepare_metadata(template_file: str, at: str):
@@ -11,7 +26,7 @@ def prepare_metadata(template_file: str, at: str):
     :param template_file: The jinja2 template in `./templates` to use for the metadata.
     :param at: The event name to in the template.
     """
-    meta = PrepareVideoMetadata(template_file, at)
+    meta = CustomPrepareVideoMetadata(template_file, at)
     meta.make_all_video_metadata()
     meta.update_publish_dates(states=['video_records', 'video_records_updated'],
                               start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))

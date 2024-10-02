@@ -40,7 +40,10 @@ pretalx:
     some_attribute: 0
 # ########################################
 # Event
-event_name: "PyCon DE & PyData Berlin 2024"
+event:
+  name: "PyCon DE & PyData Berlin 2024"
+  url: "https://2024.pycon.de"
+  program_url: "https://2024.pycon.de/program/"
 # ########################################
 # Local path to content images
 session_images: ""

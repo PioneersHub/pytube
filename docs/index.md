@@ -18,14 +18,17 @@ in [Pretalx](https://github.com/pretalx/pretalx)
 
 ## High level process overview
 
-1. Upload videos to YouTube
-2. Collect data from Pretalx, store local JSON files `records`
-3. Add descriptions to `records` via NLP
-4. Process `records` to `video metadata` incl. publishing date, store in directory `video_records`
-5. Update videos via API on YouTube with `video metadata`: move to `video_records_updated`
-6. Confirm recently published videos: move to `video_published` and create Social Media posts and Email notifications
-7. Send out Social Media posts and Emails
+1. Involve your video recording team from the very start
+2. Upload videos to YouTube
+3. Collect data from Pretalx, store local JSON files `records`
+4. Add descriptions to `records` via Natural Language Processing (NLP).`
+5. Process `records` to `video metadata` incl. publishing date, store in directory `video_records`
+6. Update videos via API on YouTube with `video metadata`: move to `video_records_updated`
+7. Confirm recently published videos: move to `video_published` and create Social Media posts and Email notifications
+8. Send out Social Media posts and Emails
 
+⚠️ **Note**: You need to follow a few conventions to make everything work seamlessly.
+Best familiarize yourself with the process upfront.
 ---
 
 ### Simplified graph of the process
@@ -63,7 +66,14 @@ For each status a separate directory is used. Move the files to the next status 
 
 ## Preparations
 
-Upload videos to YouTube, [for instructions see here](youtube.md).
+Involve your video recording team from the very start.
+It's a best practice to have a production plan.
+
+The current implementation provides an interface to Google Sheets
+to get data from a production plan shared on Google Drive.
+The production plan must include information for linking the video recording files to the Pretalx Id.
+
+Upload videos to YouTube, [for instructions details see here](youtube.md).
 
 ### Configration
 
