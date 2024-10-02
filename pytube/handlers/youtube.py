@@ -16,7 +16,6 @@ from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
 from models.sessions import SessionRecord
 from models.video import BaseRecordingDetails, VideoSnippet, YouTubeMetadata, YoutubeVideoResource
-from usr.usr import slugify
 
 from pytube import conf, logger
 
@@ -388,28 +387,17 @@ class PrepareVideoMetadata:
             record.recorded_date = datetime.strptime(recorded_date.strftime("%d.%m.%Y"), "%d.%m.%Y")
             update_record = True
 
-        def render_description(description: str = record.sm_long_text):
-            text = self.template.render(
-                date=record.recorded_date.strftime("%d.%m.%Y"),
-                session_link=f"https://2024.pycon.de/program/{record.pretalx_id}/",
-                teaser_text=record.sm_teaser_text,
-
-                speakers=', '.join([f"{s.name}" for s in record.speakers]),
-                description=description,
-                tag=slugify(record.pretalx_session.session.track.en),
-                pydata=record.youtube_channel == "pydata",
-            )
-            return text
-
-        youtube_description = render_description()
+        youtube_description = self.render_description(record.sm_long_text, record)
         # <, > not allowed in YT titles, description
         youtube_description = youtube_description.replace('>', '').replace('<', '')
-        if len(youtube_description) > conf.youtube.max_description_length:
-            logger.info(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>5000')
-            render_description(description=record.sm_short_text)
-        if len(youtube_description) > conf.youtube.max_description_length:
-            logger.error(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>5000')
-            render_description(description="")
+        # Make sure the length is not too long
+        yt_max = conf.youtube.max_description_length
+        if len(youtube_description) > yt_max:
+            logger.info(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}')
+            youtube_description = self.render_description(record.sm_short_text, record)
+        if len(youtube_description) > yt_max:
+            logger.error(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}')
+            youtube_description = self.render_description("", record)
 
         if record.youtube_description != youtube_description:
             logger.info(f'Updating YouTube description of {record.pretalx_id}')
@@ -434,6 +422,25 @@ class PrepareVideoMetadata:
         (self.video_records_path / f'{record.pretalx_id}.json').open("w").write(
             youtube_video_ressource.model_dump_json(indent=4))
         print("=" * 50)
+
+    def render_description(self, description: str, record: SessionRecord):
+        """ Provides commonly used values for rendering the description"""
+        description_kwargs = {
+            "date": record.recorded_date.strftime("%d.%m.%Y"),
+            "session_link": f"{conf.event.program_url}{record.pretalx_id}/",
+            "teaser_text": record.sm_teaser_text,
+
+            "speakers": ', '.join([f"{s.name}" for s in record.speakers]),
+            "description": description,
+        }
+        description_kwargs = self.customize_description_args(description_kwargs, record)
+        text = self.template.render(**description_kwargs)
+        return text
+
+    @classmethod
+    def customize_description_args(cls, description_kwargs: dict, record: SessionRecord):  # noqa: ARG003
+        """ Customize this method to fit your description needs: add or alter attributes used in the template """
+        return description_kwargs
 
     def send_all_video_metadata(self, destination_channel: str):
         logger.info(f"Updating metadata for channel {destination_channel}")

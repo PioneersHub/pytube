@@ -84,6 +84,32 @@ yt.map_pretalx_id_youtube_id()
   available via the web interface. Do follow the steps above, step 2.  
 👉 API limits: Queries are limited per day, use them wisely.
 
+## YouTube Descriptions
+
+The descriptions are generated via a jinja2 template.
+Please feel free to use the example in `/templates` as a starting point.
+
+If you use your own template, and require additional attributes, you can customize the `PrepareVideoMetadata` class.
+`scripts/youtube.py` provides an example of how to do this.
+
+```python
+from pytube.handlers.youtube import PrepareVideoMetadata
+
+class CustomPrepareVideoMetadata(PrepareVideoMetadata):
+    """
+    Patch PrepareVideoMetadata to customize attributes used in the description template.
+    """
+    @classmethod
+    def customize_description_args(cls, description_kwargs, record):
+        """Customized the description arguments."""
+        description_kwargs.update({
+            "tag": "#great",
+            "pydata": record.youtube_channel == "pydata"
+        })
+        return description_kwargs
+```
+
+
 ## Scheduling Videos
 
 The `PrepareVideoMetadata` handler class provides a method to set the publishing date of the videos in the video metadata.
