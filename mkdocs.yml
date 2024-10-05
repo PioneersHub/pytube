@@ -81,6 +81,17 @@ extra:
     actions:
       - accept
       - manage
+  version:
+    provider: mike
+    default: stable
+  # custom config for social cards customisation
+  social_cards:
+    dirs:
+      # relative paths from the repository root
+      cache_dir: "./.cache/plugin/social"
+      site_dir: "./site/assets/images/social"
+      # convention, rename your logo accordingly
+    logo_path: "./docs/assets/images/social_card_logo.png"
 
 hooks:
   - scripts/hook_copyright_year.py
