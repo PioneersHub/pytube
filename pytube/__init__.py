@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 
 os.environ["FORCE_COLOR"] = "1"
 
-__version__ = "0.8.1"
+__version__ = "0.8.2"
 
 cr = structlog.dev.ConsoleRenderer(
     columns=[
