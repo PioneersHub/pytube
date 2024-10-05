@@ -119,4 +119,4 @@ Other ways to send emails should be supported in the future.
 
 [Pioneers Hub](https://www.pioneershub.org/en/) helps to build and maintain thriving communities of experts in tech and
 research to share knowledge, collaborate and innovate together.
-![Pioneers Hub Logo](assets/images/Pioneers-Hub-Logo-vereinfacht-inline.svg)
+![Pioneers Hub Logo](assets/images/Pioneers-Hub-Logo-vereinfacht-inline.svg){: style="width:50%"}
