@@ -11,11 +11,7 @@ def teaser_text(text, max_tokens=50, temperature=0.7):
         model="gpt-3.5-turbo",  # Use GPT-4 or GPT-3.5-turbo
         messages=[
             {"role": "system",
-             "content": "You are an expert editor and your task is to write one short teaser sentence"
-                        " to encourage people to watch the video based on the title and text. "
-                        "The teaser should be a short sentence that is catchy and engaging. "
-                        "Use a professional tone."
-                        "Start with 'Watch'."},
+             "content": conf.prompts.teaser},
             {"role": "user", "content": text},
         ],
         max_tokens=max_tokens,
@@ -30,11 +26,7 @@ def sized_text(text, max_tokens=100, temperature=0.9):
         model="gpt-3.5-turbo",  # Use GPT-4 or GPT-3.5-turbo
         messages=[
             {"role": "system",
-             "content": f"You are an expert editor and your task is to create a continuous text "
-                        f"with about {max_tokens} tokens. "
-                        "The text describes the talk and should be concise and informative please. "
-                        "Mention the speaker names, jobs and companies. Do not use the word 'delve'."
-                        "Make sure only to mention jobs and companies if they are mentioned in the text. "
+             "content": conf.prompts.description.format({"max_tokens": max_tokens})
              },
             {"role": "user", "content": text},
         ],
