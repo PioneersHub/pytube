@@ -84,6 +84,7 @@ extra:
 
 hooks:
   - scripts/hook_copyright_year.py
+  - scripts/hook_add_logo_to_social_cards.py
 
 # Copyright
 copyright: >

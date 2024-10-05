@@ -27,13 +27,10 @@ jobs:
       - run: pip install mkdocs-material["imaging"]
       - run: pip install mkdocs
       - run: pip install "pymdown-extensions>=10.11.2, <11"
-      - run: pip install "mkdocs-gen-files>=0.5.0, <0.6"
       - run: pip install "mkdocs-glightbox>=0.4.0, <0.5"
       - run: pip install "mkdocs-open-in-new-tab>=1.0.5, <2"
       - run: pip install omegaconf
       - name: Build site
         run: mkdocs build
-      - name: Add logo to social cards
-        run: python pytube/usr/add_logo_to_social_cards.py
       - name: Deploy to GitHub pages
         run: mkdocs gh-deploy --force
