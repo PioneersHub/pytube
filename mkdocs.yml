@@ -20,6 +20,8 @@ nav:
   - Spread the Word:
       - LinkedIn: linkedin.md
       - Email: emails.md
+  - License: license.md
+  - Pioneers Hub website: https://pioneershub.org/
 
 theme:
   name: material
@@ -33,12 +35,27 @@ theme:
   site_url: https://pioneershub.github.io/pytube/
 
 markdown_extensions:
+  - attr_list
   - admonition
+  - pymdownx.magiclink
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - toc:
+      permalink: "¤"
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+
 
 extra_css:
   - stylesheets/extra.css
@@ -50,6 +67,8 @@ plugins:
         color: "#000000"
   - search
   - tags
+  - glightbox
+  - open-in-new-tab
 
 extra:
   consent:
