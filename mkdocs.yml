@@ -82,6 +82,9 @@ extra:
       - accept
       - manage
 
+hooks:
+  - scripts/hook_copyright_year.py
+
 # Copyright
 copyright: >
   Copyright &copy; 2024 Pioneers Hub gGmbH –
