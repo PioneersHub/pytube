@@ -14,10 +14,15 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
-from models.sessions import SessionRecord
-from models.video import BaseRecordingDetails, VideoSnippet, YouTubeMetadata, YoutubeVideoResource
 
-from pytube import conf, logger
+from manager import conf, logger
+from manager.models.sessions import SessionRecord
+from manager.models.video import (
+    BaseRecordingDetails,
+    VideoSnippet,
+    YouTubeMetadata,
+    YoutubeVideoResource,
+)
 
 
 class YT:
@@ -28,18 +33,18 @@ class YT:
 
         self.youtube_offline = youtube_offline
 
-        self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
+        self.video_records_path = conf.dirs.video_dir / "youtube/video_records"
         self.video_records_path.mkdir(parents=True, exist_ok=True)
         # data updated at YouTube
-        self.video_records_path_updated = conf.dirs.video_dir / 'youtube/video_records_updated'
+        self.video_records_path_updated = conf.dirs.video_dir / "youtube/video_records_updated"
         self.video_records_path_updated.mkdir(parents=True, exist_ok=True)
         # videos published on YouTube
-        self.video_records_path_published = conf.dirs.video_dir / 'youtube/video_published'
+        self.video_records_path_published = conf.dirs.video_dir / "youtube/video_published"
         self.video_records_path_published.mkdir(parents=True, exist_ok=True)
 
     @property
     def youtube(self):
-        """ Get authenticated service on first call of API"""
+        """Get authenticated service on first call of API"""
         if not self._youtube:
             if self.youtube_offline:
                 # API calls that work with service accounts
@@ -50,7 +55,7 @@ class YT:
         return self._youtube
 
     def get_authenticated_service(self):
-        """ Authentication to access the channel information
+        """Authentication to access the channel information
         - Users need to authenticate via a web interface
         - User needs to have rights to access channel
         """
@@ -67,7 +72,7 @@ class YT:
         return googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
 
     def get_authenticated_offline_service(self):
-        """ Works for limited use cases only due to general restrictions by YouTube,
+        """Works for limited use cases only due to general restrictions by YouTube,
         >>NOT suitable for updating video metadata<<"""
         creds = None
 
@@ -84,8 +89,7 @@ class YT:
                 creds.refresh(Request())
             else:
                 # Create a flow object, set the client secrets, and ask for offline access
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    client_secrets_file, self.scopes)
+                flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, self.scopes)
                 creds = flow.run_local_server(port=0)
 
             # Save the credentials for the next run
@@ -93,18 +97,15 @@ class YT:
                 token.write(creds.to_json())
 
         # Create a YouTube API service
-        service = build('youtube', 'v3', credentials=creds)
+        service = build("youtube", "v3", credentials=creds)
         return service
 
     def get_authenticated_service_via_api_key(self):
-        self._youtube = build('youtube', 'v3', developerKey=conf.youtube.api_key)
+        self._youtube = build("youtube", "v3", developerKey=conf.youtube.api_key)
 
     def get_channel_id(self):
-        """ Required if channel id is unknown """
-        request = self.youtube.channels().list(
-            part="id",
-            mine=True
-        )
+        """Required if channel id is unknown"""
+        request = self.youtube.channels().list(part="id", mine=True)
         response = request.execute()
         return response["items"][0]["id"]
 
@@ -118,11 +119,7 @@ class YT:
         """
         videos = []
         request = self.youtube.search().list(
-            part="snippet",
-            channelId=channel_id,
-            maxResults=50,
-            order="date",
-            forMine=True
+            part="snippet", channelId=channel_id, maxResults=50, order="date", forMine=True
         )
         response = request.execute()
 
@@ -147,33 +144,28 @@ class YT:
         """
         videos = []
         request = self.youtube.playlistItems().list(
-            part="snippet,contentDetails",
-            maxResults=50,
-            playlistId=playlist_id
+            part="snippet,contentDetails", maxResults=50, playlistId=playlist_id
         )
         response = request.execute()
         while request is not None:
-            videos.extend(response['items'])
+            videos.extend(response["items"])
             request = self.youtube.playlistItems().list_next(request, response)
             if request:
                 response = request.execute()
         return videos
 
-    def update_video_metadata(self, video_id,  # noqa: PLR0913
-                              title=None,
-                              description=None,
-                              tags=None,
-                              category_id=None,
-                              privacy_status=None,
-                              publish_date=None
-                              ):
-
+    def update_video_metadata(
+        self,
+        video_id,  # noqa: PLR0913
+        title=None,
+        description=None,
+        tags=None,
+        category_id=None,
+        privacy_status=None,
+        publish_date=None,
+    ):
         # Prepare the request body
-        body = {
-            "id": video_id,
-            "snippet": {},
-            "status": {}
-        }
+        body = {"id": video_id, "snippet": {}, "status": {}}
 
         if title:
             body["snippet"]["title"] = title
@@ -187,20 +179,17 @@ class YT:
             body["status"]["privacyStatus"] = privacy_status
         if publish_date:
             # required by YouTube
-            body["status"]["privacyStatus"] = 'private'
+            body["status"]["privacyStatus"] = "private"
             if isinstance(publish_date, str):
-                publish_date = datetime.strptime(publish_date, '%Y-%m-%dT%H:%M:%S%z')
+                publish_date = datetime.strptime(publish_date, "%Y-%m-%dT%H:%M:%S%z")
             elif isinstance(publish_date, datetime):
-                publish_date = publish_date.strftime('%Y-%m-%dT%H:%M:%S%z')
+                publish_date = publish_date.strftime("%Y-%m-%dT%H:%M:%S%z")
             else:
                 raise ValueError("Publish date must be a string or datetime object")
             body["status"]["publishAt"] = publish_date
 
         # Update video metadata
-        request = self.youtube.videos().update(
-            part="snippet,status",
-            body=body
-        )
+        request = self.youtube.videos().update(part="snippet,status", body=body)
         response = request.execute()
 
         print(f"Updated video metadata for video ID: {video_id}")
@@ -221,15 +210,12 @@ class YT:
         if isinstance(video_id, str):
             video_id = [video_id]
         video_ids = ",".join(video_id)
-        request = self.youtube.videos().list(
-            part="status",
-            id=video_ids
-        )
+        request = self.youtube.videos().list(part="status", id=video_ids)
         response = request.execute()
         return response
 
     def get_youtube_ids_for_uploads(self, youtube_channel: str):
-        """ Save the YouTube video ids for the uploads to the channel to file.
+        """Save the YouTube video ids for the uploads to the channel to file.
         This file is required for the metadata management to map the pretalx id with the YouTube video id.
         :param youtube_channel: str, the channel name to get the video ids for, must match the name in the config
         """
@@ -238,8 +224,11 @@ class YT:
         # unpublished videos data can be retrieved via an unpublished playlist only
         # youtube_pydata_playlist
         videos = self.list_all_videos_in_playlist(conf.youtube.channels[youtube_channel].playlist_id)
-        json.dump(videos, (conf.dirs.video_dir / f"youtube_{youtube_channel}_playlist.json").open("w"),
-                  indent=4)
+        json.dump(
+            videos,
+            (conf.dirs.video_dir / f"youtube_{youtube_channel}_playlist.json").open("w"),
+            indent=4,
+        )
 
     def get_channel_id_for_config(self):
         """Log the channel ID for the config.
@@ -250,9 +239,9 @@ class YT:
 
     @classmethod
     def map_pretalx_id_youtube_id(cls):
-        """ The pretalx id is in the video title after upload.
+        """The pretalx id is in the video title after upload.
         We need to create a map of pretalx id to the YouTube video id
-        before updating the data on YouTube. """
+        before updating the data on YouTube."""
         videos = []
         for channel in conf.youtube.channels:
             data = json.load((conf.dirs.video_dir / f"youtube_{channel}_playlist.json").open())
@@ -267,15 +256,15 @@ class YT:
 
 class PrepareVideoMetadata:
     # noinspection GrazieInspection
-    """ This class adds YouTube specific metadata to the records created by the records.py script
-        For the descriptions we use a Jinja2 template.
-        Many values are hard coded, as they are not expected to change often, e.g.,
-            category_id = 28 - Science & Technology
-            default_language = 'en' - English
-            privacy_status = 'unlisted'
-            video_license = 'youtube'
-            video_embeddable = True
-        """
+    """This class adds YouTube specific metadata to the records created by the records.py script
+    For the descriptions we use a Jinja2 template.
+    Many values are hard coded, as they are not expected to change often, e.g.,
+        category_id = 28 - Science & Technology
+        default_language = 'en' - English
+        privacy_status = 'unlisted'
+        video_license = 'youtube'
+        video_embeddable = True
+    """
 
     def __init__(self, template_file: str, at):
         self.template_file = template_file
@@ -287,28 +276,28 @@ class PrepareVideoMetadata:
 
         self.load_yt_metadata()
 
-        self.records_path = conf.dirs.work_dir / 'records'
-        self.video_records_path = conf.dirs.video_dir / 'youtube/video_records'
+        self.records_path = conf.dirs.work_dir / "records"
+        self.video_records_path = conf.dirs.video_dir / "youtube/video_records"
         self.video_records_path.mkdir(parents=True, exist_ok=True)
         # default values
 
     @property
     def template(self):
-        """ Load template on first call """
+        """Load template on first call"""
         if not self._template:
             self.load_template()
         return self._template
 
     @property
     def pretalx_youtube_channel_map(self):
-        """ Depends on a previously created mapping file {pretalx ID: YouTube channel} see `video_organizer.py`"""
+        """Depends on a previously created mapping file {pretalx ID: YouTube channel} see `video_organizer.py`"""
         if not self._pretalx_youtube_channel_map:
             self._pretalx_youtube_channel_map = json.load((conf.dirs.video_dir / "tracks_map.json").open())
         return self._pretalx_youtube_channel_map
 
     @property
     def pretalx_youtube_id_map(self):
-        """ Depends on a previously created mapping file {pretalx ID: YouTube video ID} see `video_organizer.py`"""
+        """Depends on a previously created mapping file {pretalx ID: YouTube video ID} see `video_organizer.py`"""
         if not self._pretalx_youtube_id_map:
             self._pretalx_youtube_id_map = json.load((conf.dirs.video_dir / "pretalx_yt_map.json").open())
         return self._pretalx_youtube_id_map
@@ -327,10 +316,7 @@ class PrepareVideoMetadata:
             self.yt_metadata.append(ytv)
 
     def load_template(self):
-        env = Environment(
-            loader=PackageLoader("src"),
-            autoescape=select_autoescape()
-        )
+        env = Environment(loader=PackageLoader("src"), autoescape=select_autoescape())
         self._template = env.get_template(self.template_file)
 
     def make_all_video_metadata(self):
@@ -340,12 +326,12 @@ class PrepareVideoMetadata:
 
     @classmethod
     def best_youtube_title(cls, title, at):
-        """ The YouTube title must have max. 100 chars, optimize the title to include the conference """
+        """The YouTube title must have max. 100 chars, optimize the title to include the conference"""
         yt_max = 100
         # remove restricted chars
-        title = title.replace('>', '').replace('<', '')
+        title = title.replace(">", "").replace("<", "")
         if len(title) > yt_max:
-            return f"{title[:yt_max - 1]}…"
+            return f"{title[: yt_max - 1]}…"
         long_title = f"{title} [{at}]"
         if len(long_title) <= yt_max:
             return long_title
@@ -363,74 +349,76 @@ class PrepareVideoMetadata:
         try:
             youtube_video_id = self.pretalx_youtube_id_map[video["pretalx_id"]]
         except KeyError:
-            logger.warning(f'No YouTube video ID found for {video["pretalx_id"]}-{video["title"]}, skipping')
+            logger.warning(f"No YouTube video ID found for {video['pretalx_id']}-{video['title']}, skipping")
             return
 
         youtube_title = self.best_youtube_title(record.title, self.at)
         recorded_date = record.pretalx_session.session.slot.start
 
         if record.youtube_channel != youtube_channel:
-            logger.info(f'Updating YouTube channel of {record.pretalx_id}')
+            logger.info(f"Updating YouTube channel of {record.pretalx_id}")
             record.youtube_channel = youtube_channel
             update_record = True
         if record.youtube_video_id != youtube_video_id:
-            logger.info(f'Updating YouTube video ID of {record.pretalx_id}')
+            logger.info(f"Updating YouTube video ID of {record.pretalx_id}")
             record.youtube_video_id = youtube_video_id
             update_record = True
         if record.youtube_title != youtube_title:
-            logger.info(f'Updating YouTube title of {record.pretalx_id}')
+            logger.info(f"Updating YouTube title of {record.pretalx_id}")
             record.youtube_title = youtube_title
             update_record = True
         if record.recorded_date != recorded_date:
-            logger.info(f'Updating YouTube recorded date of {record.pretalx_id}')
+            logger.info(f"Updating YouTube recorded date of {record.pretalx_id}")
             # remove time zone info
             record.recorded_date = datetime.strptime(recorded_date.strftime("%d.%m.%Y"), "%d.%m.%Y")
             update_record = True
 
         youtube_description = self.render_description(record.sm_long_text, record)
         # <, > not allowed in YT titles, description
-        youtube_description = youtube_description.replace('>', '').replace('<', '')
+        youtube_description = youtube_description.replace(">", "").replace("<", "")
         # Make sure the length is not too long
         yt_max = conf.youtube.max_description_length
         if len(youtube_description) > yt_max:
-            logger.info(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}')
+            logger.info(f"YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}")
             youtube_description = self.render_description(record.sm_short_text, record)
         if len(youtube_description) > yt_max:
-            logger.error(f'YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}')
+            logger.error(f"YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}")
             youtube_description = self.render_description("", record)
 
         if record.youtube_description != youtube_description:
-            logger.info(f'Updating YouTube description of {record.pretalx_id}')
+            logger.info(f"Updating YouTube description of {record.pretalx_id}")
             record.youtube_description = youtube_description
             update_record = True
 
         if update_record:
-            (self.records_path / f'{record.pretalx_id}.json').write_text(record.model_dump_json(indent=4))
-            logger.info(f'Saved updated record of {record.pretalx_id}')
+            (self.records_path / f"{record.pretalx_id}.json").write_text(record.model_dump_json(indent=4))
+            logger.info(f"Saved updated record of {record.pretalx_id}")
 
         recorded_iso: str = record.recorded_date.strftime("%d.%m.%Y")
 
         youtube_video_ressource = YoutubeVideoResource(
             id=youtube_video_id,
-            snippet=VideoSnippet(**{
-                "title": youtube_title,
-                "description": youtube_description,
-            }),
+            snippet=VideoSnippet(
+                **{
+                    "title": youtube_title,
+                    "description": youtube_description,
+                }
+            ),
             recording_details=BaseRecordingDetails(**{"recording_date": recorded_iso}),
         )
 
-        (self.video_records_path / f'{record.pretalx_id}.json').open("w").write(
-            youtube_video_ressource.model_dump_json(indent=4))
+        (self.video_records_path / f"{record.pretalx_id}.json").open("w").write(
+            youtube_video_ressource.model_dump_json(indent=4)
+        )
         print("=" * 50)
 
     def render_description(self, description: str, record: SessionRecord):
-        """ Provides commonly used values for rendering the description"""
+        """Provides commonly used values for rendering the description"""
         description_kwargs = {
             "date": record.recorded_date.strftime("%d.%m.%Y"),
             "session_link": f"{conf.event.program_url}{record.pretalx_id}/",
             "teaser_text": record.sm_teaser_text,
-
-            "speakers": ', '.join([f"{s.name}" for s in record.speakers]),
+            "speakers": ", ".join([f"{s.name}" for s in record.speakers]),
             "description": description,
         }
         description_kwargs = self.customize_description_args(description_kwargs, record)
@@ -439,7 +427,7 @@ class PrepareVideoMetadata:
 
     @classmethod
     def customize_description_args(cls, description_kwargs: dict, record: SessionRecord):  # noqa: ARG003
-        """ Customize this method to fit your description needs: add or alter attributes used in the template """
+        """Customize this method to fit your description needs: add or alter attributes used in the template"""
         return description_kwargs
 
     def send_all_video_metadata(self, destination_channel: str):
@@ -465,7 +453,7 @@ class PrepareVideoMetadata:
                     description=video.snippet.description,
                     category_id=video.snippet.category_id,
                     privacy_status=video.status.privacy_status,
-                    publish_date=video.status.publish_at
+                    publish_date=video.status.publish_at,
                 )
                 youtube_video.rename(ytclient.video_records_path_updated / youtube_video.name)
                 logger.info(f"Updated video: {pretalx_id}, {video.id}")
@@ -474,21 +462,21 @@ class PrepareVideoMetadata:
                 continue
 
     def update_video_metadata(self, states: str | list[str], func: callable):
-        """ update record files with video metadata created already.
+        """update record files with video metadata created already.
         :param states: str or list of str, values: 'video_records', 'video_records_updated'
         :param func: custom method to apply to the record
         """
         if isinstance(states, str):
             states = [states]
         for state in states:
-            if state not in ('video_records', 'video_records_updated'):
+            if state not in ("video_records", "video_records_updated"):
                 continue
             for record in (self.video_records_path.parent / state).glob("*.json"):
                 func(record)
 
     @classmethod
     def update_publish_date(cls, record: Path, publish_date: datetime):
-        """ Sets the publishing date at YouTube for videos"""
+        """Sets the publishing date at YouTube for videos"""
         with record.open("r") as f:
             record_data = json.load(f)
         record_data["status"]["publish_at"] = publish_date.isoformat()
@@ -496,12 +484,15 @@ class PrepareVideoMetadata:
         with record.open("w") as f:
             json.dump(record_data, f, indent=4)
 
-    def update_publish_dates(self, states: str | list[str] | tuple[str] = ('video_records', 'video_records_updated'),
-                             start: datetime | None = None,
-                             delta: timedelta | None = None,
-                             end: datetime | None = None,
-                             steps: int | None = None):
-        """" Update or add periodical publishing dates for videos randomly."""
+    def update_publish_dates(
+        self,
+        states: str | list[str] | tuple[str] = ("video_records", "video_records_updated"),
+        start: datetime | None = None,
+        delta: timedelta | None = None,
+        end: datetime | None = None,
+        steps: int | None = None,
+    ):
+        """ " Update or add periodical publishing dates for videos randomly."""
         if isinstance(states, str):
             states = [states]
         if start is None:
@@ -509,7 +500,7 @@ class PrepareVideoMetadata:
         gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
         records = []
         for state in states:
-            if state not in ('video_records', 'video_records_updated'):
+            if state not in ("video_records", "video_records_updated"):
                 continue
             records.extend(list((self.video_records_path.parent / state).glob("*.json")))
         random.shuffle(records)
@@ -517,13 +508,18 @@ class PrepareVideoMetadata:
             self.update_publish_date(record, publish_at)
             # move to queue for YouTube metadata updates
             record.rename(self.video_records_path / record.name)
-            logger.info(f"Updated publish date for {record.name} in the video file."
-                        "Please do not forget to publish the update.")
+            logger.info(
+                f"Updated publish date for {record.name} in the video file.Please do not forget to publish the update."
+            )
 
     @staticmethod
-    def publish_dates_generator(start: datetime, delta: timedelta | None = None, end: datetime | None = None,
-                                steps: int | None = None) -> Generator[datetime]:
-        """ Create a list of publishing dates for the videos """
+    def publish_dates_generator(
+        start: datetime,
+        delta: timedelta | None = None,
+        end: datetime | None = None,
+        steps: int | None = None,
+    ) -> Generator[datetime]:
+        """Create a list of publishing dates for the videos"""
         if end is None and delta is None:
             raise ValueError("Either end (datetime) or delta (release every timeperiod) must be provided")
         if delta is not None:
