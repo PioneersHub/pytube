@@ -229,8 +229,6 @@ class VideoPresenterDetector:
 
         except Exception as e:
             logger.info(f"Error extracting presentations: {str(e)}")
-            import traceback
-
             traceback.print_exc()
 
     def process_video(self, plan: dict) -> bool:
@@ -791,22 +789,37 @@ class VideoPresenterDetector:
         output_folder = self.video_output_folder / plan["output_folder"]
         output_folder.mkdir(parents=True, exist_ok=True)
 
+        # FIXME: replace with sequential filenames, needs to be fixed in preprocessing
+        plan["presentations"] = sorted(plan["presentations"], key=lambda x: x["Start (time)"])
+        for i, p in enumerate(plan["presentations"]):
+            plan["presentations"][i]["Sequential_Filename"] = f"{i + 1:03d}{p['Sequential_Filename'][4:]}"
+        cuts = len(plan["presentations_index"]) - len(plan["presentations"])
+        if cuts > 0:
+            logger.info(
+                "Warning: {cuts} more presentations detected than expected. Extracting all detected presentations."
+            )
+            for i in range(len(plan["presentations"]), len(plan["presentations_index"])):
+                plan["presentations"].append(
+                    {"Sequential_Filename": f"{i + 1:03d}_{plan['input_video'].split('/')[-1]}"}
+                )
+
         for i, (start, end) in enumerate(plan["presentations_index"]):
             presentation = plan["presentations"][i]
-            output_dir = output_folder / presentation["Output_Folder"]
-            os.makedirs(output_dir, exist_ok=True)
-
-            output_video = output_dir / presentation["Sequential_Filename"]
+            output_video = output_folder / presentation["Sequential_Filename"]
             output_audio = output_video.with_suffix(".mp3")
+
+            if output_video.exists():
+                logger.info(f"Video already exists: {output_video}, skipping...")
+                continue
 
             # Duration in seconds
             duration = end - start
 
+            logger.info(f"Extracting presentation {i + 1} video...")
             # FFmpeg command for video extraction without re-encoding
             video_cmd = (
                 f'ffmpeg -i "{plan["input_video"]}" -ss {int(start)} -t {int(duration)} -c copy "{output_video}"'
             )
-            logger.info(f"Extracting presentation {i + 1} video...")
             logger.info(f"Command: {video_cmd}")
             os.system(video_cmd)
             logger.info(f"✅ Extracted video: {output_video}")

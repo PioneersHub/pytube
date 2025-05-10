@@ -3,11 +3,11 @@ input:
   # Single video file path (leave empty to use folder)
   video_path: ""
   # Folder containing videos to batch process (leave empty to use video_path)
-  folder: "/Users/hendorf/code/pioneershub/py_tube/_data/videos/input"
+  folder: "/Volumes/DATA/_pyconde2025/videos/input"
   # File extensions to process from input folder (comma-separated)
   extensions: "mp4,mkv,avi,mov,webm"
   # Filenammping mapping from Parquet
-  mapping_file: "/Users/hendorf/code/pioneershub/py_tube/_data/videos/pyconde-pydata-2025_sessions_processed.parquet"
+  mapping_file: "/Volumes/DATA/_pyconde2025/videos/pyconde-pydata-2025_sessions_processed.parquet"
 
 
 # Video processing settings
@@ -20,7 +20,7 @@ video:
 # Break screen detection settings
 break_detection:
   # Directory for break screen images (leave empty for auto-detection)
-  images_dir: "/Users/hendorf/code/pioneershub/py_tube/_data/break_slides"
+  images_dir: "/Volumes/DATA/_pyconde2025/break_slides"
   # Similarity threshold for break screen detection (0-1)
   threshold: 0.95
   # Comparison method: "template" or "histogram"
@@ -28,7 +28,7 @@ break_detection:
   # Whether to auto-detect break screens if none provided
   auto_detect: true
   # Directory to save detected break screens
-  detected_screens_dir: "/Users/hendorf/code/pioneershub/py_tube/_data/break_screens_detected"
+  detected_screens_dir: "/Volumes/DATA/_pyconde2025/break_screens_detected"
 
 # Presentation detection settings
 presentation_detection:
@@ -46,11 +46,11 @@ presentation_detection:
 # Output settings
 output:
   # Base output folder for extracted presentations
-  folder: "/Users/hendorf/code/pioneershub/py_tube/_data/videos/output"
+  folder: "/Volumes/DATA/_pyconde2025/videos/output"
   # Whether to make a processing plan: detect presentations in video and save to JSON
-  make_processing_plan: true
+  make_processing_plan: false
   # Whether to extract detected presentations as separate files
-  extract_presentations: false
+  extract_presentations: true
   # Whether to extract audio from presentations as MP3
   extract_audio: true
   # Whether to save presentation metadata as JSON
@@ -68,4 +68,4 @@ search:
   max_videos: 25
 
 save_to:
-  directory: "/Users/hendorf/code/pioneershub/py_tube/_data/videos/input"
+  directory: "/Volumes/DATA/_pyconde2025/videos/input"
