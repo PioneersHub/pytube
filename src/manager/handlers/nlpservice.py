@@ -1,6 +1,6 @@
 from openai import OpenAI
 
-from pytube import conf
+from manager import conf
 
 client = OpenAI(api_key=conf.openai.api_key)
 
@@ -10,8 +10,7 @@ def teaser_text(text, max_tokens=50, temperature=0.7):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",  # Use GPT-4 or GPT-3.5-turbo
         messages=[
-            {"role": "system",
-             "content": conf.prompts.teaser},
+            {"role": "system", "content": conf.prompts.teaser},
             {"role": "user", "content": text},
         ],
         max_tokens=max_tokens,
@@ -25,9 +24,10 @@ def sized_text(text, max_tokens=100, temperature=0.9):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",  # Use GPT-4 or GPT-3.5-turbo
         messages=[
-            {"role": "system",
-             "content": conf.prompts.description.format({"max_tokens": max_tokens})
-             },
+            {
+                "role": "system",
+                "content": conf.prompts.description.format({"max_tokens": max_tokens}),
+            },
             {"role": "user", "content": text},
         ],
         max_tokens=max_tokens,

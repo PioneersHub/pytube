@@ -1,22 +1,24 @@
 from datetime import UTC, datetime, timedelta
 
-from handlers.youtube import YT, PrepareVideoMetadata
-from usr.usr import slugify
-
-from pytube import conf
+from manager import conf
+from manager.handlers.youtube import YT, PrepareVideoMetadata
+from manager.usr.usr import slugify
 
 
 class CustomPrepareVideoMetadata(PrepareVideoMetadata):
     """
     Patch PrepareVideoMetadata to customize attributes used in the description template.
     """
+
     @classmethod
     def customize_description_args(cls, description_kwargs, record):
         """Customized the description arguments."""
-        description_kwargs.update({
-            "tag": slugify(record.pretalx_session.session.track.en),
-            "pydata": record.youtube_channel == "pydata"
-        })
+        description_kwargs.update(
+            {
+                "tag": slugify(record.pretalx_session.session.track.en),
+                "pydata": record.youtube_channel == "pydata",
+            }
+        )
         return description_kwargs
 
 
@@ -28,8 +30,11 @@ def prepare_metadata(template_file: str, at: str):
     """
     meta = CustomPrepareVideoMetadata(template_file, at)
     meta.make_all_video_metadata()
-    meta.update_publish_dates(states=['video_records', 'video_records_updated'],
-                              start=datetime.now(tz=UTC) + timedelta(minutes=5), delta=timedelta(hours=4))
+    meta.update_publish_dates(
+        states=["video_records", "video_records_updated"],
+        start=datetime.now(tz=UTC) + timedelta(minutes=5),
+        delta=timedelta(hours=4),
+    )
     for channel in conf.youtube.channels:
         meta.send_all_video_metadata(destination_channel=channel)
 

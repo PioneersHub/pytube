@@ -2,6 +2,7 @@
 Script to manually add the Pioneers Hub logo to the social cards of website.
 This is not supported by the open version of mkdocs-material, yet.
 """
+
 from itertools import chain
 from pathlib import Path
 
@@ -23,11 +24,11 @@ the_logo = Image.open(path_to_logo)
 the_logo_position = (960, 450)
 base_width = 175
 ph_logo = Image.open(path_to_logo)
-w_percent = (base_width / ph_logo.size[0])
+w_percent = base_width / ph_logo.size[0]
 h_size = int(float(ph_logo.size[1]) * float(w_percent))
 ph_logo = ph_logo.resize((base_width, h_size), Image.Resampling.LANCZOS)
 
-for social_card in chain(path_to_social_cards_cache.glob('*.png'), path_to_social_cards_site.glob('*.png')):
+for social_card in chain(path_to_social_cards_cache.glob("*.png"), path_to_social_cards_site.glob("*.png")):
     # Get the social card image
     social_card_image = Image.open(social_card)
 
