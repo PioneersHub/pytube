@@ -2,6 +2,8 @@
 
 A tool to automatically detect and extract presentations from videos of conferences, livestreams, or lectures that contain both presentations and break screens.
 
+![recording-cuts.png](assets/images/recording-cuts.png)
+
 ## Features
 
 - Automatically detects transitions between break screens and presentations
@@ -11,33 +13,57 @@ A tool to automatically detect and extract presentations from videos of conferen
 - Detailed output with timestamps and presentation durations
 - Configurable via YAML configuration file
 
-## Requirements
+## Installation
 
-- Python 3.6+
-- OpenCV
-- NumPy
-- OmegaConf
-- FFmpeg (for video and audio extraction)
-
-Install required Python packages:
+1. **Create and activate a virtual environment:**
 
 ```bash
-pip install -r requirements.txt
+# Create a virtual environment
+uv venv
+
+# Activate it (Unix/MacOS)
+source .venv/bin/activate
+
+# Activate it (Windows)
+.\.venv\Scripts\activate
 ```
 
-## Quick Start
-
-1. Process a single video:
+2. **Install video processor dependencies:**
 
 ```bash
-python presentation_detector.py path/to/video.mp4 --extract --audio
+# Install with video processing dependencies
+uv pip install ".[video_processor]"
 ```
 
-2. Batch process all videos in a folder:
+3. **Install FFmpeg**: 
+   FFmpeg is **required** for video and audio extraction. The tool will not work without it.
 
-```bash
-python presentation_detector.py --input-folder path/to/videos --extract --audio
-```
+   ```bash
+   # macOS (using Homebrew)
+   brew install ffmpeg
+   
+   # Alternative for macOS (using MacPorts)
+   sudo port install ffmpeg
+   
+   # Ubuntu/Debian
+   sudo apt-get update
+   sudo apt-get install ffmpeg
+   
+   # Fedora
+   sudo dnf install ffmpeg
+   
+   # Arch Linux
+   sudo pacman -S ffmpeg
+   
+   # Windows
+   # Download from ffmpeg.org/download.html
+   # Extract the files and add the bin folder to your PATH
+   ```
+   
+   Verify installation with:
+   ```bash
+   ffmpeg -version
+   ```
 
 ## Configuration
 
@@ -79,38 +105,100 @@ output:
   save_metadata: true
 ```
 
-## Command-Line Options
+## Usage
 
-```
-usage: presentation_detector.py [-h] [--config CONFIG] [--output OUTPUT]
-                              [--break-images BREAK_IMAGES] [--extract]
-                              [--audio] [--input-folder INPUT_FOLDER]
-                              [video_path]
+### Basic Usage
 
-positional arguments:
-  video_path            Path to the video file (optional if specified in config)
+#### Single Video Processing
 
-optional arguments:
-  -h, --help            show this help message and exit
-  --config CONFIG, -c CONFIG
-                        Path to config file
-  --output OUTPUT, -o OUTPUT
-                        Override output folder for extracted presentations
-  --break-images BREAK_IMAGES, -b BREAK_IMAGES
-                        Override directory containing break screen images
-  --extract, -e         Extract detected presentations as separate files
-  --audio, -a           Extract audio from presentations as MP3
-  --input-folder INPUT_FOLDER, -i INPUT_FOLDER
-                        Process all videos in the specified folder
+```bash
+python -m video_manager.presentation_detector path/to/video.mp4 --extract --audio
 ```
 
-## How It Works
+This will:
+- Process the specified video
+- Extract individual presentations as separate video files
+- Extract audio from each presentation
 
-1. The script samples frames throughout the video
-2. It clusters similar frames to detect potential break screens
-3. Using binary search, it finds precise transitions between break screens and presentations
-4. It outputs time ranges for each detected presentation
-5. Optionally extracts presentations as video files and audio files
+#### Batch Processing
+
+```bash
+python -m video_manager.presentation_detector --input-folder path/to/videos --extract --audio
+```
+
+### Advanced Options
+
+```
+usage: python -m video_manager.presentation_detector [-h] [--config CONFIG] [--output OUTPUT]
+                                                    [--break-images BREAK_IMAGES] [--extract]
+                                                    [--audio] [--input-folder INPUT_FOLDER]
+                                                    [video_path]
+
+arguments:
+  video_path                    Path to the video file to process
+  --config, -c CONFIG           Path to custom config file
+  --output, -o OUTPUT           Custom output folder for extracted presentations
+  --break-images, -b IMAGES     Directory containing break screen images
+  --extract, -e                 Extract presentations as separate files
+  --audio, -a                   Extract audio from presentations as MP3
+  --input-folder, -i FOLDER     Process all videos in specified folder
+  -h, --help                    Show help message
+```
+
+### Example Commands
+
+**Using custom break screen detection:**
+```bash
+python -m video_manager.presentation_detector video.mp4 --break-images path/to/break/images
+```
+
+**Using custom output location:**
+```bash
+python -m video_manager.presentation_detector video.mp4 --output path/to/output/folder
+```
+
+**Using a custom config file:**
+```bash
+python -m video_manager.presentation_detector --config path/to/custom/config.yaml
+```
+
+## How It Works in Detail
+
+### 1. Frame Sampling and Analysis
+
+The detector samples frames at regular intervals throughout the video (configurable sampling rate). For each frame:
+- The frame is converted to grayscale and normalized
+- Visual features are extracted using image processing techniques
+- Frames are stored in memory for comparison
+
+### 2. Break Screen Detection
+
+Two methods are used for break screen detection:
+
+**Method 1: Using Provided Break Images**
+- If provided, the detector compares sampled frames against known break screen images
+- Similarity is calculated using histogram comparison or structural similarity
+- Frames that match above the similarity threshold are classified as break screens
+
+**Method 2: Automatic Detection (when no break images are provided)**
+- The detector clusters frames based on visual similarity
+- Large clusters of similar frames are identified as potential break screens
+- The most common frame clusters are selected as break screens
+
+### 3. Transition Detection
+
+Once break screens are identified, the detector:
+- Uses binary search to pinpoint exact frame transitions (improves accuracy)
+- Analyzes movement between adjacent frames to confirm transitions
+- Handles edge cases like brief interruptions or camera shifts
+
+### 4. Presentation Extraction
+
+For each detected presentation segment:
+- Start and end timestamps are precisely calculated
+- Video is trimmed using FFmpeg with no re-encoding (when possible) for fast extraction
+- Audio is extracted using FFmpeg's audio capabilities
+- Metadata is generated including duration, timestamps, and filename
 
 ## Output Structure
 
@@ -129,6 +217,38 @@ output_folder/
 │   └── ...
 └── ...
 ```
+
+## Best Practices
+
+### Break Slide Recommendations
+
+The effectiveness of presentation detection depends significantly on your break slides. Here are recommendations for good break slides:
+
+| **Type** | **Good Examples**                                                                                                                            |
+|---|----------------------------------------------------------------------------------------------------------------------------------------------|
+| **Static Slides** | ![break_slide_1.png](assets/images/break_slide_1.png)<br>✅ High contrast<br>✅ Consistent layout<br>✅ Solid color background                  |
+| **Dynamic Slides** | ![break_slide_2.png](assets/images/break_slide_2.png)<br>✅ Consistent elements<br>✅ Distinct from presentations<br>✅ Limited animation areas |
+
+### Tips for Optimal Results
+
+1. **Use distinctive break slides**
+   - Choose break slides that are visually very different from presentation content
+   - Solid colors or simple patterns work best
+   - Avoid break slides that look like presentation slides
+
+2. **Consistent break screens**
+   - Use the same break screen throughout the recording
+   - If multiple break screens are used, provide examples of each in the break-images folder
+
+3. **Processing options**
+   - For large videos, enable resizing to speed up processing
+   - Adjust the similarity threshold if detection is too aggressive or too lax
+   - Use custom break images for best results
+
+4. **Handling problematic videos**
+   - If auto-detection fails, extract a few frames of your break screens and use them as reference
+   - For videos with quick transitions, adjust sampling rate in the config
+   - Process in batches when dealing with many videos
 
 ## License
 
