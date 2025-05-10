@@ -13,6 +13,8 @@ nav:
   - index.md
   - installation.md
   - scripts.md
+  - Video Cut:
+      - Video Presentation Detector: presentation_detector.md
   - Metadata:
       - Pre-Processing: processing.md
       - Add Descriptions with NLP: openai.md

@@ -12,14 +12,17 @@ for t in Path("/Volumes/DATA/_video-TMP/pyconde-2024/transcipts").glob("*.txt"):
         "title": data["title"],
         "track": data["track"]["en"],
         "description": data["description"] + data["description"],
-        "transcription": t.read_text()
+        "transcription": t.read_text(),
     }
     doc = []
     doc.append(f"Session: {data['title']}")
     try:
         spkrs = "speakers:\n" + "\n".join(
-            [x.get('name', '') + "\n" + x.get('biography') if x.get('biography') else '' for x in
-             data.get('speakers', [])])
+            [
+                x.get("name", "") + "\n" + x.get("biography") if x.get("biography") else ""
+                for x in data.get("speakers", [])
+            ]
+        )
     except TypeError:
         a = 44
     doc.append(spkrs)

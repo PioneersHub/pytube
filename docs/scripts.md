@@ -30,7 +30,7 @@ The methods update the records and their file location (status) accordingly.
 ```python
 from datetime import UTC, datetime, timedelta
 
-from handlers.youtube import PrepareVideoMetadata
+from manager.handlers.youtube import PrepareVideoMetadata
 
 from pytube import conf
 

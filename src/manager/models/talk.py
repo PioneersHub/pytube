@@ -2,9 +2,9 @@ import urllib.parse
 from pathlib import Path
 
 from pydantic import BaseModel
-from pytanis.pretalx.types import Speaker
+from pytanis.pretalx.models import Speaker
 
-from pytube import logger
+from manager import logger
 
 
 def vimeo_id_from_link(link: str) -> str:
@@ -15,7 +15,7 @@ def vimeo_id_from_link(link: str) -> str:
     parsed_url = urllib.parse.urlparse(link)
 
     # Extract the path and split it to get the video ID
-    path_parts = parsed_url.path.split('/')
+    path_parts = parsed_url.path.split("/")
     try:
         video_id = path_parts[1]
     except IndexError:

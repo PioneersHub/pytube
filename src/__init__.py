@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 
 os.environ["FORCE_COLOR"] = "1"
 
-__version__ = "0.9.2"
+__version__ = "2.0.0"
 
 cr = structlog.dev.ConsoleRenderer(
     columns=[
@@ -68,8 +68,7 @@ structlog.configure(
     wrapper_class=structlog.make_filtering_bound_logger(logging.DEBUG),
     context_class=dict,
     logger_factory=structlog.PrintLoggerFactory(),
-    cache_logger_on_first_use=False
-
+    cache_logger_on_first_use=False,
 )
 
 structlog.configure(processors=structlog.get_config()["processors"][:-1] + [cr])

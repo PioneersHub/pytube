@@ -2,13 +2,70 @@
 
 ## Environment
 
-This project uses Pixi for package management. Pix supports Windows, MacOS, and Linux.
-See the [Pixi documentation](https://pixi.sh/latest/) for more information how to install pixi.
+This project uses uv for package management. uv is a modern Python package manager that supports Windows, MacOS, and Linux.
 
-To install the environment, run the following command for the project root directory:
+### Installation
 
-```shell
-pixi install
+To install uv, run:
+
+```bash
+pip install uv
+```
+
+### Managing Environments
+
+The project uses pyproject.toml for environment configuration. Here's how to work with different environments:
+
+1. **Development Environment**
+   - Install development dependencies:
+   ```bash
+   uv pip install -e .
+   ```
+   - This installs the package in editable mode with all development dependencies
+
+2. **Production Environment**
+   - Install production dependencies:
+   ```bash
+   uv pip install .
+   ```
+   - This installs only the required dependencies for production
+
+3. **Creating a Virtual Environment**
+   - Create a new virtual environment:
+   ```bash
+   uv venv
+   ```
+   - Activate the virtual environment:
+   ```bash
+   # On Windows
+   .\.venv\Scripts\activate
+   
+   # On Unix or MacOS
+   source .venv/bin/activate
+   ```
+
+### Environment Configuration
+
+The pyproject.toml file contains several optional dependency groups:
+- `docs`: Dependencies for documentation building (mkdocs, material theme, etc.)
+- `video_processor`: Dependencies for video processing (opencv, numpy, etc.)
+- `tests`: Dependencies for testing (pytest)
+- `dev`: Development dependencies
+- `all`: Installs all optional dependencies
+
+You can install specific groups using:
+```bash
+# Install only docs dependencies
+uv pip install ".[docs]"
+
+# Install video processing dependencies
+uv pip install ".[video_processor]"
+
+# Install all optional dependencies
+uv pip install ".[all]"
+
+# Install specific combination of dependencies
+uv pip install ".[docs,tests]"
 ```
 
 ## Documentation

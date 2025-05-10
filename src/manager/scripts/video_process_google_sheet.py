@@ -1,14 +1,15 @@
 """
 Read Google Sheet with videos
 """
+
 import time
 
 import gspread
 import pandas as pd
-from models.talk import Talk
 from pytanis import GSheetsClient
 
-from pytube import conf, logger
+from manager import conf, logger
+from manager.models.talk import Talk
 
 # noinspection SpellCheckingInspection
 SPREADSHEET_ID = conf.spreadsheets.ids
@@ -16,7 +17,7 @@ WORKSHEET_NAMES = conf.spreadsheets.sheets
 
 
 def load_sheets() -> dict[tuple[str, str], pd.DataFrame]:
-    """ Load Google Sheets into DataFrames
+    """Load Google Sheets into DataFrames
     If the file exists, read it, otherwise read from Google Sheets.
     There is a limit on the number of reads for the Google Sheets API.
     """
