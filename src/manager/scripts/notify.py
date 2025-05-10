@@ -3,9 +3,9 @@ Check for recent video releases on the YouTube channel.
 Trigger LinkedIn post and email to speaker creation.
 Post LinkedIn and send emails.
 """
-from handlers import Publisher
 
-from pytube import logger
+from manager import logger
+from manager.handlers import Publisher
 
 if __name__ == "__main__":
     logger.info("Starting the job.")

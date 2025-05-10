@@ -5,13 +5,59 @@ from collections import defaultdict
 from collections.abc import Mapping
 from pathlib import Path
 
-from handlers import LinkedInPost
-from handlers.youtube import YT, PrepareVideoMetadata
-from models.sessions import SessionRecord
-from models.video import YoutubeVideoResource
+import requests
 from pytanis.helpdesk import Mail, MailClient, Recipient
 
-from pytube import conf, logger
+from manager import conf, logger
+from manager.handlers import LinkedInPost
+from manager.handlers.youtube import YT, PrepareVideoMetadata
+from manager.models.sessions import SessionRecord
+from manager.models.video import YoutubeVideoResource
+
+
+class MailClient:
+    """Drop-in replacement for the HelpDesk MailClient in pytanis."""
+
+    def __init__(self):
+        self.api_key = (Path(__file__).parents[2] / "_secret/brevo_key").read_text().strip()
+        self.sender_name = "PyConPyCon DE + PyData Berlin"
+        self.sender_email = "mailings@pycon.de"
+
+    def send(self, mail: Mail, dry_run: bool = False):
+        url = "https://api.brevo.com/v3/smtp/email"
+
+        # Define the headers
+        headers = {
+            "accept": "application/json",
+            "api-key": self.api_key,
+            "content-type": "application/json",
+        }
+
+        # Define the payload
+        payload = {
+            "sender": {"name": self.sender_name, "email": self.sender_email},
+            "to": [
+                {
+                    "email": x.email,
+                    "name": x.name,
+                }
+                for x in mail.recipients
+            ],
+            "subject": mail.subject,
+            "textContent": mail.text,
+        }
+
+        errors = []
+        # Make the POST request
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+
+        # Check if the request was successful
+        if response.status_code == 201:
+            print("Email sent successfully!")
+            return response.json(), errors
+        else:
+            print(f"Failed to send email. Status code: {response.status_code}, Response: {response.text}")
+            return None, response.status_code
 
 
 class Publisher:
@@ -31,44 +77,37 @@ class Publisher:
         self.pretalx_youtube_channel_map = self.video_meta.pretalx_youtube_channel_map
         self.youtube_pretalx_id_map = {v: k for k, v in self.pretalx_youtube_id_map.items()}
 
-        self.linked_in_to_post = conf.dirs.work_dir / 'linked_in_to_post'
+        self.linked_in_to_post = conf.dirs.work_dir / "linked_in_to_post"
         self.linked_in_to_post.mkdir(exist_ok=True, parents=True)
 
-        self.linked_in_posted = conf.dirs.work_dir / 'linked_in_posted'
+        self.linked_in_posted = conf.dirs.work_dir / "linked_in_posted"
         self.linked_in_posted.mkdir(exist_ok=True, parents=True)
 
-        self.x_to_post = conf.dirs.work_dir / 'x_to_post'
+        self.x_to_post = conf.dirs.work_dir / "x_to_post"
         self.x_to_post.mkdir(exist_ok=True, parents=True)
 
-        self.x_posted = conf.dirs.work_dir / 'x_posted'
+        self.x_posted = conf.dirs.work_dir / "x_posted"
         self.x_posted.mkdir(exist_ok=True, parents=True)
 
-        self.speaker_to_email = conf.dirs.work_dir / 'speaker_to_email'
+        self.speaker_to_email = conf.dirs.work_dir / "speaker_to_email"
         self.speaker_to_email.mkdir(exist_ok=True, parents=True)
 
-        self.speaker_emailed = conf.dirs.work_dir / 'speaker_emailed'
+        self.speaker_emailed = conf.dirs.work_dir / "speaker_emailed"
         self.speaker_emailed.mkdir(exist_ok=True, parents=True)
 
     def release_on_youtube_now(self, video_id: str, title, description, category_id):
         # Prepare the request body
-        body = {
-            "id": video_id,
-            "snippet": {},
-            "status": {}
-        }
+        body = {"id": video_id, "snippet": {}, "status": {}}
 
         publish_date = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=5)
         body["status"]["publishAt"] = publish_date.isoformat()
-        body["status"]["privacyStatus"] = 'private'
+        body["status"]["privacyStatus"] = "private"
         body["snippet"]["title"] = title
         body["snippet"]["description"] = description
         body["snippet"]["categoryId"] = category_id
 
         # Update video metadata
-        request = self.youtube_client.youtube.videos().update(
-            part="status,snippet",
-            body=body
-        )
+        request = self.youtube_client.youtube.videos().update(part="status,snippet", body=body)
         try:
             response = request.execute()
             logger.info(f"Video successfully published: {video_id}")
@@ -79,27 +118,27 @@ class Publisher:
 
     @property
     def unpublished_videos(self) -> Mapping:
-        """ Unpublished video records paths."""
+        """Unpublished video records paths."""
         return self.youtube_client.video_records_path_updated.glob("*.json")
 
     @property
     def all_unpublished_video_records(self) -> list[YoutubeVideoResource]:
-        """ All unpublished video records."""
+        """All unpublished video records."""
         return [YoutubeVideoResource.model_validate_json(video.read_text()) for video in self.unpublished_videos]
 
     @property
     def all_unpublished_video_ids(self) -> list[str]:
-        """ All unpublished video IDs."""
+        """All unpublished video IDs."""
         return [video.stem for video in self.unpublished_videos]
 
     @property
     def all_unpublished_videos(self) -> dict[str, str]:
-        """ All unpublished videos pretalx_id: youtube_id."""
+        """All unpublished videos pretalx_id: youtube_id."""
         return {video.stem: self.pretalx_youtube_channel_map.get(video.stem) for video in self.unpublished_videos}
 
     @property
     def all_unpublished_videos_by_channel(self) -> dict[str, list[str]]:
-        """ All unpublished videos by channel {channel: [video_id]}."""
+        """All unpublished videos by channel {channel: [video_id]}."""
         input_dict = self.all_unpublished_videos
         output_dict = defaultdict(list)
         for key, value in input_dict.items():
@@ -108,7 +147,7 @@ class Publisher:
 
     def release_random_video(self):
         # DEPRECATED
-        """ Select a random video to be released on YouTube by channel."""
+        """Select a random video to be released on YouTube by channel."""
         logger.warn("Videos have a release schedule already assigned in preprocessing.")
         population = self.all_unpublished_videos_by_channel.get(self.destination_channel, [])
         if not population:
@@ -128,7 +167,8 @@ class Publisher:
         record_path.write_text(record.model_dump_json(indent=4))
         logger.info(f"Updated record for video {pretalx_id}.")
         (self.youtube_client.video_records_path_updated / f"{pretalx_id}.json").rename(
-            self.youtube_client.video_records_path_published / f"{pretalx_id}.json")
+            self.youtube_client.video_records_path_published / f"{pretalx_id}.json"
+        )
 
         self.prepare_linkedin_post(record)
         self.prepare_email_speakers(record)
@@ -136,20 +176,25 @@ class Publisher:
     def prepare_linkedin_post(self, record: SessionRecord):
         # LinkedIn - save post to file to be posted later
         post = f"""⭐️ New video release 📺: {record.title}\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://www.youtube.com/watch?v={record.youtube_video_id}\n\n{record.sm_long_text}"""
-        json.dump({"pretalx_id": record.pretalx_id,
-                   "post": post,
-                   "title": record.title,
-                   "sm_teaser_text": record.sm_teaser_text,
-                   "sm_short_text": record.sm_short_text,
-                   "sm_long_text": record.sm_long_text,
-                   "youtube_video_id": record.youtube_video_id,
-                   }, (self.linked_in_to_post / f"{record.pretalx_id}.json").open("w"), indent=4)
+        json.dump(
+            {
+                "pretalx_id": record.pretalx_id,
+                "post": post,
+                "title": record.title,
+                "sm_teaser_text": record.sm_teaser_text,
+                "sm_short_text": record.sm_short_text,
+                "sm_long_text": record.sm_long_text,
+                "youtube_video_id": record.youtube_video_id,
+            },
+            (self.linked_in_to_post / f"{record.pretalx_id}.json").open("w"),
+            indent=4,
+        )
 
     def prepare_email_speakers(self, record: SessionRecord):
         agent_id = "b312fd73-b227-4664-a079-6adb2d511e93"
         team_id = "3f68251e-17e9-436f-90c3-c03b06a72472"
         recipients = [Recipient(name=x.name, email=x.email) for x in record.speakers]
-        text = f"""Hi {', '.join([x.name for x in recipients])},\nYour talk {record.title} is now online. 📺🎉\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n\n{record.sm_short_text}\n\nAll the best,\nPyCon.DE & PyData Berlin Team"""
+        text = f"""Hi {", ".join([x.name for x in recipients])},\nYour talk {record.title} is now online. 📺🎉\n\n📺 Watch the video on YouTube: https://youtu.be/{record.youtube_video_id}\n\n{record.sm_short_text}\n\nAll the best,\nPyCon.DE & PyData Berlin Team"""
         email = Mail(
             subject=f"Your talk {record.title} is now online.",
             text=text,
@@ -162,7 +207,7 @@ class Publisher:
         logger.info(f"Email prepared for speakers of video {record.pretalx_id}.")
 
     def post_on_linked_id(self):
-        """ Post ONE LinkedIn update."""
+        """Post ONE LinkedIn update."""
         to_post = self.linked_in_to_post.glob("*.json")
         for post in to_post:
             data = json.load(post.open())
@@ -177,11 +222,11 @@ class Publisher:
                 data["linked_in_response"] = str(e)
 
     def post_on_x(self, record: SessionRecord):
-        """ Post on X."""
+        """Post on X."""
         pass
 
     def email_speakers(self):
-        """ Email the speaker."""
+        """Email the speaker."""
         to_mail = self.speaker_to_email.glob("*.json")
         for email in to_mail:
             mail = Mail.model_validate_json(email.read_text())
@@ -190,11 +235,14 @@ class Publisher:
                 responses, errors = mail_client.send(mail, dry_run=False)
                 if not errors:
                     email.rename(self.speaker_emailed / email.name)
+                else:
+                    logger.error(f"Failed to email speaker: {str(errors)}")
+
             except Exception as e:
                 logger.error(f"Failed to email speaker: {str(e)}")
 
     def media_share(self, data):
-        """ Boilerplate code for media sharing on LinkedIn."""
+        """Boilerplate code for media sharing on LinkedIn."""
         # media share
         image_res = self.linkedin.register_image()
         if image_res is None:
@@ -218,13 +266,13 @@ class Publisher:
 
     @property
     def scheduled_videos(self) -> list[YoutubeVideoResource]:
-        """ All videos with a publishing date set"""
+        """All videos with a publishing date set"""
         all_unpublished_videos = self.all_unpublished_video_records
         return [x for x in all_unpublished_videos if x.status.publish_at]
 
     @property
     def recently_released(self) -> list[YoutubeVideoResource]:
-        """ Recently released videos."""
+        """Recently released videos."""
         now = datetime.datetime.now(datetime.UTC)
         return [x for x in self.scheduled_videos if x.status.publish_at < now]
 
@@ -247,7 +295,9 @@ class Publisher:
                 continue
             pretalx_id = self.youtube_pretalx_id_map[youtube_video_status["id"]]
             logger.info(f"Video {pretalx_id} is now public, preparing posts and emails.")
-            video_record_path = self.video_meta.video_records_path.parent / "video_records_updated" / f"{pretalx_id}.json"
+            video_record_path = (
+                self.video_meta.video_records_path.parent / "video_records_updated" / f"{pretalx_id}.json"
+            )
             video_record = YoutubeVideoResource.model_validate_json(video_record_path.read_text())
             video_record.status.privacy_status = youtube_video_status["status"]["privacyStatus"]
             video_record_path.write_text(video_record.model_dump_json(indent=4))

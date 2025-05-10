@@ -6,17 +6,18 @@ This file can be used for multiple use cases like:
 - Create posts on Social Media
 - etc.
 """
+
 import json
 from contextlib import suppress
 from pathlib import Path
 
-from handlers import sized_text, teaser_text
 from httpx import QueryParams
-from models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 from pytanis import PretalxClient
-from pytanis.pretalx.types import Submission
+from pytanis.pretalx.models import Submission
 
-from pytube import conf, logger
+from manager import conf, logger
+from manager.handlers import sized_text, teaser_text
+from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 
 
 class Records:
@@ -56,104 +57,105 @@ class Records:
         self._confirmed_sessions_map: dict = {}
         self._speakers_map: dict = {}
 
-        self.records: Path = conf.dirs.work_dir / 'records'
+        self.records: Path = conf.dirs.work_dir / "records"
         self.records.mkdir(parents=True, exist_ok=True)
 
     def load_all_confirmed_sessions(self) -> None:
-        """ Load all confirmed talks from pretalx and store it into a single JSON file stored in `_tmp/pretalx`"""
-        logger.info('Loading all confirmed sessions')
-        the_dir = conf.dirs.work_dir / 'pretalx'
+        """Load all confirmed talks from pretalx and store it into a single JSON file stored in `_tmp/pretalx`"""
+        logger.info("Loading all confirmed sessions")
+        the_dir = conf.dirs.work_dir / "pretalx"
         the_dir.mkdir(parents=True, exist_ok=True)
-        if not self.reload and (conf.dirs.work_dir / 'confirmed_sessions_map.json').exists():
-            logger.info('Confirmed sessions already loaded, skipping')
+        if not self.reload and (conf.dirs.work_dir / "confirmed_sessions_map.json").exists():
+            logger.info("Confirmed sessions already loaded, skipping")
             return
         subs_count, subs = self.pretalx_client.submissions(
             conf.pretalx.event_slug,
-            params=QueryParams(**{'questions': 'all', 'state': 'confirmed'}))
-        logger.info(f'Loaded {subs_count} confirmed sessions')
+            params=QueryParams(**{"questions": "all", "state": "confirmed"}),
+        )
+        logger.info(f"Loaded {subs_count} confirmed sessions")
 
-        logger.info('Writing confirmed sessions to disk')
+        logger.info("Writing confirmed sessions to disk")
         if self.reload:
-            logger.info('Reloading confirmed sessions, deleting all existing files')
-            for x in the_dir.glob('*.json'):
+            logger.info("Reloading confirmed sessions, deleting all existing files")
+            for x in the_dir.glob("*.json"):
                 x.unlink()
         for sub in subs:
-            (the_dir / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
-        logger.info(f'Done: wrote {subs_count} confirmed sessions to disk')
+            (the_dir / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
+        logger.info(f"Done: wrote {subs_count} confirmed sessions to disk")
         self.create_confirmed_sessions_map()
 
     def load_all_speakers(self) -> None:
-        """ Load all speakers from pretalx and store it into a single JSON file stored in `_tmp/pretalx_speakers`"""
-        logger.info('Loading all speakers')
-        the_dir = conf.dirs.work_dir / 'pretalx_speakers'
+        """Load all speakers from pretalx and store it into a single JSON file stored in `_tmp/pretalx_speakers`"""
+        logger.info("Loading all speakers")
+        the_dir = conf.dirs.work_dir / "pretalx_speakers"
         the_dir.mkdir(parents=True, exist_ok=True)
-        if not self.reload and len(list(the_dir.glob('*.json'))):
-            logger.info('Speakers already loaded, skipping')
+        if not self.reload and list(the_dir.glob("*.json")):
+            logger.info("Speakers already loaded, skipping")
             return
         subs_count, subs = self.pretalx_client.speakers(
-            conf.pretalx.event_slug,
-            params=QueryParams(**{'questions': 'all'}))
-        logger.info(f'Loaded {subs_count} speakers')
-        logger.info('Writing speakers to disk')
+            conf.pretalx.event_slug, params=QueryParams(**{"questions": "all"})
+        )
+        logger.info(f"Loaded {subs_count} speakers")
+        logger.info("Writing speakers to disk")
         if self.reload:
-            logger.info('Reloading speakers, deleting all existing files')
-            for x in the_dir.glob('*.json'):
+            logger.info("Reloading speakers, deleting all existing files")
+            for x in the_dir.glob("*.json"):
                 x.unlink()
         for sub in subs:
-            (conf.dirs.work_dir / 'pretalx_speakers' / f'{sub.code}.json').write_text(sub.model_dump_json(indent=4))
-        logger.info(f'Done: wrote {subs_count} speakers to disk')
+            (conf.dirs.work_dir / "pretalx_speakers" / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
+        logger.info(f"Done: wrote {subs_count} speakers to disk")
         self.create_speaker_map()
 
     @classmethod
     def create_confirmed_sessions_map(cls) -> None:
-        """ Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
-        the_dir = conf.dirs.work_dir / 'pretalx'
+        """Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
+        the_dir = conf.dirs.work_dir / "pretalx"
         confirmed_map = {}
-        for x in the_dir.glob('*.json'):
+        for x in the_dir.glob("*.json"):
             data = json.load(x.open())
-            confirmed_map[data['code']] = data
+            confirmed_map[data["code"]] = data
         if not confirmed_map:
-            logger.error('No confirmed sessions found, did you run `load_all_confirmed_sessions`?')
-        json.dump(confirmed_map, (conf.dirs.work_dir / 'confirmed_map.json').open('w'), indent=4)
-        logger.info('Created confirmed sessions map')
+            logger.error("No confirmed sessions found, did you run `load_all_confirmed_sessions`?")
+        json.dump(confirmed_map, (conf.dirs.work_dir / "confirmed_map.json").open("w"), indent=4)
+        logger.info("Created confirmed sessions map")
 
     @classmethod
     def create_speaker_map(cls) -> None:
-        """ Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
-        the_dir = conf.dirs.work_dir / 'pretalx_speakers'
+        """Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
+        the_dir = conf.dirs.work_dir / "pretalx_speakers"
         confirmed_map = {}
-        for x in the_dir.glob('*.json'):
+        for x in the_dir.glob("*.json"):
             data = json.load(x.open())
-            confirmed_map[data['code']] = data
+            confirmed_map[data["code"]] = data
         if not confirmed_map:
-            logger.error('No speakers found, did you run `load_all_speakers`?')
-        json.dump(confirmed_map, (conf.dirs.work_dir / 'speaker_map.json').open('w'), indent=4)
-        logger.info('Created confirmed speakers map')
+            logger.error("No speakers found, did you run `load_all_speakers`?")
+        json.dump(confirmed_map, (conf.dirs.work_dir / "speaker_map.json").open("w"), indent=4)
+        logger.info("Created confirmed speakers map")
 
     @property
     def confirmed_sessions_map(self) -> dict:
         if not self._confirmed_sessions_map:
-            self._confirmed_sessions_map = json.load((conf.dirs.work_dir / 'confirmed_sessions_map.json').open())
+            self._confirmed_sessions_map = json.load((conf.dirs.work_dir / "confirmed_sessions_map.json").open())
         return self._confirmed_sessions_map
 
     @property
     def speakers_map(self) -> dict:
         if not self._speakers_map:
-            self._speakers_map = json.load((conf.dirs.work_dir / 'speaker_map.json').open())
+            self._speakers_map = json.load((conf.dirs.work_dir / "speaker_map.json").open())
         return self._speakers_map
 
     def create_records(self) -> None:
-        """ Create records for all confirmed sessions"""
+        """Create records for all confirmed sessions"""
         for code, data in self.confirmed_sessions_map.items():
             self.create_record(code, data)
 
     def create_record(self, code: str, data: dict) -> None:
-        """ Create a record for a single session exclusively from pretalx data."""
+        """Create a record for a single session exclusively from pretalx data."""
         p_session = PretalxSession(
-            pretalx_id=data['code'],
-            title=data['title'],
+            pretalx_id=data["code"],
+            title=data["title"],
             session=Submission.model_validate(data),
-            speakers=[x['code'] for x in data['speakers']]
+            speakers=[x["code"] for x in data["speakers"]],
         )
 
         def get_answer_via_id(answers: list[dict], answer_id: int):
@@ -167,9 +169,9 @@ class Records:
 
         def add_attr(obj, qmap):
             for attr, qid in qmap.items():
-                answer = get_answer_via_id(speaker['answers'], qid)
+                answer = get_answer_via_id(speaker["answers"], qid)
                 if answer:
-                    if attr == 'company':
+                    if attr == "company":
                         answer = Organization(name=answer)
                     with suppress(Exception):
                         setattr(obj, attr, answer)
@@ -185,28 +187,28 @@ class Records:
             pretalx_session=p_session,
             pretalx_id=p_session.pretalx_id,
             title=p_session.title,
-            abstract=data['abstract'],
-            description=data['description'],
+            abstract=data["abstract"],
+            description=data["description"],
             speakers=speakers,
-            as_tweet='',
-            sm_teaser_text='',
-            sm_short_text='',
-            sm_long_text='',
+            as_tweet="",
+            sm_teaser_text="",
+            sm_short_text="",
+            sm_long_text="",
         )
         add_attr(record, self.qmap)
-        (self.records / f'{code}.json').write_text(record.model_dump_json(indent=4))
+        (self.records / f"{code}.json").write_text(record.model_dump_json(indent=4))
 
     def add_descriptions(self, replace=False) -> None:
-        """ Add descriptions to all confirmed sessions """
-        for x in self.records.glob('*.json'):
+        """Add descriptions to all confirmed sessions"""
+        for x in self.records.glob("*.json"):
             try:
                 data = SessionRecord.model_validate_json(x.read_text())
             except Exception as e:
                 jdata = json.load(x.open())
-                logger.error(f'Error adding descriptions to {jdata["pretalx_id"]}: {e}')
+                logger.error(f"Error adding descriptions to {jdata['pretalx_id']}: {e}")
                 return
             # noinspection PyUnresolvedReferences
-            speakers = '\n'.join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
+            speakers = "\n".join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
             info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
             if not data.sm_teaser_text or replace:
                 data.sm_teaser_text = teaser_text(info, max_tokens=50)
@@ -214,5 +216,5 @@ class Records:
                 data.sm_short_text = sized_text(info, max_tokens=100)
             if not data.sm_long_text or replace:
                 data.sm_long_text = sized_text(info, max_tokens=300)
-            (self.records / f'{data.pretalx_id}.json').write_text(data.model_dump_json(indent=4))
-            logger.info(f'Added descriptions to {data.pretalx_id}')
+            (self.records / f"{data.pretalx_id}.json").write_text(data.model_dump_json(indent=4))
+            logger.info(f"Added descriptions to {data.pretalx_id}")

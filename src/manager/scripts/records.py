@@ -1,8 +1,7 @@
-from handlers import Records
+from manager import conf
+from manager.handlers import Records
 
-from pytube import conf
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     questions_map = conf.pretalx_questions_map
     r = Records(qmap=questions_map)
     r.load_all_confirmed_sessions()
