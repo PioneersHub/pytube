@@ -1,17 +1,29 @@
 repos:
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.3  # Check for the latest version: https://github.com/astral-sh/ruff-pre-commit/releases
     hooks:
-      - id: check-yaml
-      - id: end-of-file-fixer
-      - id: trailing-whitespace
-      - id: check-toml
-  - repo: https://github.com/quantco/pre-commit-mirrors-ruff
-    rev: 0.4.3
+      - id: ruff
+      - id: ruff-format
+
+  - repo: https://github.com/jazzband/pip-tools
+    rev: 7.4.1  # Or the latest release
     hooks:
-      - id: ruff-conda
-      - id: ruff-format-conda
-  - repo: https://github.com/quantco/pre-commit-mirrors-mypy
-    rev: 1.10.0
+      - id: pip-compile
+        args: [--generate-hashes]
+        files: ^requirements/.*\.in$
+
+  - repo: local
     hooks:
-      - id: mypy-conda
+      - id: uv-lock
+        name: uv lock
+        entry: uv lock
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: uv-export
+        name: uv export
+        entry: sh -c 'uv export --format=requirements-txt > requirements.txt'
+        language: system
+        types: [python]
+        pass_filenames: false
