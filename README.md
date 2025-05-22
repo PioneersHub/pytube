@@ -15,6 +15,6 @@ Manage and update metadata for your conference videos on YouTube mainly form the
 * Create and post Social Media posts once a video is released
 * Email notifications to speakers
 
-Go to the project website for the detailed [documentation](https://pioneershub.github.io/PyTube/).
+Go to the project website for the detailed [documentation](https://pioneershub.github.io/pytube/).
 
 Thanks to [Pioneers Hub gGmbH](https://pioneershub.org) for the support and the funding for the idea.
