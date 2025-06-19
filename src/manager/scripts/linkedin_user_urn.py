@@ -25,11 +25,7 @@ POST_URL = "https://api.linkedin.com/v2/ugcPosts"
 # Step 1: Redirect user to LinkedIn for authentication
 def get_authorization_code():
     auth_link = (
-        f"{AUTH_URL}?response_type=code"
-        f"&client_id={CLIENT_ID}"
-        f"&redirect_uri={REDIRECT_URI}"
-        f"&scope={SCOPES}"
-        f"&state={STATE}"
+        f"{AUTH_URL}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&scope={SCOPES}&state={STATE}"
     )
     print("\n[STEP 1] Redirecting user to LinkedIn authentication page...")
     print(f"Navigate to this URL and authorize the application:\n{auth_link}")

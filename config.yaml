@@ -80,4 +80,6 @@ prompts:
     if they are mentioned in the text. 
 
 # ########################################
+openai:
+  api_key: ""
 # ########################################

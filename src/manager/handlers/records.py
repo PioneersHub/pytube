@@ -80,7 +80,8 @@ class Records:
             for x in the_dir.glob("*.json"):
                 x.unlink()
         for sub in subs:
-            (the_dir / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
+            sub_json = sub.model_dump_json(indent=4)
+            (the_dir / f"{sub.code}.json").write_text(sub_json)
         logger.info(f"Done: wrote {subs_count} confirmed sessions to disk")
         self.create_confirmed_sessions_map()
 
