@@ -1,0 +1,367 @@
+# CLI Reference
+
+PyTube provides a comprehensive command-line interface for managing conference videos from Pretalx to YouTube publication.
+
+## Installation
+
+After installing PyTube, the `pytube` command will be available in your environment:
+
+```bash
+# Verify installation
+pytube --version
+
+# Get help
+pytube --help
+```
+
+## Global Options
+
+These options can be used with any command:
+
+- `-v, --verbose`: Enable verbose output for debugging
+- `-q, --quiet`: Suppress non-essential output
+- `--help`: Show help for any command
+
+## Commands Overview
+
+```
+pytube
+├── records       # Manage Pretalx records
+├── youtube       # YouTube operations
+├── notify        # Monitor and send notifications
+├── video         # Video file operations
+└── status        # Show system status
+```
+
+## Records Commands
+
+### pytube records fetch
+
+Fetch all sessions and speakers from Pretalx.
+
+```bash
+pytube records fetch [OPTIONS]
+
+Options:
+  --replace-descriptions    Replace existing AI-generated descriptions
+  --skip-descriptions      Skip AI description generation
+  --help                   Show help message
+```
+
+**Example:**
+```bash
+# Fetch all data and generate descriptions
+pytube records fetch
+
+# Fetch data but skip AI descriptions
+pytube records fetch --skip-descriptions
+
+# Re-generate all descriptions
+pytube records fetch --replace-descriptions
+```
+
+### pytube records enhance
+
+Add or update AI-generated descriptions for existing records.
+
+```bash
+pytube records enhance [OPTIONS]
+
+Options:
+  --dry-run    Show what would be updated without making changes
+  --help       Show help message
+```
+
+### pytube records show
+
+Display record details.
+
+```bash
+pytube records show [SESSION_ID]
+
+Arguments:
+  SESSION_ID    Optional session ID to show details for
+```
+
+**Example:**
+```bash
+# List all records
+pytube records show
+
+# Show specific record
+pytube records show ABC123
+```
+
+## YouTube Commands
+
+### pytube youtube map
+
+Map uploaded YouTube videos to Pretalx sessions.
+
+```bash
+pytube youtube map [OPTIONS]
+
+Options:
+  --channel TEXT    YouTube channel name from config
+  --help           Show help message
+```
+
+**Example:**
+```bash
+# Map videos for default channel
+pytube youtube map
+
+# Map videos for specific channel
+pytube youtube map --channel pycon
+```
+
+### pytube youtube update
+
+Update YouTube video metadata from records.
+
+```bash
+pytube youtube update [OPTIONS]
+
+Options:
+  --template TEXT      Jinja2 template file for descriptions [default: youtube_2024.txt]
+  --event-name TEXT    Event name for the template
+  --channel TEXT       Target YouTube channel
+  --dry-run           Preview changes without updating YouTube
+  --help              Show help message
+```
+
+**Example:**
+```bash
+# Update with default template
+pytube youtube update
+
+# Use custom template and event name
+pytube youtube update --template custom.txt --event-name "PyCon 2024"
+
+# Preview changes
+pytube youtube update --dry-run
+```
+
+### pytube youtube schedule
+
+Set publishing schedule for videos.
+
+```bash
+pytube youtube schedule [OPTIONS]
+
+Options:
+  --start TEXT      Start date/time (ISO format or 'now+5m')
+  --interval TEXT   Publishing interval (e.g., 4h, 1d, 30m) [default: 4h]
+  --preview        Show publishing schedule without applying
+  --help           Show help message
+```
+
+**Example:**
+```bash
+# Schedule to start in 5 minutes, publish every 4 hours
+pytube youtube schedule --start now+5m --interval 4h
+
+# Schedule for specific date/time
+pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
+
+# Preview schedule
+pytube youtube schedule --preview
+```
+
+### pytube youtube channels
+
+List configured YouTube channels.
+
+```bash
+pytube youtube channels
+```
+
+## Notify Commands
+
+### pytube notify check
+
+Check for recently published videos and process notifications.
+
+```bash
+pytube notify check [OPTIONS]
+
+Options:
+  --auto-post    Automatically post to social media and send emails
+  --channel TEXT YouTube channel to monitor
+  --offline      Use offline mode (no YouTube API calls)
+  --help         Show help message
+```
+
+**Example:**
+```bash
+# Check and show pending notifications
+pytube notify check
+
+# Check and automatically send all notifications
+pytube notify check --auto-post
+
+# Check specific channel in offline mode
+pytube notify check --channel pycon --offline
+```
+
+### pytube notify email
+
+Send pending speaker email notifications.
+
+```bash
+pytube notify email [OPTIONS]
+
+Options:
+  --dry-run    Show what would be sent without sending
+  --help       Show help message
+```
+
+### pytube notify social
+
+Post pending social media updates.
+
+```bash
+pytube notify social [OPTIONS]
+
+Options:
+  --dry-run    Show what would be posted without posting
+  --help       Show help message
+```
+
+### pytube notify run
+
+Run the complete notification workflow (equivalent to the original notify.py script).
+
+```bash
+pytube notify run
+```
+
+## Video Commands
+
+### pytube video download
+
+Download videos from Vimeo.
+
+```bash
+pytube video download [OPTIONS]
+
+Options:
+  --client-id TEXT    Vimeo client ID (if using multiple)
+  --limit INTEGER     Limit number of videos to download
+  --help             Show help message
+```
+
+### pytube video organize
+
+Organize videos by channel based on tracks.
+
+```bash
+pytube video organize [OPTIONS]
+
+Options:
+  --dry-run    Show channel assignments without creating files
+  --help       Show help message
+```
+
+### pytube video list
+
+List video files in the configured directory.
+
+```bash
+pytube video list
+```
+
+### pytube video status
+
+Show video processing status.
+
+```bash
+pytube video status
+```
+
+## Status Command
+
+### pytube status
+
+Show overall system status and statistics.
+
+```bash
+pytube status [OPTIONS]
+
+Options:
+  --detailed    Show detailed status information
+  --help        Show help message
+```
+
+**Example:**
+```bash
+# Basic status overview
+pytube status
+
+# Detailed status with next steps
+pytube status --detailed
+```
+
+## Common Workflows
+
+### Initial Setup and First Run
+
+```bash
+# 1. Fetch data from Pretalx
+pytube records fetch
+
+# 2. Upload videos to YouTube manually
+# ...
+
+# 3. Map videos to sessions
+pytube youtube map
+
+# 4. Update video metadata
+pytube youtube update
+
+# 5. Schedule publishing
+pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
+
+# 6. Monitor and notify
+pytube notify check --auto-post
+```
+
+### Daily Monitoring
+
+```bash
+# Check system status
+pytube status
+
+# Process new publications and send notifications
+pytube notify check --auto-post
+```
+
+### Troubleshooting
+
+```bash
+# Check detailed status
+pytube status --detailed
+
+# Preview operations without making changes
+pytube youtube update --dry-run
+pytube notify email --dry-run
+
+# Use verbose mode for debugging
+pytube -v records fetch
+```
+
+## Environment Variables
+
+The CLI respects these environment variables:
+
+- `PYTUBE_CONFIG`: Path to alternative config file
+- `PYTUBE_VERBOSE`: Set to "1" for verbose output by default
+- `NO_COLOR`: Disable colored output
+
+## Exit Codes
+
+- `0`: Success
+- `1`: General error
+- `2`: Configuration error
+- `3`: API error
+- `4`: File not found
