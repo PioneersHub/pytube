@@ -12,6 +12,7 @@ repo_url: https://github.com/PioneersHub/pytube
 nav:
   - index.md
   - installation.md
+  - Step by Step Guide: step-by-step.md
   - scripts.md
   - Metadata:
       - Pre-Processing: processing.md
