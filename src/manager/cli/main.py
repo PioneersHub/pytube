@@ -4,7 +4,7 @@ import click
 from rich.console import Console
 
 from manager import __version__, logger
-from manager.cli import notify, records, status, video, youtube
+from manager.cli import assistant, notify, records, setup, status, video, youtube
 
 console = Console()
 
@@ -38,6 +38,8 @@ cli.add_command(youtube.youtube)
 cli.add_command(notify.notify)
 cli.add_command(video.video)
 cli.add_command(status.status)
+cli.add_command(assistant.assistant)
+cli.add_command(setup.setup)
 
 
 def main() -> None:

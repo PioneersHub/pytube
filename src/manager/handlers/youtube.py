@@ -33,14 +33,24 @@ class YT:
 
         self.youtube_offline = youtube_offline
 
-        self.video_records_path = conf.dirs.video_dir / "youtube/video_records"
+        # Use event-specific directory structure
+        self.event_dir = self._get_event_dir()
+        self.video_records_path = self.event_dir / "videos" / "youtube" / "video_records"
         self.video_records_path.mkdir(parents=True, exist_ok=True)
         # data updated at YouTube
-        self.video_records_path_updated = conf.dirs.video_dir / "youtube/video_records_updated"
+        self.video_records_path_updated = self.event_dir / "videos" / "youtube" / "video_records_updated"
         self.video_records_path_updated.mkdir(parents=True, exist_ok=True)
         # videos published on YouTube
-        self.video_records_path_published = conf.dirs.video_dir / "youtube/video_published"
+        self.video_records_path_published = self.event_dir / "videos" / "youtube" / "video_published"
         self.video_records_path_published.mkdir(parents=True, exist_ok=True)
+
+    def _get_event_dir(self) -> Path:
+        """Get the event-specific directory for data storage."""
+        event_slug = conf.pretalx.event_slug
+        if not event_slug or event_slug == "pretalx-uri-slug":
+            # Fallback to default structure for backward compatibility
+            return Path(conf.dirs.work_dir)
+        return Path(conf.dirs.work_dir) / event_slug
 
     @property
     def youtube(self):
@@ -226,7 +236,7 @@ class YT:
         videos = self.list_all_videos_in_playlist(conf.youtube.channels[youtube_channel].playlist_id)
         json.dump(
             videos,
-            (conf.dirs.video_dir / f"youtube_{youtube_channel}_playlist.json").open("w"),
+            (self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json").open("w"),
             indent=4,
         )
 
@@ -243,15 +253,17 @@ class YT:
         We need to create a map of pretalx id to the YouTube video id
         before updating the data on YouTube."""
         videos = []
+        # Determine event directory for current context
+        event_dir = YT()._get_event_dir()
         for channel in conf.youtube.channels:
-            data = json.load((conf.dirs.video_dir / f"youtube_{channel}_playlist.json").open())
+            data = json.load((event_dir / "videos" / f"youtube_{channel}_playlist.json").open())
             videos.extend(data)
         pretalx_yt_map = {}
         for video in videos:
             pretalx_id = video["snippet"]["title"].strip()[:6]
             youtube_id = video["snippet"]["resourceId"]["videoId"]
             pretalx_yt_map[pretalx_id] = youtube_id
-        json.dump(pretalx_yt_map, (conf.dirs.video_dir / "pretalx_yt_map.json").open("w"), indent=4)
+        json.dump(pretalx_yt_map, (event_dir / "videos" / "pretalx_yt_map.json").open("w"), indent=4)
 
 
 class PrepareVideoMetadata:
@@ -276,9 +288,19 @@ class PrepareVideoMetadata:
 
         self.load_yt_metadata()
 
-        self.records_path = conf.dirs.work_dir / "records"
-        self.video_records_path = conf.dirs.video_dir / "youtube/video_records"
+        # Use event-specific directory structure
+        self.event_dir = self._get_event_dir()
+        self.records_path = self.event_dir / "records"
+        self.video_records_path = self.event_dir / "videos" / "youtube" / "video_records"
         self.video_records_path.mkdir(parents=True, exist_ok=True)
+
+    def _get_event_dir(self) -> Path:
+        """Get the event-specific directory for data storage."""
+        event_slug = conf.pretalx.event_slug
+        if not event_slug or event_slug == "pretalx-uri-slug":
+            # Fallback to default structure for backward compatibility
+            return Path(conf.dirs.work_dir)
+        return Path(conf.dirs.work_dir) / event_slug
         # default values
 
     @property
@@ -292,14 +314,14 @@ class PrepareVideoMetadata:
     def pretalx_youtube_channel_map(self):
         """Depends on a previously created mapping file {pretalx ID: YouTube channel} see `video_organizer.py`"""
         if not self._pretalx_youtube_channel_map:
-            self._pretalx_youtube_channel_map = json.load((conf.dirs.video_dir / "tracks_map.json").open())
+            self._pretalx_youtube_channel_map = json.load((self.event_dir / "videos" / "tracks_map.json").open())
         return self._pretalx_youtube_channel_map
 
     @property
     def pretalx_youtube_id_map(self):
         """Depends on a previously created mapping file {pretalx ID: YouTube video ID} see `video_organizer.py`"""
         if not self._pretalx_youtube_id_map:
-            self._pretalx_youtube_id_map = json.load((conf.dirs.video_dir / "pretalx_yt_map.json").open())
+            self._pretalx_youtube_id_map = json.load((self.event_dir / "videos" / "pretalx_yt_map.json").open())
         return self._pretalx_youtube_id_map
 
     @property
@@ -309,7 +331,7 @@ class PrepareVideoMetadata:
     def load_yt_metadata(self):
         videos = []
         for channel in conf.youtube.channels:
-            data = json.load((conf.dirs.video_dir / f"youtube_{channel}_playlist.json").open())
+            data = json.load((self.event_dir / "videos" / f"youtube_{channel}_playlist.json").open())
             videos.extend(data)
         for video in videos:
             ytv = YouTubeMetadata(**video["snippet"])
@@ -320,7 +342,7 @@ class PrepareVideoMetadata:
         self._template = env.get_template(self.template_file)
 
     def make_all_video_metadata(self):
-        manifest = json.load((conf.dirs.work_dir / "manifest.json").open())
+        manifest = json.load((self.event_dir / "manifest.json").open())
         for video in manifest:
             self.make_video_metadata(video)
 

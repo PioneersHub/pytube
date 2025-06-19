@@ -57,15 +57,25 @@ class Records:
         self._confirmed_sessions_map: dict = {}
         self._speakers_map: dict = {}
 
-        self.records: Path = conf.dirs.work_dir / "records"
+        # Event-specific directories
+        self.event_dir = self._get_event_dir()
+        self.records: Path = self.event_dir / "records"
         self.records.mkdir(parents=True, exist_ok=True)
 
+    def _get_event_dir(self) -> Path:
+        """Get the event-specific directory for data storage."""
+        event_slug = conf.pretalx.event_slug
+        if not event_slug or event_slug == "pretalx-uri-slug":
+            # Fallback to default structure for backward compatibility
+            return conf.dirs.work_dir
+        return conf.dirs.work_dir / event_slug
+
     def load_all_confirmed_sessions(self) -> None:
-        """Load all confirmed talks from pretalx and store it into a single JSON file stored in `_tmp/pretalx`"""
+        """Load all confirmed talks from pretalx and store it into a single JSON file stored in event-specific directory"""
         logger.info("Loading all confirmed sessions")
-        the_dir = conf.dirs.work_dir / "pretalx"
+        the_dir = self.event_dir / "pretalx"
         the_dir.mkdir(parents=True, exist_ok=True)
-        if not self.reload and (conf.dirs.work_dir / "confirmed_sessions_map.json").exists():
+        if not self.reload and (self.event_dir / "confirmed_sessions_map.json").exists():
             logger.info("Confirmed sessions already loaded, skipping")
             return
         subs_count, subs = self.pretalx_client.submissions(
@@ -86,9 +96,9 @@ class Records:
         self.create_confirmed_sessions_map()
 
     def load_all_speakers(self) -> None:
-        """Load all speakers from pretalx and store it into a single JSON file stored in `_tmp/pretalx_speakers`"""
+        """Load all speakers from pretalx and store it into a single JSON file stored in event-specific directory"""
         logger.info("Loading all speakers")
-        the_dir = conf.dirs.work_dir / "pretalx_speakers"
+        the_dir = self.event_dir / "pretalx_speakers"
         the_dir.mkdir(parents=True, exist_ok=True)
         if not self.reload and list(the_dir.glob("*.json")):
             logger.info("Speakers already loaded, skipping")
@@ -103,46 +113,44 @@ class Records:
             for x in the_dir.glob("*.json"):
                 x.unlink()
         for sub in subs:
-            (conf.dirs.work_dir / "pretalx_speakers" / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
+            (self.event_dir / "pretalx_speakers" / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
         logger.info(f"Done: wrote {subs_count} speakers to disk")
         self.create_speaker_map()
 
-    @classmethod
-    def create_confirmed_sessions_map(cls) -> None:
+    def create_confirmed_sessions_map(self) -> None:
         """Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
-        the_dir = conf.dirs.work_dir / "pretalx"
+        the_dir = self.event_dir / "pretalx"
         confirmed_map = {}
         for x in the_dir.glob("*.json"):
             data = json.load(x.open())
             confirmed_map[data["code"]] = data
         if not confirmed_map:
             logger.error("No confirmed sessions found, did you run `load_all_confirmed_sessions`?")
-        json.dump(confirmed_map, (conf.dirs.work_dir / "confirmed_map.json").open("w"), indent=4)
+        json.dump(confirmed_map, (self.event_dir / "confirmed_sessions_map.json").open("w"), indent=4)
         logger.info("Created confirmed sessions map")
 
-    @classmethod
-    def create_speaker_map(cls) -> None:
+    def create_speaker_map(self) -> None:
         """Create a mapping of all confirmed sessions form the data loaded via `load_all_confirmed_sessions`"""
-        the_dir = conf.dirs.work_dir / "pretalx_speakers"
+        the_dir = self.event_dir / "pretalx_speakers"
         confirmed_map = {}
         for x in the_dir.glob("*.json"):
             data = json.load(x.open())
             confirmed_map[data["code"]] = data
         if not confirmed_map:
             logger.error("No speakers found, did you run `load_all_speakers`?")
-        json.dump(confirmed_map, (conf.dirs.work_dir / "speaker_map.json").open("w"), indent=4)
+        json.dump(confirmed_map, (self.event_dir / "speaker_map.json").open("w"), indent=4)
         logger.info("Created confirmed speakers map")
 
     @property
     def confirmed_sessions_map(self) -> dict:
         if not self._confirmed_sessions_map:
-            self._confirmed_sessions_map = json.load((conf.dirs.work_dir / "confirmed_sessions_map.json").open())
+            self._confirmed_sessions_map = json.load((self.event_dir / "confirmed_sessions_map.json").open())
         return self._confirmed_sessions_map
 
     @property
     def speakers_map(self) -> dict:
         if not self._speakers_map:
-            self._speakers_map = json.load((conf.dirs.work_dir / "speaker_map.json").open())
+            self._speakers_map = json.load((self.event_dir / "speaker_map.json").open())
         return self._speakers_map
 
     def create_records(self) -> None:
