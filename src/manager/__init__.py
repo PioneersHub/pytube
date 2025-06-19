@@ -75,7 +75,7 @@ structlog.configure(processors=structlog.get_config()["processors"][:-1] + [cr])
 logger = structlog.get_logger()
 
 global_conf = OmegaConf.load(Path(__file__).parents[2] / "config.yaml")
-local_config_path = Path(__file__).parents[1] / "config_local.yaml"
+local_config_path = Path(__file__).parents[2] / "config_local.yaml"
 if not local_config_path.exists():
     with local_config_path.open("w") as f:
         f.write("""# LOCAL configuration, any key here will overwrite the default configuration
