@@ -12,6 +12,28 @@ To install uv, run:
 pip install uv
 ```
 
+### Installing PyTube
+
+After setting up your environment, install PyTube:
+
+```bash
+# Clone the repository
+git clone https://github.com/PioneersHub/pytube.git
+cd pytube
+
+# Create virtual environment
+uv venv
+source .venv/bin/activate
+
+# Install in editable mode with all dependencies
+uv pip install -e ".[all]"
+
+# Verify CLI installation
+pytube --version
+```
+
+The `pytube` command will now be available in your activated environment.
+
 ### Managing Environments
 
 The project uses pyproject.toml for environment configuration. Here's how to work with different environments:
