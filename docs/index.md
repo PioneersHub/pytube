@@ -5,14 +5,27 @@ in [Pretalx](https://github.com/pretalx/pretalx)
 
 ## Main Features
 
-* Manage the release of videos on YouTube:
-    * Video descriptions
-    * Publishing date
-    * Monitoring of the release status and triggering of Social Media posts
-    * Management of videos in multiple channels
-* Create descriptions based on the data in Pretalx with NLP
-* Create and post Social Media posts
-* Email notifications to speakers
+* **Video Management on YouTube:**
+    * Automated video descriptions from Pretalx data
+    * Scheduled publishing dates
+    * Multi-channel support for different tracks
+    * Release status monitoring
+
+* **AI-Powered Content Generation:**
+    * Support for multiple AI providers: OpenAI (GPT-3.5/4), Anthropic Claude, Google Gemini, Cohere
+    * Automated teaser and description generation
+    * Configurable temperature settings for creativity control
+
+* **Multi-Platform Social Media:**
+    * Post to LinkedIn, Twitter/X, Mastodon, or Bluesky
+    * Platform-specific formatting (character limits)
+    * Automated posting when videos go live
+
+* **Additional Features:**
+    * Email notifications to speakers
+    * Event-based directory structure for multi-conference support
+    * AI-friendly CLI with structured JSON responses
+    * Comprehensive setup wizard
 
 ---
 
@@ -75,15 +88,21 @@ The production plan must include information for linking the video recording fil
 
 Upload videos to YouTube, [for instructions details see here](youtube.md).
 
-### Configration
+### Configuration
 
 There is a general configuration file `config.yaml` that provides the general structure.
 
 Individual configurations are stored in the local file `config_local.yaml` which must never be shared:
 
-* Storage locations
-* Pretalx
-    * Event information
+* **Storage locations** - Working directories and video paths
+* **Pretalx** - Event slug and API credentials
+* **AI Service Selection** - Choose between OpenAI, Anthropic, Google, or Cohere
+* **Social Media Platform** - Select LinkedIn, Twitter/X, Mastodon, or Bluesky
+* **API Credentials** - Keys and tokens for all services
+
+For detailed setup instructions, see:
+- [API Credentials Guide](api-credentials.md) - Step-by-step instructions for obtaining API keys
+- [Quick Setup Guide](quick-setup-services.md) - Fastest path to get started
     * Custom assignments of Pretalx ID to a release channel (e.g., PyCon DE / PyData)
 * YouTube
     * credentials
