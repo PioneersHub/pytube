@@ -58,6 +58,7 @@ youtube:
   token_path: "./_secret/youtube_token.json"
 # ########################################
 # Social Media Configuration
+# For API setup instructions, see: docs/api-credentials.md
 # ########################################
 
 # Active social media service - options: linkedin, twitter, mastodon, bluesky
@@ -108,6 +109,8 @@ prompts:
 # ########################################
 # AI Service Configuration
 # Configure your preferred AI service in config_local.yaml
+# For setup instructions, see: docs/api-credentials.md
+# Quick start guide: docs/quick-setup-services.md
 # ########################################
 
 # Active AI service - options: openai, anthropic, google, cohere
