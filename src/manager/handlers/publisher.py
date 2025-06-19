@@ -77,23 +77,34 @@ class Publisher:
         self.pretalx_youtube_channel_map = self.video_meta.pretalx_youtube_channel_map
         self.youtube_pretalx_id_map = {v: k for k, v in self.pretalx_youtube_id_map.items()}
 
-        self.linked_in_to_post = conf.dirs.work_dir / "linked_in_to_post"
+        # Use event-specific directory structure
+        self.event_dir = self._get_event_dir()
+
+        self.linked_in_to_post = self.event_dir / "linked_in_to_post"
         self.linked_in_to_post.mkdir(exist_ok=True, parents=True)
 
-        self.linked_in_posted = conf.dirs.work_dir / "linked_in_posted"
+        self.linked_in_posted = self.event_dir / "linked_in_posted"
         self.linked_in_posted.mkdir(exist_ok=True, parents=True)
 
-        self.x_to_post = conf.dirs.work_dir / "x_to_post"
+        self.x_to_post = self.event_dir / "x_to_post"
         self.x_to_post.mkdir(exist_ok=True, parents=True)
 
-        self.x_posted = conf.dirs.work_dir / "x_posted"
+        self.x_posted = self.event_dir / "x_posted"
         self.x_posted.mkdir(exist_ok=True, parents=True)
 
-        self.speaker_to_email = conf.dirs.work_dir / "speaker_to_email"
+        self.speaker_to_email = self.event_dir / "speaker_to_email"
         self.speaker_to_email.mkdir(exist_ok=True, parents=True)
 
-        self.speaker_emailed = conf.dirs.work_dir / "speaker_emailed"
+        self.speaker_emailed = self.event_dir / "speaker_emailed"
         self.speaker_emailed.mkdir(exist_ok=True, parents=True)
+
+    def _get_event_dir(self) -> Path:
+        """Get the event-specific directory for data storage."""
+        event_slug = conf.pretalx.event_slug
+        if not event_slug or event_slug == "pretalx-uri-slug":
+            # Fallback to default structure for backward compatibility
+            return Path(conf.dirs.work_dir)
+        return Path(conf.dirs.work_dir) / event_slug
 
     def release_on_youtube_now(self, video_id: str, title, description, category_id):
         # Prepare the request body

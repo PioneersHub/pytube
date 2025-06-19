@@ -109,8 +109,13 @@ def status(ctx: click.Context, detailed: bool) -> None:
     # Summary
     summary_items = [
         f"[bold]Total Videos in Pipeline:[/bold] {total_in_pipeline}",
-        f"[bold]Working Directory:[/bold] {conf.dirs.work_dir}",
+        f"[bold]Working Directory:[/bold] {event_dir}",
+        f"[bold]Event Structure:[/bold] {'Event-based' if use_event_structure else 'Legacy'}",
     ]
+
+    if use_event_structure:
+        event_slug = getattr(conf.pretalx, "event_slug", "unknown")
+        summary_items.append(f"[bold]Event:[/bold] {event_slug}")
 
     if conf.dirs.video_dir.exists():
         video_count = len(list(conf.dirs.video_dir.glob("*.mp4"))) + len(list(conf.dirs.video_dir.glob("*.mov")))

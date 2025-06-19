@@ -59,7 +59,7 @@ def fetch(ctx: click.Context, replace_descriptions: bool, skip_descriptions: boo
         # Create records
         progress.update(task, description="Creating session records...")
         r.create_records()
-        console.print(f"✓ Created records in {conf.dirs.work_dir / 'records'}", style="green")
+        console.print(f"✓ Created records in {r.records}", style="green")
 
         # Add descriptions
         if not skip_descriptions:
@@ -71,9 +71,10 @@ def fetch(ctx: click.Context, replace_descriptions: bool, skip_descriptions: boo
 
     # Summary
     console.print("\n[bold]Summary:[/bold]")
-    record_count = len(list((conf.dirs.work_dir / "records").glob("*.json")))
+    # Use the same Records instance to get the correct event-specific path
+    record_count = len(list(r.records.glob("*.json")))
     console.print(f"  Total records created: {record_count}")
-    console.print(f"  Location: {conf.dirs.work_dir / 'records'}")
+    console.print(f"  Location: {r.records}")
 
 
 @records.command()
@@ -95,7 +96,7 @@ def enhance(ctx: click.Context, dry_run: bool) -> None:
     r = RecordsHandler(qmap=questions_map)
 
     # Check existing records
-    record_files = list((conf.dirs.work_dir / "records").glob("*.json"))
+    record_files = list(r.records.glob("*.json"))
     if not record_files:
         console.print("[yellow]No records found. Run 'pytube records fetch' first.[/yellow]")
         return
@@ -129,7 +130,10 @@ def show(ctx: click.Context, session_id: str | None) -> None:
     """
     console = ctx.obj["console"]
 
-    record_dir = conf.dirs.work_dir / "records"
+    # Initialize Records handler to get the correct event-specific path
+    questions_map = conf.pretalx.questions_map
+    r = RecordsHandler(qmap=questions_map)
+    record_dir = r.records
 
     if session_id:
         # Show specific record
