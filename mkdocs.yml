@@ -13,6 +13,7 @@ nav:
   - index.md
   - installation.md
   - Step by Step Guide: step-by-step.md
+  - CLI Reference: cli-reference.md
   - scripts.md
   - Metadata:
       - Pre-Processing: processing.md
