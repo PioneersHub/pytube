@@ -10,6 +10,7 @@ from pytanis.helpdesk import Mail, MailClient, Recipient
 
 from manager import conf, logger
 from manager.handlers import LinkedInPost
+from manager.handlers.social_media import post_to_social_media
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.sessions import SessionRecord
 from manager.models.video import YoutubeVideoResource
@@ -185,8 +186,23 @@ class Publisher:
         self.prepare_email_speakers(record)
 
     def prepare_linkedin_post(self, record: SessionRecord):
-        # LinkedIn - save post to file to be posted later
-        post = f"""⭐️ New video release 📺: {record.title}\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://www.youtube.com/watch?v={record.youtube_video_id}\n\n{record.sm_long_text}"""
+        # Prepare social media post - save to file to be posted later
+        # Format post based on configured service
+        service = conf.get("social_media_service", "linkedin").lower()
+
+        if service in ["twitter", "x"]:
+            # Twitter has 280 character limit
+            post = f"🎥 New video: {record.title}\n\n{record.sm_teaser_text}\n\n📺 https://youtu.be/{record.youtube_video_id}"
+            if len(post) > 280:
+                # Truncate if needed
+                post = f"🎥 {record.title}\n\n📺 https://youtu.be/{record.youtube_video_id}"
+        elif service == "mastodon":
+            # Mastodon has 500 character default limit
+            post = f"⭐️ New video release 📺\n\n{record.title}\n\n{record.sm_teaser_text}\n\n📺 Watch: https://youtu.be/{record.youtube_video_id}\n\n{record.sm_short_text}"
+        else:
+            # LinkedIn and others - use full format
+            post = f"""⭐️ New video release 📺: {record.title}\n{record.sm_teaser_text}\n\n📺 Watch the video on YouTube: https://www.youtube.com/watch?v={record.youtube_video_id}\n\n{record.sm_long_text}"""
+
         json.dump(
             {
                 "pretalx_id": record.pretalx_id,
@@ -196,6 +212,7 @@ class Publisher:
                 "sm_short_text": record.sm_short_text,
                 "sm_long_text": record.sm_long_text,
                 "youtube_video_id": record.youtube_video_id,
+                "service": service,
             },
             (self.linked_in_to_post / f"{record.pretalx_id}.json").open("w"),
             indent=4,
@@ -223,14 +240,22 @@ class Publisher:
         for post in to_post:
             data = json.load(post.open())
             try:
-                res = self.linkedin.post(data)
+                # Check if we should use the multi-provider system
+                if conf.get("social_media_service"):
+                    # Use new multi-provider system
+                    res = post_to_social_media(data["post"])
+                else:
+                    # Use legacy LinkedIn-only system
+                    res = self.linkedin.post(data)
+
                 if res is None:
                     return
-                data["linked_in_response"] = res
+                data["social_media_response"] = res
                 post.rename(self.linked_in_posted / post.name)
                 return
             except Exception as e:
-                data["linked_in_response"] = str(e)
+                data["social_media_response"] = str(e)
+                logger.error(f"Failed to post: {e}")
 
     def post_on_x(self, record: SessionRecord):
         """Post on X."""

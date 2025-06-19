@@ -57,37 +57,105 @@ youtube:
   max_description_length: 5000
   token_path: "./_secret/youtube_token.json"
 # ########################################
-# LinkedIn
+# Social Media Configuration
 # ########################################
-linkedin  :
+
+# Active social media service - options: linkedin, twitter, mastodon, bluesky
+social_media_service: "linkedin"
+
+# LinkedIn
+linkedin:
   access_token: ""
   refresh_token: ""
   client_id: ""
   client_secret: ""
   company_id: ""
+
+# Twitter/X Configuration
+twitter:
+  api_key: ""
+  api_secret: ""
+  access_token: ""
+  access_token_secret: ""
+  bearer_token: ""
+
+# Mastodon Configuration
+mastodon:
+  instance_url: "https://mastodon.social"  # Your Mastodon instance
+  access_token: ""
+  visibility: "public"  # public, unlisted, private, direct
+
+# Bluesky Configuration
+bluesky:
+  handle: ""  # e.g., "user.bsky.social"
+  app_password: ""  # Use app-specific password
+  
 # ########################################
 # # Prompts for descriptions
 prompts:
   teaser: >
-    You are an expert editor and your task is to write one short teaser sentence to encourage people to watch
-    the video based on the title and text.  The teaser should be a short sentence that is catchy and engaging.
-    Use a professional tone. Start with 'Watch'.
-  # note there is a placeholder to instruct about the desired the length: {max_tokens}
-  description: >
-    You are an expert editor and your task is to create a continuous text with about {max_tokens} tokens.
-    The text describes the talk and should be concise and informative please. Mention the speaker names,
-    jobs and companies. Never use the verb 'delve'. Make sure only to mention jobs and companies
-    if they are mentioned in the text. 
+    You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2025.
+    Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
+    Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
 
+  description: >
+    You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2025.
+    Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
+    Keep the tone professional, concise, and relevant to a tech audience.
+    Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
+    Avoid the verb “delve.”
+    Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
 # ########################################
+# AI Service Configuration
+# Configure your preferred AI service in config_local.yaml
+# ########################################
+
+# Active AI service - options: openai, anthropic, google, cohere
+ai_service: "openai"
+
 # OpenAI Configuration
-# Put your API key and model preferences in config_local.yaml
 openai:
   api_key: ""
-  # Default model if not specified in config_local.yaml
+  # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
   model: "gpt-3.5-turbo"
-  # Default temperature settings if not specified in config_local.yaml
+  # Temperature settings for different tasks
   temperature:
     teaser: 0.7
     description: 0.9
+  # Optional: Organization ID
+  organization: ""
+
+# Anthropic Claude Configuration
+anthropic:
+  api_key: ""
+  # Models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
+  model: "claude-3-sonnet-20240229"
+  temperature:
+    teaser: 0.7
+    description: 0.9
+  # Max tokens for Claude (different from OpenAI)
+  max_tokens: 1000
+
+# Google Gemini Configuration
+google:
+  api_key: ""
+  # Models: gemini-pro, gemini-pro-vision
+  model: "gemini-pro"
+  temperature:
+    teaser: 0.7
+    description: 0.9
+  # Safety settings
+  safety_settings:
+    harassment: "BLOCK_MEDIUM_AND_ABOVE"
+    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+
+# Cohere Configuration
+cohere:
+  api_key: ""
+  # Models: command, command-light, command-nightly
+  model: "command"
+  temperature:
+    teaser: 0.7
+    description: 0.9
+
 # ########################################
