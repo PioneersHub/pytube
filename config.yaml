@@ -80,6 +80,14 @@ prompts:
     if they are mentioned in the text. 
 
 # ########################################
+# OpenAI Configuration
+# Put your API key and model preferences in config_local.yaml
 openai:
   api_key: ""
+  # Default model if not specified in config_local.yaml
+  model: "gpt-3.5-turbo"
+  # Default temperature settings if not specified in config_local.yaml
+  temperature:
+    teaser: 0.7
+    description: 0.9
 # ########################################
