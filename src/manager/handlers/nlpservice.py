@@ -7,7 +7,7 @@ it delegates to ai_service.py based on configuration.
 
 Configuration in config.yaml:
     ai_service: "openai"  # Select active AI service
-    
+
     openai:
         api_key: "your-api-key"
         model: "gpt-3.5-turbo"  # or gpt-4, gpt-4-turbo, etc.

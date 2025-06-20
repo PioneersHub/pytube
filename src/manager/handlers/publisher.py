@@ -21,7 +21,7 @@ class MailClient:
 
     def __init__(self):
         self.api_key = (Path(__file__).parents[2] / "_secret/brevo_key").read_text().strip()
-        self.sender_name = "PyConPyCon DE + PyData Berlin"
+        self.sender_name = "PyCon DE + PyData"
         self.sender_email = "mailings@pycon.de"
 
     def send(self, mail: Mail, dry_run: bool = False):

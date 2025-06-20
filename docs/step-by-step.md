@@ -14,7 +14,7 @@ Before starting, ensure you have completed ALL prerequisites:
 - [ ] Production plan documenting which recordings map to which sessions
 
 ### Technical Prerequisites
-- [ ] Python 3.11+ installed
+- [ ] Python 3.13.1+ installed
 - [ ] `uv` package manager installed
 - [ ] Git repository cloned locally
 - [ ] Virtual environment created and activated

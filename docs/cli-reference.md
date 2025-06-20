@@ -342,9 +342,81 @@ Options:
   --help             Show help message
 ```
 
-### pytube video organize
+### pytube video assign-channels
 
-Organize videos by channel based on tracks.
+Assign videos to YouTube channels based on track information.
+
+```bash
+pytube video assign-channels [OPTIONS]
+
+Options:
+  --dry-run    Show what channels would be assigned without creating files
+  --help       Show help message
+```
+
+**Example:**
+```bash
+# Assign videos to channels
+pytube video assign-channels
+
+# Preview assignments without creating files
+pytube video assign-channels --dry-run
+```
+
+This command:
+- Analyzes confirmed sessions from Pretalx
+- Determines which YouTube channel (PyData/PyCon) each video should be uploaded to
+- Creates mapping files: `tracks.json` and `tracks_map.json`
+- Uses track names and custom mappings from configuration
+
+### pytube video move
+
+Move videos to channel directories based on assignments.
+
+```bash
+pytube video move [OPTIONS]
+
+Options:
+  --dry-run    Show what would be moved without actually moving files
+  --force      Move files even if destination already exists
+  --help       Show help message
+```
+
+**Example:**
+```bash
+# Move videos to channel directories
+pytube video move
+
+# Preview moves without actually moving files
+pytube video move --dry-run
+
+# Force move even if files exist at destination
+pytube video move --force
+```
+
+This command:
+- Moves videos from `downloads/` to channel-specific directories
+- Creates sibling directories: `pycon/`, `pydata/`
+- Moves do-not-record videos to `do_not_release/`
+- Keeps unmatched videos in `downloads/`
+
+### pytube video report
+
+Generate a report of unassigned videos.
+
+```bash
+pytube video report
+```
+
+This command:
+- Lists all videos that could not be assigned to a channel
+- Shows session codes, titles, and tracks
+- Saves detailed report to `unassigned_videos_report.json`
+- Helps identify videos needing manual channel assignment
+
+### pytube video organize (Deprecated)
+
+**[DEPRECATED]** Use `assign-channels` instead.
 
 ```bash
 pytube video organize [OPTIONS]
@@ -353,6 +425,10 @@ Options:
   --dry-run    Show channel assignments without creating files
   --help       Show help message
 ```
+
+This command is deprecated. Use the new workflow:
+1. `pytube video assign-channels` - Assign videos to channels
+2. `pytube video move` - Move videos to channel directories
 
 ### pytube video list
 
@@ -401,20 +477,51 @@ pytube status --detailed
 # 1. Fetch data from Pretalx
 pytube records fetch
 
-# 2. Upload videos to YouTube manually
-# ...
+# 2. Assign videos to channels based on track information
+pytube video assign-channels
 
-# 3. Map videos to sessions
+# 3. Move videos to channel-specific directories
+pytube video move --dry-run  # Preview first
+pytube video move            # Actually move files
+
+# 4. Generate report of any unassigned videos
+pytube video report
+
+# 5. Upload videos to YouTube manually from channel directories
+# Upload from pycon/ directory to PyCon channel
+# Upload from pydata/ directory to PyData channel
+
+# 6. Map videos to sessions
 pytube youtube map
 
-# 4. Update video metadata
+# 7. Update video metadata
 pytube youtube update
 
-# 5. Schedule publishing
+# 8. Schedule publishing
 pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
 
-# 6. Monitor and notify
+# 9. Monitor and notify
 pytube notify check --auto-post
+```
+
+### Video Organization Workflow
+
+```bash
+# Check current status
+pytube video status
+
+# Assign videos to channels (dry-run first)
+pytube video assign-channels --dry-run
+pytube video assign-channels
+
+# Preview what files will be moved
+pytube video move --dry-run
+
+# Move videos to channel directories
+pytube video move
+
+# Check for any unassigned videos
+pytube video report
 ```
 
 ### Daily Monitoring

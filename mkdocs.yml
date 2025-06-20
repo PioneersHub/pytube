@@ -18,6 +18,7 @@ nav:
   - Metadata:
       - Pre-Processing: processing.md
       - Add Descriptions with NLP: openai.md
+  - Video Organization: video-organization.md
   - Video Auto-Cut: presentation_detector.md
   - YouTube: youtube.md
   - Spread the Word:

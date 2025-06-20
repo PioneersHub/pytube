@@ -81,65 +81,22 @@ def download(ctx: click.Context, client_id: str | None, limit: int | None) -> No
 )
 @click.pass_context
 def organize(ctx: click.Context, dry_run: bool) -> None:
-    """Organize videos by channel based on tracks.
+    """[DEPRECATED] Use 'assign-channels' instead.
 
-    Assigns videos to appropriate channels (PyData/PyCon)
-    based on their track information from Pretalx.
+    This command is deprecated. Please use:
+    - 'pytube video assign-channels' to assign videos to channels
+    - 'pytube video move' to move videos to channel directories
     """
     console = ctx.obj["console"]
 
-    if dry_run:
-        console.print("[yellow]DRY RUN - No files will be created[/yellow]\n")
+    console.print("[yellow]WARNING: This command is deprecated![/yellow]")
+    console.print("\nPlease use the new commands:")
+    console.print("  1. pytube video assign-channels  # Assign videos to channels")
+    console.print("  2. pytube video move             # Move videos to channel directories")
+    console.print("\nFor now, this will run 'assign-channels' for backward compatibility.\n")
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Loading session data...", total=None)
-
-        # Load records
-        records = video_organizer.records
-        records.load_all_confirmed_sessions()
-
-        progress.update(task, description="Assigning videos to channels...")
-
-        # Process channel assignments
-        collect_tracks = video_organizer.assign_video_to_channel()
-
-        progress.stop()
-
-    # Show results
-    table = Table(title="Channel Assignments")
-    table.add_column("Channel", style="cyan")
-    table.add_column("Track", style="green")
-    table.add_column("Videos", style="yellow", justify="right")
-
-    channel_stats = {}
-    for track, videos in collect_tracks.items():
-        if track not in channel_stats:
-            channel_stats[track] = []
-        channel_stats[track].extend(videos)
-
-    for channel, videos in channel_stats.items():
-        if channel:
-            # Group by track
-            tracks = {}
-            for video in videos:
-                track_name = video.get("track", {}).get("en", "Unknown")
-                if track_name not in tracks:
-                    tracks[track_name] = 0
-                tracks[track_name] += 1
-
-            for track_name, count in tracks.items():
-                table.add_row(channel, track_name, str(count))
-
-    console.print(table)
-
-    if not dry_run:
-        console.print(f"\n✓ Created channel assignment files in {conf.dirs.video_dir}", style="green")
-        console.print("  - tracks.json: Full video assignments")
-        console.print("  - tracks_map.json: Session ID to channel mapping")
+    # Run assign-channels for backward compatibility
+    ctx.invoke(assign_channels, dry_run=dry_run)
 
 
 @video.command()
@@ -225,3 +182,149 @@ def status(ctx: click.Context) -> None:
             console.print("[yellow]No video files found in video directory[/yellow]")
     else:
         console.print(f"[yellow]Video directory not found: {conf.dirs.video_dir}[/yellow]")
+
+
+@video.command(name="assign-channels")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what channels would be assigned without creating files",
+)
+@click.pass_context
+def assign_channels(ctx: click.Context, dry_run: bool) -> None:
+    """Assign videos to channels based on track information.
+
+    This command analyzes confirmed sessions from Pretalx and determines
+    which YouTube channel (PyData/PyCon) each video should be uploaded to.
+    The assignment is based on track names and custom mappings.
+    """
+    console = ctx.obj["console"]
+
+    if dry_run:
+        console.print("[yellow]DRY RUN - No files will be created[/yellow]\n")
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Loading session data...", total=None)
+
+        # Check if pretalx data exists
+        records = video_organizer.records
+        if not records.event_dir.exists() or not (records.event_dir / "confirmed_sessions_map.json").exists():
+            progress.stop()
+            console.print("[red]No Pretalx data found. Run 'pytube pretalx download' first.[/red]")
+            return
+
+        records.load_all_confirmed_sessions()
+
+        progress.update(task, description="Assigning videos to channels...")
+
+        # Process channel assignments
+        collect_tracks = video_organizer.assign_video_to_channel()
+
+        progress.stop()
+
+    # Show results
+    table = Table(title="Channel Assignments")
+    table.add_column("Channel", style="cyan")
+    table.add_column("Sessions", style="yellow", justify="right")
+    table.add_column("Tracks", style="green")
+
+    channel_stats = {}
+    track_details = {}
+
+    for track, videos in collect_tracks.items():
+        if track not in channel_stats:
+            channel_stats[track] = []
+            track_details[track] = set()
+        channel_stats[track].extend(videos)
+        for video in videos:
+            track_name = video.get("track", {}).get("en", "Unknown")
+            track_details[track].add(track_name)
+
+    for channel, videos in sorted(channel_stats.items()):
+        if channel:
+            tracks_list = ", ".join(sorted(track_details[channel]))
+            table.add_row(channel, str(len(videos)), tracks_list)
+
+    console.print(table)
+
+    if not dry_run:
+        console.print(f"\n✓ Created channel assignment files in {conf.dirs.video_dir}", style="green")
+        console.print("  - tracks.json: Full video assignments")
+        console.print("  - tracks_map.json: Session ID to channel mapping")
+    else:
+        console.print("\n[dim]Run without --dry-run to create assignment files[/dim]")
+
+
+@video.command()
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be moved without actually moving files",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Move files even if destination already exists",
+)
+@click.pass_context
+def move(ctx: click.Context, dry_run: bool, force: bool) -> None:
+    """Move videos to channel directories based on assignments.
+
+    Moves video files from the downloads directory to channel-specific
+    directories (pycon/, pydata/) based on the track assignments.
+    Videos marked as do-not-record are moved to do_not_release/.
+    Unmatched videos remain in the downloads directory.
+    """
+    console = ctx.obj["console"]
+
+    # Check prerequisites
+    if not (conf.dirs.video_dir / "tracks_map.json").exists():
+        console.print("[red]No channel assignments found. Run 'pytube video assign-channels' first.[/red]")
+        return
+
+    downloads_dir = conf.dirs.video_dir / "downloads"
+    if not downloads_dir.exists():
+        console.print(f"[red]Downloads directory not found: {downloads_dir}[/red]")
+        return
+
+    video_count = len(list(downloads_dir.glob("*.mp4")))
+    if video_count == 0:
+        console.print("[yellow]No video files found in downloads directory[/yellow]")
+        return
+
+    if dry_run:
+        console.print("[yellow]DRY RUN MODE - No files will be moved[/yellow]\n")
+
+    console.print(f"Found {video_count} video files to process\n")
+
+    # Run the move operation
+    video_organizer.move_videos_to_upload_channel(dry_run=dry_run)
+
+    if dry_run:
+        console.print("\n[dim]Run without --dry-run to actually move the files[/dim]")
+
+
+@video.command()
+@click.pass_context
+def report(ctx: click.Context) -> None:
+    """Generate a report of unassigned videos.
+
+    Lists all videos that could not be assigned to a channel,
+    showing their session codes, titles, and tracks. This helps
+    identify videos that need manual channel assignment.
+    """
+    console = ctx.obj["console"]
+
+    # Check prerequisites
+    if not (conf.dirs.video_dir / "tracks_map.json").exists():
+        console.print("[red]No channel assignments found. Run 'pytube video assign-channels' first.[/red]")
+        return
+
+    console.print("Generating unassigned videos report...\n")
+
+    # Generate the report
+    video_organizer.report_unassigned_videos()

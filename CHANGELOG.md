@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0] - 2025-06-20
+
 ### Added
 - Multi-provider AI support for content generation
   - OpenAI (GPT-3.5-turbo, GPT-4, GPT-4o)
@@ -48,6 +50,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Quick setup guide for beginners
   - Decision matrices for service selection
   - Updated CLI reference with assistant documentation
+
+### Changed
+- **BREAKING**: Separated AI description generation from records fetch command
+  - `pytube records fetch` now only fetches data
+  - Use `pytube records generate-descriptions` for AI content generation
+  - Removed `--skip-descriptions` and `--replace-descriptions` flags from fetch
+- Enhanced error handling and validation throughout the workflow
+  - Commands now exit with proper error codes for automation
+  - Added speaker loading validation to prevent incomplete records
+  - Clear old data before fetching to ensure fresh state
+
+### Fixed
+- Assistant now correctly reports failures when records fetch fails
+- Fixed exit codes to properly indicate success/failure for automation
+- Improved error messages with actionable troubleshooting tips
+- Added detailed statistics tracking (new vs updated records)
+- Enhanced video organization system
+  - New CLI commands: `assign-channels`, `move`, `report`
+  - Dry-run mode for safe testing of file operations
+  - Uses sibling directories for channel organization (pycon/, pydata/)
+  - Improved video-to-session matching using first 6 characters
+  - Automatic handling of do-not-record videos
+  - Detailed reporting of unassigned videos
+  - Fixed file move operations (was copying instead of moving)
 
 ### Changed
 - Configuration now supports service selection
