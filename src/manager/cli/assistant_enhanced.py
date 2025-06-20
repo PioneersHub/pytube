@@ -18,51 +18,47 @@ from manager.cli.workflow import WorkflowManager, get_workflow_templates
 
 class EnhancedAssistant:
     """Enhanced assistant with better menu handling and workflows."""
-    
+
     def __init__(self, console: Console):
         self.console = console
         self.setup_wizard = SetupWizard(console)
         self.workflow_manager = WorkflowManager(console)
         self.context = self._build_context()
-        
+
     def _build_context(self) -> dict[str, Any]:
         """Build context information for menu display."""
         context = {}
-        
+
         # Event information
         event_slug = getattr(conf.pretalx, "event_slug", None)
         if event_slug and event_slug != "pretalx-uri-slug":
             context["event"] = event_slug
-            
+
         # Statistics
         try:
             work_dir = Path(conf.dirs.work_dir)
             if event_slug:
                 work_dir = work_dir / event_slug
-                
-            stats = {
-                "total": 0,
-                "processed": 0,
-                "pending": 0
-            }
-            
+
+            stats = {"total": 0, "processed": 0, "pending": 0}
+
             # Count files in different stages
             records_dir = work_dir / "records"
             if records_dir.exists():
                 stats["total"] = len(list(records_dir.glob("*.json")))
-                
+
             published_dir = work_dir / "videos" / "youtube" / "video_published"
             if published_dir.exists():
                 stats["processed"] = len(list(published_dir.glob("*.json")))
-                
+
             stats["pending"] = stats["total"] - stats["processed"]
             context["stats"] = stats
-            
+
         except Exception as e:
             logger.debug(f"Could not build stats: {e}")
-            
+
         return context
-        
+
     def run(self) -> None:
         """Run the enhanced assistant."""
         self.console.print(
@@ -81,10 +77,10 @@ class EnhancedAssistant:
                 border_style="cyan",
             )
         )
-        
+
         while True:
             action = self._show_main_menu()
-            
+
             if action == MenuAction.EXIT:
                 self.console.print("\n👋 Goodbye! Happy video publishing!\n", style="cyan")
                 break
@@ -102,109 +98,89 @@ class EnhancedAssistant:
                 self._handle_troubleshoot()
             elif action == MenuAction.HELP:
                 self._show_general_help()
-                
+
             # Refresh context after each action
             self.context = self._build_context()
-            
+
     def _show_main_menu(self) -> MenuAction:
         """Show main menu with context awareness."""
         menu = Menu(self.console, "What would you like to do?")
-        
+
         # Determine what items to show based on context
         config_exists = Path("config_local.yaml").exists()
         has_event = "event" in self.context
         has_videos = self.context.get("stats", {}).get("total", 0) > 0
         has_pending = self.context.get("stats", {}).get("pending", 0) > 0
-        
+
         # Setup - always available but show status
         setup_badge = "✓" if config_exists else "!"
         setup_status = "[green](configured)[/green]" if config_exists else "[yellow](needed)[/yellow]"
-        menu.add_item(MenuItem(
-            MenuAction.SETUP,
-            self._handle_setup,
-            enabled=True,
-            badge=setup_badge,
-            status=setup_status
-        ))
-        
+        menu.add_item(
+            MenuItem(MenuAction.SETUP, self._handle_setup, enabled=True, badge=setup_badge, status=setup_status)
+        )
+
         # Process - available if configured
         process_status = ""
         if has_pending:
             process_status = f"[yellow]({has_pending} videos pending)[/yellow]"
         elif has_videos:
             process_status = "[green](all processed)[/green]"
-            
-        menu.add_item(MenuItem(
-            MenuAction.PROCESS,
-            self._handle_process,
-            enabled=config_exists,
-            badge="▶" if has_pending else "",
-            status=process_status
-        ))
-        
+
+        menu.add_item(
+            MenuItem(
+                MenuAction.PROCESS,
+                self._handle_process,
+                enabled=config_exists,
+                badge="▶" if has_pending else "",
+                status=process_status,
+            )
+        )
+
         # Status - always available
-        menu.add_item(MenuItem(
-            MenuAction.STATUS,
-            self._handle_status,
-            enabled=True
-        ))
-        
+        menu.add_item(MenuItem(MenuAction.STATUS, self._handle_status, enabled=True))
+
         # Workflow management
-        menu.add_item(MenuItem(
-            MenuAction.WORKFLOW,
-            self._handle_workflow_management,
-            enabled=config_exists and has_event,
-            badge="",
-            status="[dim](advanced)[/dim]"
-        ))
-        
+        menu.add_item(
+            MenuItem(
+                MenuAction.WORKFLOW,
+                self._handle_workflow_management,
+                enabled=config_exists and has_event,
+                badge="",
+                status="[dim](advanced)[/dim]",
+            )
+        )
+
         # Validate
-        menu.add_item(MenuItem(
-            MenuAction.VALIDATE,
-            self._handle_validate,
-            enabled=config_exists
-        ))
-        
+        menu.add_item(MenuItem(MenuAction.VALIDATE, self._handle_validate, enabled=config_exists))
+
         # Troubleshoot
-        menu.add_item(MenuItem(
-            MenuAction.TROUBLESHOOT,
-            self._handle_troubleshoot,
-            enabled=True
-        ))
-        
+        menu.add_item(MenuItem(MenuAction.TROUBLESHOOT, self._handle_troubleshoot, enabled=True))
+
         # Help
-        menu.add_item(MenuItem(
-            MenuAction.HELP,
-            self._show_general_help,
-            enabled=True
-        ))
-        
+        menu.add_item(MenuItem(MenuAction.HELP, self._show_general_help, enabled=True))
+
         # Exit
-        menu.add_item(MenuItem(
-            MenuAction.EXIT,
-            lambda: None,
-            enabled=True
-        ))
-        
+        menu.add_item(MenuItem(MenuAction.EXIT, lambda: None, enabled=True))
+
         # Display and get choice
         menu.display(self.context)
         return menu.get_choice()
-        
+
     def _handle_setup(self) -> None:
         """Handle setup action."""
         self.console.print("\n[bold cyan]Setup & Configuration[/bold cyan]\n")
-        
+
         config_path = Path("config_local.yaml")
         if config_path.exists():
             if not Confirm.ask(
                 "[yellow]Configuration already exists. Do you want to:[/yellow]\n"
                 "  • Reconfigure everything from scratch?",
-                default=False
+                default=False,
             ):
                 # Show configuration summary instead
                 self._show_config_summary()
                 return
-                
+
         # Run setup wizard
         self.console.print("I'll guide you through configuring:\n")
         self.console.print("  • Pretalx connection")
@@ -212,90 +188,89 @@ class EnhancedAssistant:
         self.console.print("  • AI service (OpenAI, Anthropic, etc.)")
         self.console.print("  • Social media platform")
         self.console.print("  • Storage directories\n")
-        
+
         result = self.setup_wizard.run()
-        
+
         if result["success"]:
             self.console.print("\n[green]✓ Configuration complete![/green]")
             self._show_next_steps()
-            
+
     def _handle_process(self) -> None:
         """Handle process videos action."""
         self.console.print("\n[bold cyan]Process Conference Videos[/bold cyan]\n")
-        
+
         # Check for existing workflows
         event_slug = self.context.get("event", conf.pretalx.event_slug)
         existing = self.workflow_manager.resume_workflow("conference_processing", event_slug)
-        
+
         if existing:
             self.workflow_manager.display_workflow_status(existing)
-            
+
             if Confirm.ask("\nResume existing workflow?", default=True):
                 self._run_workflow(existing)
                 return
-                
+
         # Create new workflow
         templates = get_workflow_templates()
         template = templates["conference_processing"]
-        
+
         # Show workflow steps
         workflow_menu = WorkflowMenu(
-            self.console,
-            [(step.name, step.command, step.required) for step in template.steps]
+            self.console, [(step.name, step.command, step.required) for step in template.steps]
         )
-        
+
         selected = workflow_menu.get_workflow_choice()
         if selected is None:
             return
-            
+
         # Get execution options
         options = self.workflow_manager.get_execution_options()
-        
+
         # Create and run workflow
         workflow = self.workflow_manager.create_workflow("conference_processing", event_slug)
-        
+
         # Mark unselected steps as skipped
         for i, step in enumerate(workflow.steps):
             if i not in selected:
                 step.status = "skipped"
-                
+
         self._run_workflow(workflow, options)
-        
+
     def _run_workflow(self, workflow, options: dict[str, Any] | None = None) -> None:
         """Execute a workflow with given options."""
         if options is None:
             options = self.workflow_manager.get_execution_options()
-            
+
         from manager.cli.workflow import StepStatus
-        
+
         if options["mode"] == "dry_run":
             self.console.print("\n[yellow]DRY RUN - No commands will be executed[/yellow]\n")
-            
+
         # Execute workflow
         while True:
             step = workflow.get_next_step()
             if not step:
                 break
-                
+
             # Display step info
             self.console.print(f"\n[bold]Step: {step.name}[/bold]")
             self.console.print(f"Command: [cyan]{step.command}[/cyan]")
             if step.description:
                 self.console.print(f"Description: {step.description}")
-                
+
             # Handle execution based on mode
             if options["mode"] == "dry_run":
                 self.console.print("[dim]Would execute this step[/dim]")
                 step.status = StepStatus.COMPLETED
                 continue
-                
+
             if options["mode"] == "interactive":
                 choice = Confirm.ask("Execute this step?", default=True)
                 if not choice:
                     step.status = StepStatus.SKIPPED
                     workflow.save()
                     continue
-                    
+
             # Execute step
             if "Manual" in step.command:
                 self.console.print("\n[yellow]This is a manual step.[/yellow]")
@@ -307,73 +282,74 @@ class EnhancedAssistant:
                 step.status = StepStatus.RUNNING
                 step.start_time = datetime.now()
                 workflow.save()
-                
+
                 success = self._execute_command(step.command)
-                
+
                 step.end_time = datetime.now()
                 if success:
                     step.status = StepStatus.COMPLETED
                 else:
                     step.status = StepStatus.FAILED
-                    
+
                     if options["on_error"] == "abort":
                         self.console.print("[red]Workflow aborted due to error[/red]")
                         break
                     elif options["on_error"] == "ask":
                         if not Confirm.ask("Step failed. Continue?", default=False):
                             break
-                            
+
             workflow.save()
-            
+
         # Show final status
         self.workflow_manager.display_workflow_status(workflow)
-        
+
         completed, total = workflow.get_progress()
         if completed == total:
             self.console.print("\n[green]✓ Workflow completed successfully![/green]")
         else:
             self.console.print(f"\n[yellow]Workflow stopped. {completed}/{total} steps completed.[/yellow]")
-            
+
     def _execute_command(self, command: str) -> bool:
         """Execute a PyTube command."""
         try:
             from click.testing import CliRunner
+
             from manager.cli.main import cli
-            
+
             parts = command.split()
             if parts[0] != "pytube":
                 self.console.print("[yellow]Only pytube commands supported[/yellow]")
                 return False
-                
+
             runner = CliRunner()
             result = runner.invoke(cli, parts[1:], obj={"console": self.console})
-            
+
             return result.exit_code == 0
-            
+
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
             return False
-            
+
     def _handle_status(self) -> None:
         """Handle status check."""
         from manager.cli.status import status
-        
+
         ctx = click.Context(click.Command("status"))
         ctx.obj = {"console": self.console}
-        
+
         try:
             status(ctx, detailed=True)
         except Exception as e:
             self.console.print(f"[red]Error checking status: {e}[/red]")
-            
+
     def _handle_workflow_management(self) -> None:
         """Handle workflow management."""
         self.console.print("\n[bold cyan]Workflow Management[/bold cyan]\n")
-        
+
         # List available workflows
         event_slug = self.context.get("event", conf.pretalx.event_slug)
         workflow_dir = Path(conf.dirs.work_dir) / event_slug / "workflows"
-        
+
         if workflow_dir.exists():
             workflows = list(workflow_dir.glob("*_latest.json"))
             if workflows:
@@ -381,23 +357,23 @@ class EnhancedAssistant:
                 for wf in workflows:
                     name = wf.stem.replace("_latest", "")
                     self.console.print(f"  • {name}")
-                    
+
         self.console.print("\n[bold]Workflow Templates:[/bold]")
         templates = get_workflow_templates()
         for name, template in templates.items():
             steps = len(template.steps)
             self.console.print(f"  • {name} ({steps} steps)")
-            
+
     def _handle_validate(self) -> None:
         """Handle configuration validation."""
         self.console.print("\n[bold cyan]Configuration Validation[/bold cyan]\n")
-        
+
         results = self.setup_wizard.validate_all()
-        
+
         # Group by validity
         valid = [(k, v) for k, v in results.items() if v["valid"]]
         invalid = [(k, v) for k, v in results.items() if not v["valid"]]
-        
+
         if valid:
             self.console.print("[bold green]✓ Working Services:[/bold green]\n")
             for service, result in valid:
@@ -405,19 +381,20 @@ class EnhancedAssistant:
                 if result.get("details"):
                     for key, value in result["details"].items():
                         self.console.print(f"    • {key}: {value}")
-                        
+
         if invalid:
             self.console.print("\n[bold red]✗ Need Attention:[/bold red]\n")
             for service, result in invalid:
                 self.console.print(f"  [red]✗[/red] {service.title()}: {result['message']}")
-                
+
     def _handle_troubleshoot(self) -> None:
         """Handle troubleshooting."""
         # Reuse existing troubleshooting logic
         from manager.cli.assistant import PyTubeAssistant
+
         assistant = PyTubeAssistant(self.console)
         assistant.troubleshoot()
-        
+
     def _show_general_help(self) -> None:
         """Show general help."""
         self.console.print("""
@@ -442,34 +419,35 @@ class EnhancedAssistant:
   • Documentation: docs/
   • Issues: github.com/pioneershub/pytube/issues
         """)
-        
+
     def _show_config_summary(self) -> None:
         """Show configuration summary."""
         validation = self.setup_wizard.validate_all()
-        
+
         self.console.print("\n[bold]Current Configuration:[/bold]\n")
-        
+
         for service, result in validation.items():
             if result["valid"]:
                 self.console.print(f"[green]✓ {service.title()}[/green]: {result['message']}")
             else:
                 self.console.print(f"[red]✗ {service.title()}[/red]: {result['message']}")
-                
+
     def _show_next_steps(self) -> None:
         """Show next steps after setup."""
         self.console.print("\n[bold]Next Steps:[/bold]")
         self.console.print("1. Upload your videos to YouTube manually")
         self.console.print("2. Run 'pytube assistant' and choose 'Process videos'")
         self.console.print("3. Follow the guided workflow")
-        
+
         self.console.print("\n[dim]Tip: The assistant will remember your progress[/dim]")
+
 
 @click.command()
 @click.pass_context
 def enhanced(ctx: click.Context) -> None:
     """Launch enhanced PyTube assistant with improved navigation."""
     console = ctx.obj.get("console", Console())
-    
+
     try:
         assistant = EnhancedAssistant(console)
         assistant.run()

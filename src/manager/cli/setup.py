@@ -105,7 +105,7 @@ class SetupWizard:
             ai_service_result = self._configure_ai_service()
             if ai_service_result["success"]:
                 config["ai_service"] = ai_service_result["data"]["service"]
-                
+
                 # Configure the selected AI service
                 if ai_service_result["data"]["service"] == "openai":
                     self.console.print("\n[bold]OpenAI Configuration[/bold]")
@@ -115,12 +115,14 @@ class SetupWizard:
                 # Add other AI services here when implemented
 
             # Social Media configuration
-            self.console.print("\n[bold]Social Media Configuration[/bold] ⚡ [dim](Optional - Enhances promotion)[/dim]")
+            self.console.print(
+                "\n[bold]Social Media Configuration[/bold] ⚡ [dim](Optional - Enhances promotion)[/dim]"
+            )
             self.console.print("[dim]Social media integration promotes videos automatically[/dim]")
             social_result = self._configure_social_media()
             if social_result["success"]:
                 config["social_media_service"] = social_result["data"]["service"]
-                
+
                 # Configure the selected social media service
                 if social_result["data"]["service"] == "linkedin":
                     self.console.print("\n[bold]LinkedIn Configuration[/bold]")
@@ -246,54 +248,56 @@ class SetupWizard:
         try:
             # Get existing values
             existing_event = self.existing_config.get("event", {}) if self.existing_config else {}
-            
+
             self.console.print("\n[green]✓ What's enabled:[/green]")
             self.console.print("  • Proper attribution in video descriptions")
             self.console.print("  • Event branding and links")
             self.console.print("  • Speaker acknowledgment with event context")
-            
+
             self.console.print("\n[red]✗ Without this:[/red]")
             self.console.print("  • Generic video descriptions")
             self.console.print("  • No event attribution")
             self.console.print("  • Missing context for viewers\n")
-            
+
             # Event name
             current_name = existing_event.get("name")
             action, event_name = self._prompt_with_existing(
                 "Event name (e.g., 'PyCon DE & PyData Berlin 2024')",
                 current_value=current_name,
                 default="PyCon DE & PyData Berlin 2024",
-                allow_remove=False  # Required
+                allow_remove=False,  # Required
             )
-            
+
             if event_name:
                 result["data"]["name"] = event_name
-            
+
             # Event URL
             current_url = existing_event.get("url")
             action_url, event_url = self._prompt_with_existing(
                 "Event website URL",
                 current_value=current_url,
                 default="https://2024.pycon.de",
-                allow_remove=False  # Required
+                allow_remove=False,  # Required
             )
-            
+
             if event_url:
                 result["data"]["url"] = event_url
-            
+
             # Program URL
             current_program = existing_event.get("program_url")
-            default_program = f"{event_url}/program/" if event_url and event_url != current_url else "https://2024.pycon.de/program/"
+            default_program = (
+                f"{event_url}/program/" if event_url and event_url != current_url else "https://2024.pycon.de/program/"
+            )
             action_program, program_url = self._prompt_with_existing(
                 "Program/Schedule URL",
                 current_value=current_program,
                 default=default_program,
-                allow_remove=True  # Optional
+                allow_remove=True,  # Optional
             )
-            
+
             if action_program != "remove" and program_url:
                 result["data"]["program_url"] = program_url
-                
+
             result["success"] = True
 
         except Exception as e:
@@ -312,25 +316,31 @@ class SetupWizard:
         try:
             # Get existing values
             existing_pretalx = self.existing_config.get("pretalx", {}) if self.existing_config else {}
-            
+
             self.console.print("\n[green]✓ What's enabled:[/green]")
             self.console.print("  • Automatic speaker data import")
             self.console.print("  • Session details and abstracts")
             self.console.print("  • Track-based video organization")
             self.console.print("  • Speaker social media links")
-            
+
             self.console.print("\n[red]✗ Without this:[/red]")
             self.console.print("  • Manual data entry for each video")
             self.console.print("  • No speaker attribution")
-            self.console.print("  • Missing session abstracts\n")
-            
+            self.console.print("  • Missing session abstracts")
+
+            self.console.print("\n[bold blue]📋 API Credentials Setup:[/bold blue]")
+            self.console.print("  Use the standard pytanis workflow for API credentials:")
+            self.console.print("  1. Follow pytanis documentation to set up ~/.pytanis/credentials")
+            self.console.print("  2. This provides secure, standardized credential management")
+            self.console.print("  3. No need to store credentials in config files\n")
+
             # Event slug
             current_slug = existing_pretalx.get("event_slug")
             action, event_slug = self._prompt_with_existing(
                 "Event slug",
                 current_value=current_slug,
                 default="pycon-2024",
-                allow_remove=False  # Event slug is required
+                allow_remove=False,  # Event slug is required
             )
 
             # Validate format
@@ -348,12 +358,10 @@ class SetupWizard:
 
             for field in ["company", "job", "linkedin", "github", "x_handle"]:
                 current_id = existing_questions.get(field)
-                
+
                 if current_id:
                     action, value = self._prompt_with_existing(
-                        f"Question ID for {field}",
-                        current_value=current_id,
-                        default=""
+                        f"Question ID for {field}", current_value=current_id, default=""
                     )
                     if action == "keep":
                         questions[field] = current_id
@@ -363,9 +371,7 @@ class SetupWizard:
                 else:
                     # No existing value
                     value = Prompt.ask(
-                        f"  Question ID for {field} (press Enter to skip)",
-                        default="",
-                        console=self.console
+                        f"  Question ID for {field} (press Enter to skip)", default="", console=self.console
                     )
                     if value.isdigit():
                         questions[field] = int(value)
@@ -391,25 +397,25 @@ class SetupWizard:
         try:
             # Get existing values
             existing_youtube = self.existing_config.get("youtube", {}) if self.existing_config else {}
-            
+
             self.console.print("\n[green]✓ What's enabled:[/green]")
             self.console.print("  • Bulk metadata updates for all videos")
             self.console.print("  • Automated scheduling and publishing")
             self.console.print("  • Playlist management")
             self.console.print("  • View count and analytics tracking")
-            
+
             self.console.print("\n[red]✗ Without this:[/red]")
             self.console.print("  • Manual video-by-video updates in YouTube Studio")
             self.console.print("  • No bulk operations")
             self.console.print("  • Hours of repetitive work\n")
-            
+
             # Client secrets file
             current_secrets = existing_youtube.get("client_secrets_file")
             action, secrets_path = self._prompt_with_existing(
                 "Path to YouTube client_secrets.json",
                 current_value=current_secrets,
                 default="./client_secrets.json",
-                allow_remove=False  # Required field
+                allow_remove=False,  # Required field
             )
 
             # Validate file exists
@@ -424,10 +430,7 @@ class SetupWizard:
             # API Key (optional)
             current_api_key = existing_youtube.get("api_key")
             action, api_key = self._prompt_with_existing(
-                "YouTube API key (optional)",
-                current_value=current_api_key,
-                default="",
-                password=True
+                "YouTube API key (optional)", current_value=current_api_key, default="", password=True
             )
             if action != "remove" and api_key:
                 result["data"]["api_key"] = api_key
@@ -444,25 +447,27 @@ class SetupWizard:
                     self.console.print(f"\n[cyan]Channel: {ch_name}[/cyan]")
                     self.console.print(f"  ID: {ch_info.get('id', 'Not set')}")
                     self.console.print(f"  Playlist ID: {ch_info.get('playlist_id', 'Not set')}")
-                    
+
                     choice = Prompt.ask(
                         "  [K]eep, [E]dit, or [R]emove?",
                         choices=["k", "e", "r", "keep", "edit", "remove"],
                         default="k",
-                        console=self.console
+                        console=self.console,
                     ).lower()
-                    
+
                     if choice in ["k", "keep"]:
                         channels[ch_name] = ch_info
                         self.console.print("  [green]✓ Keeping channel[/green]")
                     elif choice in ["e", "edit"]:
                         # Edit channel details
                         new_name = Prompt.ask("  New channel name", default=ch_name, console=self.console)
-                        new_id = Prompt.ask("  Channel ID", default=ch_info.get('id', ''), console=self.console)
-                        new_playlist = Prompt.ask("  Playlist ID", default=ch_info.get('playlist_id', ''), console=self.console)
-                        
+                        new_id = Prompt.ask("  Channel ID", default=ch_info.get("id", ""), console=self.console)
+                        new_playlist = Prompt.ask(
+                            "  Playlist ID", default=ch_info.get("playlist_id", ""), console=self.console
+                        )
+
                         channels[new_name] = {"id": new_id, "playlist_id": new_playlist}
-                        self.console.print(f"  [green]✓ Updated channel[/green]")
+                        self.console.print("  [green]✓ Updated channel[/green]")
                     else:  # remove
                         self.console.print(f"  [yellow]✓ Removed channel '{ch_name}'[/yellow]")
 
@@ -470,9 +475,7 @@ class SetupWizard:
             if Confirm.ask("\nAdd new YouTube channels?", default=not bool(channels)):
                 while True:
                     channel_name = Prompt.ask(
-                        "Channel name (or press Enter to finish)", 
-                        default="", 
-                        console=self.console
+                        "Channel name (or press Enter to finish)", default="", console=self.console
                     )
 
                     if not channel_name:
@@ -506,25 +509,25 @@ class SetupWizard:
         try:
             # Get existing values
             existing_dirs = self.existing_config.get("dirs", {}) if self.existing_config else {}
-            
+
             self.console.print("\n[green]✓ What's enabled:[/green]")
             self.console.print("  • Organized data storage by event")
             self.console.print("  • Video file management")
             self.console.print("  • Multi-conference support")
             self.console.print("  • Clean separation of temporary data")
-            
+
             self.console.print("\n[red]✗ Without this:[/red]")
             self.console.print("  • Data scattered across filesystem")
             self.console.print("  • Risk of data conflicts")
             self.console.print("  • No video processing capabilities\n")
-            
+
             # Work directory
             current_work = existing_dirs.get("work_dir")
             action, work_dir = self._prompt_with_existing(
                 "Working directory for temporary files",
                 current_value=current_work,
                 default="./_tmp",
-                allow_remove=False  # Required
+                allow_remove=False,  # Required
             )
 
             # Video directory
@@ -533,7 +536,7 @@ class SetupWizard:
                 "Video files directory",
                 current_value=current_video,
                 default="./_tmp/videos",
-                allow_remove=False  # Required
+                allow_remove=False,  # Required
             )
 
             result["data"] = {"work_dir": work_dir, "video_dir": video_dir}
@@ -564,19 +567,16 @@ class SetupWizard:
         try:
             # Get existing values
             existing_openai = self.existing_config.get("openai", {}) if self.existing_config else {}
-            
+
             # API key
             current_key = existing_openai.get("api_key")
             action, api_key = self._prompt_with_existing(
-                "OpenAI API key",
-                current_value=current_key,
-                default="",
-                password=True
+                "OpenAI API key", current_value=current_key, default="", password=True
             )
 
             if action == "keep" or (action in ["change", "new"] and api_key):
                 result["data"]["api_key"] = api_key if action != "keep" else current_key
-                
+
                 # Model selection
                 current_model = existing_openai.get("model", "gpt-3.5-turbo")
                 self.console.print("\n[bold]Model selection[/bold]")
@@ -584,37 +584,38 @@ class SetupWizard:
                 self.console.print("  2. gpt-4 (Best quality)")
                 self.console.print("  3. gpt-4o (Latest)")
                 self.console.print(f"\n  Current: [cyan]{current_model}[/cyan]")
-                
+
                 if Confirm.ask("  Change model?", default=False):
                     model_choice = Prompt.ask(
-                        "  Select model",
-                        choices=["1", "2", "3"],
-                        default="1",
-                        console=self.console
+                        "  Select model", choices=["1", "2", "3"], default="1", console=self.console
                     )
                     models = ["gpt-3.5-turbo", "gpt-4", "gpt-4o"]
                     result["data"]["model"] = models[int(model_choice) - 1]
                 else:
                     result["data"]["model"] = current_model
-                
+
                 # Temperature settings
                 current_temps = existing_openai.get("temperature", {})
                 if Confirm.ask("\n  Configure temperature settings?", default=False):
                     result["data"]["temperature"] = {
-                        "teaser": float(Prompt.ask(
-                            "    Teaser temperature (0.0-1.0)",
-                            default=str(current_temps.get("teaser", 0.7)),
-                            console=self.console
-                        )),
-                        "description": float(Prompt.ask(
-                            "    Description temperature (0.0-1.0)",
-                            default=str(current_temps.get("description", 0.9)),
-                            console=self.console
-                        ))
+                        "teaser": float(
+                            Prompt.ask(
+                                "    Teaser temperature (0.0-1.0)",
+                                default=str(current_temps.get("teaser", 0.7)),
+                                console=self.console,
+                            )
+                        ),
+                        "description": float(
+                            Prompt.ask(
+                                "    Description temperature (0.0-1.0)",
+                                default=str(current_temps.get("description", 0.9)),
+                                console=self.console,
+                            )
+                        ),
                     }
                 elif current_temps:
                     result["data"]["temperature"] = current_temps
-                    
+
                 result["success"] = True
             elif action == "remove":
                 self.console.print("[yellow]OpenAI configuration removed[/yellow]")
@@ -639,7 +640,7 @@ class SetupWizard:
         try:
             # Get existing values
             existing_linkedin = self.existing_config.get("linkedin", {}) if self.existing_config else {}
-            
+
             self.console.print("[dim]LinkedIn API requires approved access[/dim]")
 
             # Check if we have existing config
@@ -648,15 +649,17 @@ class SetupWizard:
                 if existing_linkedin.get("company_id"):
                     self.console.print(f"  Company ID: [cyan]{existing_linkedin['company_id']}[/cyan]")
                 if existing_linkedin.get("access_token"):
-                    self.console.print(f"  Access token: [cyan]{self._mask_sensitive_value(existing_linkedin['access_token'])}[/cyan]")
-                
+                    self.console.print(
+                        f"  Access token: [cyan]{self._mask_sensitive_value(existing_linkedin['access_token'])}[/cyan]"
+                    )
+
                 choice = Prompt.ask(
                     "\n[K]eep, [U]pdate, or [R]emove configuration?",
                     choices=["k", "u", "r", "keep", "update", "remove"],
                     default="k",
-                    console=self.console
+                    console=self.console,
                 ).lower()
-                
+
                 if choice in ["k", "keep"]:
                     result["data"] = existing_linkedin
                     result["success"] = True
@@ -667,63 +670,49 @@ class SetupWizard:
                     self.console.print("[yellow]✓ LinkedIn configuration removed[/yellow]")
                     return result
                 # Otherwise fall through to update
-            
+
             # New or update configuration
             if not Confirm.ask("\nDo you have LinkedIn API credentials?", default=bool(existing_linkedin)):
                 result["success"] = True  # Optional service
                 return result
 
             data = {}
-            
+
             # Client ID
             current_client = existing_linkedin.get("client_id")
             if current_client:
-                action, client_id = self._prompt_with_existing(
-                    "Client ID",
-                    current_value=current_client,
-                    default=""
-                )
+                action, client_id = self._prompt_with_existing("Client ID", current_value=current_client, default="")
                 if action != "remove":
                     data["client_id"] = client_id if action != "keep" else current_client
             else:
                 data["client_id"] = Prompt.ask("Client ID", console=self.console)
-            
+
             # Client secret
             current_secret = existing_linkedin.get("client_secret")
             if current_secret:
                 action, client_secret = self._prompt_with_existing(
-                    "Client secret",
-                    current_value=current_secret,
-                    default="",
-                    password=True
+                    "Client secret", current_value=current_secret, default="", password=True
                 )
                 if action != "remove":
                     data["client_secret"] = client_secret if action != "keep" else current_secret
             else:
                 data["client_secret"] = Prompt.ask("Client secret", console=self.console, password=True)
-            
+
             # Access token
             current_token = existing_linkedin.get("access_token")
             if current_token:
                 action, access_token = self._prompt_with_existing(
-                    "Access token",
-                    current_value=current_token,
-                    default="",
-                    password=True
+                    "Access token", current_value=current_token, default="", password=True
                 )
                 if action != "remove":
                     data["access_token"] = access_token if action != "keep" else current_token
             else:
                 data["access_token"] = Prompt.ask("Access token", console=self.console, password=True)
-            
+
             # Company ID
             current_company = existing_linkedin.get("company_id")
             if current_company:
-                action, company_id = self._prompt_with_existing(
-                    "Company ID",
-                    current_value=current_company,
-                    default=""
-                )
+                action, company_id = self._prompt_with_existing("Company ID", current_value=current_company, default="")
                 if action != "remove":
                     data["company_id"] = company_id if action != "keep" else current_company
             else:
@@ -748,40 +737,37 @@ class SetupWizard:
         try:
             # Get current selection
             current_service = self.existing_config.get("ai_service", "openai") if self.existing_config else "openai"
-            
+
             self.console.print("\n[green]✓ What's enabled with AI:[/green]")
             self.console.print("  • Auto-generated engaging video descriptions")
             self.console.print("  • SEO-optimized content for better discovery")
             self.console.print("  • Consistent tone across all videos")
             self.console.print("  • Social media teasers that drive views")
-            
+
             self.console.print("\n[yellow]⚠ Without AI:[/yellow]")
             self.console.print("  • Manual writing for hundreds of videos")
             self.console.print("  • Inconsistent descriptions")
             self.console.print("  • Time-consuming content creation")
             self.console.print("  • But still functional - you can write manually!\n")
-            
+
             self.console.print("[bold]Select AI Service for content generation[/bold]")
             self.console.print("  1. OpenAI (GPT-3.5/4)")
             self.console.print("  2. Anthropic Claude")
             self.console.print("  3. Google Gemini")
             self.console.print("  4. Cohere")
             self.console.print("  5. None (manual descriptions)")
-            
+
             self.console.print(f"\n  Current: [cyan]{current_service}[/cyan]")
-            
+
             if Confirm.ask("  Change AI service?", default=False):
                 choice = Prompt.ask(
-                    "  Select service",
-                    choices=["1", "2", "3", "4", "5"],
-                    default="1",
-                    console=self.console
+                    "  Select service", choices=["1", "2", "3", "4", "5"], default="1", console=self.console
                 )
                 services = ["openai", "anthropic", "google", "cohere", "none"]
                 result["data"]["service"] = services[int(choice) - 1]
             else:
                 result["data"]["service"] = current_service
-                
+
             result["success"] = True
 
         except Exception as e:
@@ -799,41 +785,40 @@ class SetupWizard:
 
         try:
             # Get current selection
-            current_service = self.existing_config.get("social_media_service", "linkedin") if self.existing_config else "linkedin"
-            
+            current_service = (
+                self.existing_config.get("social_media_service", "linkedin") if self.existing_config else "linkedin"
+            )
+
             self.console.print("\n[green]✓ What's enabled with social media:[/green]")
             self.console.print("  • Automatic posts when videos go live")
             self.console.print("  • Professional announcements with speaker tags")
             self.console.print("  • Increased video visibility and engagement")
             self.console.print("  • Consistent promotion schedule")
-            
+
             self.console.print("\n[yellow]⚠ Without social media:[/yellow]")
             self.console.print("  • Manual posting for each video release")
             self.console.print("  • Risk of missing announcements")
             self.console.print("  • Lower video discovery")
             self.console.print("  • But videos still publish to YouTube!\n")
-            
+
             self.console.print("[bold]Select Social Media Platform[/bold]")
             self.console.print("  1. LinkedIn")
             self.console.print("  2. Twitter/X")
             self.console.print("  3. Mastodon")
             self.console.print("  4. Bluesky")
             self.console.print("  5. None (no social posting)")
-            
+
             self.console.print(f"\n  Current: [cyan]{current_service}[/cyan]")
-            
+
             if Confirm.ask("  Change social media platform?", default=False):
                 choice = Prompt.ask(
-                    "  Select platform",
-                    choices=["1", "2", "3", "4", "5"],
-                    default="1",
-                    console=self.console
+                    "  Select platform", choices=["1", "2", "3", "4", "5"], default="1", console=self.console
                 )
                 platforms = ["linkedin", "twitter", "mastodon", "bluesky", "none"]
                 result["data"]["service"] = platforms[int(choice) - 1]
             else:
                 result["data"]["service"] = current_service
-                
+
             result["success"] = True
 
         except Exception as e:
@@ -857,6 +842,7 @@ class SetupWizard:
             if self.existing_config:
                 # Deep merge - preserve existing values not touched in this session
                 from omegaconf import OmegaConf
+
                 existing = OmegaConf.create(self.existing_config)
                 new_config = OmegaConf.create(config)
                 merged = OmegaConf.merge(existing, new_config)
@@ -919,11 +905,13 @@ class SetupWizard:
         # Check pytanis credentials
         pytanis_creds = Path.home() / ".pytanis" / "credentials"
         if not pytanis_creds.exists():
-            result["message"] = f"Pytanis credentials missing for '{event_slug}'"
+            result["message"] = f"Pretalx API credentials not configured for '{event_slug}'"
             result["details"]["credentials_path"] = str(pytanis_creds)
             result["fix_suggestions"] = [
-                "Follow pytanis setup guide",
-                "Create credentials file at ~/.pytanis/credentials",
+                "Set up pytanis credentials: Follow the pytanis documentation",
+                "Create ~/.pytanis/credentials file with your Pretalx API token",
+                "Use 'pytanis init' command if available to setup credentials",
+                "Ensure your Pretalx instance API is accessible",
             ]
             return result
 
@@ -1187,7 +1175,7 @@ class SetupWizard:
         """
         if not value or len(value) <= visible_chars:
             return value
-        
+
         # Show first few chars and last 3
         if len(value) > 10:
             return f"{value[:visible_chars]}...{value[-3:]}"
@@ -1195,12 +1183,12 @@ class SetupWizard:
             return f"{value[:visible_chars]}..."
 
     def _prompt_with_existing(
-        self, 
-        prompt_text: str, 
-        current_value: Any = None, 
-        default: str = "", 
+        self,
+        prompt_text: str,
+        current_value: Any = None,
+        default: str = "",
         password: bool = False,
-        allow_remove: bool = True
+        allow_remove: bool = True,
     ) -> tuple[str, Any]:
         """Prompt for a value showing the current value if exists.
 
@@ -1220,26 +1208,23 @@ class SetupWizard:
                 display_value = self._mask_sensitive_value(str(current_value))
             else:
                 display_value = str(current_value)
-            
+
             self.console.print(f"\n{prompt_text}")
             self.console.print(f"  Current value: [cyan]{display_value}[/cyan]")
-            
+
             # Ask what to do
             if allow_remove:
                 choice = Prompt.ask(
                     "  [K]eep, [C]hange, or [R]emove?",
                     choices=["k", "c", "r", "keep", "change", "remove"],
                     default="k",
-                    console=self.console
+                    console=self.console,
                 ).lower()
             else:
                 choice = Prompt.ask(
-                    "  [K]eep or [C]hange?",
-                    choices=["k", "c", "keep", "change"],
-                    default="k",
-                    console=self.console
+                    "  [K]eep or [C]hange?", choices=["k", "c", "keep", "change"], default="k", console=self.console
                 ).lower()
-            
+
             if choice in ["k", "keep"]:
                 self.console.print("  [green]✓ Keeping existing value[/green]")
                 return ("keep", current_value)
@@ -1248,24 +1233,16 @@ class SetupWizard:
                 return ("remove", None)
             else:  # change
                 new_value = Prompt.ask(
-                    "  New value",
-                    default=default if not password else None,
-                    password=password,
-                    console=self.console
+                    "  New value", default=default if not password else None, password=password, console=self.console
                 )
                 if password and current_value:
-                    self.console.print(f"  [green]✓ Changed[/green]")
+                    self.console.print("  [green]✓ Changed[/green]")
                 else:
                     self.console.print(f"  [green]✓ Changed: {display_value} → {new_value}[/green]")
                 return ("change", new_value)
         else:
             # No existing value, just prompt normally
-            value = Prompt.ask(
-                prompt_text,
-                default=default,
-                password=password,
-                console=self.console
-            )
+            value = Prompt.ask(prompt_text, default=default, password=password, console=self.console)
             return ("new", value if value else None)
 
 

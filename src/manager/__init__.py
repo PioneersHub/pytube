@@ -1,8 +1,14 @@
 # Import from the top-level package
-import __init__ as src_init
+try:
+    # When running as a package
+    from .. import __version__, conf, logger
+except ImportError:
+    # When running from src directory
+    import sys
+    from pathlib import Path
 
-conf = src_init.conf
-logger = src_init.logger
-__version__ = src_init.__version__
+    # Add parent directory to path to import from src
+    sys.path.insert(0, str(Path(__file__).parents[1]))
+    from __init__ import __version__, conf, logger
 
 __all__ = ["logger", "conf", "__version__"]

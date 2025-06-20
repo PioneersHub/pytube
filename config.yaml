@@ -25,6 +25,8 @@ spreadsheets:
     - "Sheet 1"
 # ########################################
 # Pretalx
+# For API credentials, use the standard pytanis setup:
+# Follow the pytanis documentation to configure ~/.pytanis/credentials
 pretalx:
   event_slug: "pretalx-uri-slug"
   # Videos need to be split between the PyCon DE and PyData YouTube channels
