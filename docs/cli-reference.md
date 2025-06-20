@@ -26,11 +26,102 @@ These options can be used with any command:
 
 ```
 pytube
+├── assistant     # Standard interactive assistant
+├── enhanced      # Enhanced interactive assistant (recommended)
+├── setup         # Configuration wizard
 ├── records       # Manage Pretalx records
 ├── youtube       # YouTube operations
 ├── notify        # Monitor and send notifications
 ├── video         # Video file operations
 └── status        # Show system status
+```
+
+## Interactive Assistants
+
+### pytube assistant
+
+Launch the standard interactive PyTube assistant for guided workflows.
+
+```bash
+pytube assistant
+```
+
+The assistant provides:
+- Step-by-step guidance through common workflows
+- Configuration validation
+- Automated command execution
+- Progress tracking
+
+### pytube enhanced (Recommended)
+
+Launch the enhanced interactive assistant with improved navigation and features.
+
+```bash
+pytube enhanced
+```
+
+**Enhanced Features:**
+- **Named command support**: Type command names (e.g., 'setup', 'process') or numbers
+- **Context-aware menus**: Shows relevant options based on system state
+- **Workflow management**: Save and resume multi-step workflows
+- **Better navigation**: Breadcrumbs and clear menu organization
+- **Progress persistence**: Automatically resume interrupted workflows
+- **Step selection**: Choose which workflow steps to execute
+
+**Navigation Tips:**
+- Use command names or numbers to navigate
+- Type 'help <command>' for detailed help on any command
+- Use 'back' or 'b' to go back in menus
+- Workflow progress is automatically saved
+
+### pytube setup
+
+Run the configuration wizard to set up PyTube.
+
+```bash
+pytube setup [OPTIONS]
+
+Options:
+  --validate-only   Only validate existing configuration without setup
+  --fix             Attempt to fix any validation issues found
+  --json            Output results in JSON format (AI-friendly)
+  --help            Show help message
+```
+
+The setup wizard will guide you through:
+- Event information (name, URL, program link)
+- Pretalx connection configuration
+- YouTube API credentials
+- AI service selection (OpenAI, Anthropic, Google, Cohere)
+- Social media platform configuration
+- Storage directory setup
+
+**Context-Aware Setup:**
+Each configuration section now explains:
+- ✓ **What's enabled**: Features that work with this configuration
+- ✗ **What's disabled**: Limitations without the configuration
+- 🎯 **Required vs Optional**: Clear indicators for critical vs enhancement features
+
+**Enhanced Reconfiguration Features:**
+When running setup with an existing configuration, the wizard will:
+- Display current values for each setting
+- Provide options to **[K]eep**, **[C]hange**, or **[R]emove** values
+- Mask sensitive information (API keys show as `sk-...XXX`)
+- Preserve settings you don't modify
+- Allow partial updates without losing other configuration
+
+**Example:**
+```
+Event slug
+  Current value: pyconde-pydata-2025
+  [K]eep, [C]hange, or [R]emove? k
+  ✓ Keeping existing value
+
+OpenAI API key
+  Current value: sk-p...nop
+  [K]eep, [C]hange, or [R]emove? c
+  New value: ****
+  ✓ Changed
 ```
 
 ## Records Commands

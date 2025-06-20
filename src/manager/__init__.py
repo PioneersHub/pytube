@@ -1,3 +1,8 @@
-from src import conf, logger
+# Import from the top-level package
+import __init__ as src_init
 
-__ALL__ = ["logger", "conf"]
+conf = src_init.conf
+logger = src_init.logger
+__version__ = src_init.__version__
+
+__all__ = ["logger", "conf", "__version__"]

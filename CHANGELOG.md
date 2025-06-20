@@ -26,10 +26,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Structured JSON responses for automation
   - Interactive setup wizard
   - Enhanced validation with specific configuration details
+- Enhanced CLI assistant (`pytube enhanced`)
+  - Named command support (use 'setup' instead of '1')
+  - Context-aware menu options
+  - Workflow management with persistence
+  - Step selection for partial workflow execution
+  - Progress tracking and recovery
+- Enhanced setup wizard
+  - Shows existing configuration values during reconfiguration
+  - Provides options to Keep, Change, or Remove each value
+  - Masks sensitive values (API keys, tokens) for security
+  - Preserves untouched configuration during partial updates
+  - Better handling of optional services
+  - Added event configuration (name, URL, program URL)
+  - Rich context for each configuration section explaining:
+    - Why the information is needed
+    - What features are enabled with it
+    - What limitations exist without it
 - Comprehensive documentation
   - API credentials guide with step-by-step instructions
   - Quick setup guide for beginners
   - Decision matrices for service selection
+  - Updated CLI reference with assistant documentation
 
 ### Changed
 - Configuration now supports service selection

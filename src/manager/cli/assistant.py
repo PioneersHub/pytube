@@ -27,7 +27,14 @@ class PyTubeAssistant:
         self.console.print(
             Panel.fit(
                 "[bold cyan]Welcome to PyTube Assistant! 🎥[/bold cyan]\n\n"
-                "I'll help you manage your conference videos from Pretalx to YouTube.",
+                "I'll help you manage your conference videos from Pretalx to YouTube.\n\n"
+                "[bold]🚀 What PyTube does for you:[/bold]\n"
+                "• Imports speaker data from your conference system\n"
+                "• Generates engaging descriptions with AI\n"
+                "• Updates hundreds of videos in minutes\n"
+                "• Schedules releases automatically\n"
+                "• Posts to social media when videos go live\n\n"
+                "[dim]Save hours of manual work and ensure consistency![/dim]",
                 title="PyTube Assistant",
                 border_style="cyan",
             )
@@ -227,21 +234,26 @@ class PyTubeAssistant:
         self.console.print("Checking prerequisites...\n")
 
         checks = [
-            ("Configuration file", Path("config_local.yaml").exists()),
-            ("Pretalx credentials", bool(conf.pretalx.get("event_slug"))),
-            ("YouTube credentials", bool(conf.youtube.get("channels"))),
+            ("Configuration file", Path("config_local.yaml").exists(), "Basic settings for PyTube"),
+            ("Pretalx credentials", bool(conf.pretalx.get("event_slug")), "Access to speaker and session data"),
+            ("YouTube credentials", bool(conf.youtube.get("channels")), "Ability to update video metadata"),
         ]
 
         all_good = True
-        for check, result in checks:
+        for check, result, purpose in checks:
             if result:
                 self.console.print(f"✓ {check}", style="green")
             else:
-                self.console.print(f"✗ {check}", style="red")
+                self.console.print(f"✗ {check} - [dim]needed for: {purpose}[/dim]", style="red")
                 all_good = False
 
         if not all_good:
             self.console.print("\n[yellow]Some prerequisites are missing.[/yellow]")
+            self.console.print("\n[bold]Why these are important:[/bold]")
+            self.console.print("• [bold]Pretalx[/bold]: Contains all your speaker info and session details")
+            self.console.print("• [bold]YouTube[/bold]: Allows bulk updates instead of manual editing")
+            self.console.print("• [bold]Config file[/bold]: Stores your settings securely\n")
+            
             if Confirm.ask("Would you like to run setup?", default=True):
                 self.first_time_setup()
                 return False
