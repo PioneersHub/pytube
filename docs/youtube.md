@@ -29,6 +29,11 @@ yt = YT()
 yt.get_channel_id()
 ```
 
+## Find the YouTube Channel ID
+
+Log into YoTube, switch to the channel and go to [this url](UCOjD18EJYcsBog4IozkF_7w) to see the channel id.
+
+
 ## Uploading Videos
 
 👉Videos need to be uploaded via the 🖥 **[YouTube studio web interface](https://studio.youtube.com/)**️.  
