@@ -14,85 +14,131 @@ def records():
 
 
 @records.command()
-@click.option(
-    "--replace-descriptions",
-    is_flag=True,
-    help="Replace existing AI-generated descriptions",
-)
-@click.option(
-    "--skip-descriptions",
-    is_flag=True,
-    help="Skip AI description generation",
-)
 @click.pass_context
-def fetch(ctx: click.Context, replace_descriptions: bool, skip_descriptions: bool) -> None:
+def fetch(ctx: click.Context) -> None:
     """Fetch all sessions and speakers from Pretalx.
 
     This command will:
     - Load all confirmed sessions from Pretalx
     - Load all speaker information
     - Create JSON records in the records directory
-    - Generate AI descriptions (unless skipped)
     """
     console = ctx.obj["console"]
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        # Initialize Records handler
-        task = progress.add_task("Initializing...", total=None)
-        questions_map = conf.pretalx.questions_map
-        r = RecordsHandler(qmap=questions_map)
+    # Initialize variables
+    questions_map = conf.pretalx.questions_map or {}
+    r = RecordsHandler(qmap=questions_map)
+    stats = {"created": 0, "updated": 0, "total": 0}
 
-        # Load sessions
-        progress.update(task, description="Loading confirmed sessions...")
-        r.load_all_confirmed_sessions()
-        console.print(f"✓ Loaded {len(r.confirmed_sessions_map)} sessions", style="green")
+    try:
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            # Start processing
+            task = progress.add_task("Initializing...", total=None)
 
-        # Load speakers
-        progress.update(task, description="Loading speaker information...")
-        r.load_all_speakers()
-        console.print(f"✓ Loaded {len(r.speakers_map)} speakers", style="green")
+            # Load sessions
+            progress.update(task, description="Loading confirmed sessions...")
+            try:
+                r.load_all_confirmed_sessions()
+                session_count = len(r.confirmed_sessions_map)
+                console.print(f"✓ Loaded {session_count} confirmed sessions", style="green")
+                if session_count == 0:
+                    console.print("[yellow]⚠ No confirmed sessions found in Pretalx![/yellow]")
+                    console.print("[yellow]  Check that your event has confirmed sessions[/yellow]")
+                    console.print(f"[yellow]  Event slug: {conf.pretalx.event_slug}[/yellow]")
+            except RuntimeError as e:
+                progress.stop()
+                console.print(f"[red]✗ Failed to load sessions: {e}[/red]")
+                console.print("\n[yellow]Troubleshooting tips:[/yellow]")
+                console.print("1. Check your Pretalx event slug in config_local.yaml")
+                console.print("2. Verify your Pretalx credentials are set up correctly")
+                console.print("3. Ensure you have an active internet connection")
+                console.print("4. Try accessing the Pretalx API directly in your browser")
+                ctx.exit(1)  # Exit immediately with error code
 
-        # Create records
-        progress.update(task, description="Creating session records...")
-        r.create_records()
-        console.print(f"✓ Created records in {r.records}", style="green")
+            # Load speakers
+            progress.update(task, description="Loading speaker information...")
+            try:
+                r.load_all_speakers()
+                speaker_count = len(r.speakers_map)
+                console.print(f"✓ Loaded {speaker_count} speakers", style="green")
+                if speaker_count == 0:
+                    progress.stop()
+                    console.print("[red]✗ No speakers found in speaker map![/red]")
+                    console.print("[red]This indicates a critical error in speaker data processing.[/red]")
+                    ctx.exit(1)  # Exit immediately with error code
+            except RuntimeError as e:
+                progress.stop()
+                console.print(f"[red]✗ Failed to load speakers: {e}[/red]")
+                ctx.exit(1)  # Exit immediately with error code
 
-        # Add descriptions
-        if not skip_descriptions:
-            progress.update(task, description="Generating AI descriptions...")
-            r.add_descriptions(replace=replace_descriptions)
-            console.print("✓ Generated AI descriptions", style="green")
+            # Create records
+            progress.update(task, description="Creating session records...")
+            stats = r.create_records()
+            
+            # Always show stats, but only show success if records were actually created/updated
+            if stats['total'] > 0:
+                console.print(f"✓ Records: {stats['created']} new, {stats['updated']} existing updated", style="green")
+            else:
+                console.print(f"✗ No records created (0 new, 0 updated)", style="red")
+                console.print("\n[yellow]Possible issues:[/yellow]")
+                console.print("• No confirmed sessions found in Pretalx")
+                console.print("• API returned data but failed validation")
+                console.print("• Check logs for pytanis validation errors")
 
-        progress.stop()
+            progress.stop()
+    except Exception as e:
+        if not isinstance(e, click.ClickException):
+            console.print(f"[red]Unexpected error: {e}[/red]")
+            raise
 
-    # Summary
+    # Summary - always show even if there was an error
     console.print("\n[bold]Summary:[/bold]")
-    # Use the same Records instance to get the correct event-specific path
-    record_count = len(list(r.records.glob("*.json")))
-    console.print(f"  Total records created: {record_count}")
+    console.print(f"  Sessions fetched from Pretalx: {len(r.confirmed_sessions_map)}")
+    console.print(f"  Speakers fetched: {len(r.speakers_map)}")
+    console.print(f"  Records processed: {stats['total']}")
+    console.print(f"    - New records: {stats['created']}")
+    console.print(f"    - Existing updated: {stats['updated']}")
     console.print(f"  Location: {r.records}")
+    
+    # Show overall status
+    if stats['total'] == 0 and len(r.confirmed_sessions_map) > 0:
+        console.print("\n[red]⚠ Warning: Sessions were loaded but no records were created![/red]")
+        console.print("[yellow]This usually indicates a validation error in pytanis.[/yellow]")
+    elif stats['total'] == 0:
+        console.print("\n[red]✗ No data was fetched or processed.[/red]")
+    
+    # Exit with error code if no records were created
+    if stats['total'] == 0:
+        ctx.exit(1)
 
 
-@records.command()
+@records.command(name="generate-descriptions")
+@click.option(
+    "--replace",
+    is_flag=True,
+    help="Replace existing AI-generated descriptions",
+)
 @click.option(
     "--dry-run",
     is_flag=True,
     help="Show what would be updated without making changes",
 )
 @click.pass_context
-def enhance(ctx: click.Context, dry_run: bool) -> None:
-    """Enhance existing records with AI-generated descriptions.
+def generate_descriptions(ctx: click.Context, replace: bool, dry_run: bool) -> None:
+    """Generate AI descriptions for session records.
 
-    Use this command to add or update descriptions for records
-    that don't have them or need regeneration.
+    This command will:
+    - Read existing session records
+    - Generate AI descriptions (teasers and short descriptions)
+    - Update the records with the generated content
     """
     console = ctx.obj["console"]
 
-    questions_map = conf.pretalx.questions_map
+    questions_map = conf.pretalx.questions_map or {}
     r = RecordsHandler(qmap=questions_map)
 
     # Check existing records
@@ -106,17 +152,26 @@ def enhance(ctx: click.Context, dry_run: bool) -> None:
     if dry_run:
         console.print("[yellow]DRY RUN - No changes will be made[/yellow]")
         # TODO: Show which records would be updated
+        console.print(f"Would process {len(record_files)} records")
     else:
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console,
         ) as progress:
-            task = progress.add_task("Enhancing descriptions...", total=None)
-            r.add_descriptions(replace=True)
-            progress.stop()
-
-        console.print("✓ Enhanced descriptions for all records", style="green")
+            progress.add_task("Generating AI descriptions...", total=None)
+            try:
+                r.add_descriptions(replace=replace)
+                progress.stop()
+                console.print("✓ Generated AI descriptions for all records", style="green")
+            except Exception as e:
+                progress.stop()
+                console.print(f"[red]✗ Failed to generate descriptions: {e}[/red]")
+                console.print("\n[yellow]Troubleshooting tips:[/yellow]")
+                console.print("1. Check your AI service configuration (OpenAI/Anthropic API key)")
+                console.print("2. Verify your internet connection")
+                console.print("3. Check if the AI service is available")
+                raise click.ClickException(str(e)) from e
 
 
 @records.command()
@@ -131,7 +186,7 @@ def show(ctx: click.Context, session_id: str | None) -> None:
     console = ctx.obj["console"]
 
     # Initialize Records handler to get the correct event-specific path
-    questions_map = conf.pretalx.questions_map
+    questions_map = conf.pretalx.questions_map or {}
     r = RecordsHandler(qmap=questions_map)
     record_dir = r.records
 

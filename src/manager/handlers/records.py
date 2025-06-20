@@ -75,24 +75,69 @@ class Records:
         logger.info("Loading all confirmed sessions")
         the_dir = self.event_dir / "pretalx"
         the_dir.mkdir(parents=True, exist_ok=True)
-        if not self.reload and (self.event_dir / "confirmed_sessions_map.json").exists():
-            logger.info("Confirmed sessions already loaded, skipping")
-            return
-        subs_count, subs = self.pretalx_client.submissions(
-            conf.pretalx.event_slug,
-            params=QueryParams(**{"questions": "all", "state": "confirmed"}),
-        )
+
+        # Always clear old data to ensure fresh fetch
+        logger.info("Clearing old session data...")
+        for x in the_dir.glob("*.json"):
+            x.unlink()
+        map_file = self.event_dir / "confirmed_sessions_map.json"
+        if map_file.exists():
+            map_file.unlink()
+
+        try:
+            # Get ONLY confirmed submissions
+            # Note: Removed questions="all" due to pytanis validation bug with option IDs
+            subs_count, subs = self.pretalx_client.submissions(
+                conf.pretalx.event_slug,
+                params=QueryParams(state="confirmed"),
+            )
+        except Exception as e:
+            logger.error(f"Failed to fetch submissions from Pretalx: {e}")
+            raise RuntimeError(f"Unable to connect to Pretalx API: {e}") from e
+
+        if subs is None:
+            logger.error("Pretalx API returned None for submissions")
+            raise RuntimeError("Pretalx API returned no data. Please check your event slug and credentials.")
+
         logger.info(f"Loaded {subs_count} confirmed sessions")
 
+        if subs_count == 0:
+            logger.warning("No confirmed sessions found!")
+            logger.warning(f"Event slug: {conf.pretalx.event_slug}")
+            logger.warning("Please check that your event has confirmed sessions in Pretalx")
+
         logger.info("Writing confirmed sessions to disk")
-        if self.reload:
-            logger.info("Reloading confirmed sessions, deleting all existing files")
-            for x in the_dir.glob("*.json"):
-                x.unlink()
-        for sub in subs:
-            sub_json = sub.model_dump_json(indent=4)
-            (the_dir / f"{sub.code}.json").write_text(sub_json)
-        logger.info(f"Done: wrote {subs_count} confirmed sessions to disk")
+
+        try:
+            # Convert iterator to list to ensure we process all pages
+            logger.info("Converting submissions iterator to list...")
+            subs_list = list(subs)
+            logger.info(f"Successfully loaded {len(subs_list)} submissions into memory")
+
+            if len(subs_list) == 0:
+                logger.error("No submissions were returned by the iterator!")
+                raise RuntimeError("Pretalx API returned 0 submissions after processing")
+
+            written_count = 0
+            for idx, sub in enumerate(subs_list, 1):
+                try:
+                    sub_json = sub.model_dump_json(indent=4)
+                    file_path = the_dir / f"{sub.code}.json"
+                    file_path.write_text(sub_json)
+                    written_count += 1
+                    if idx % 10 == 0:
+                        logger.info(f"Progress: {idx}/{len(subs_list)} sessions written...")
+                except Exception as e:
+                    logger.error(f"Failed to write submission {sub.code}: {e}")
+
+            logger.info(f"Successfully wrote {written_count} session files")
+        except TypeError as e:
+            logger.error(f"Failed to iterate over submissions: {e}")
+            raise RuntimeError(
+                "Cannot iterate over submissions. The API may have returned an unexpected format."
+            ) from e
+
+        logger.info(f"Done: wrote {written_count} confirmed sessions to disk")
         self.create_confirmed_sessions_map()
 
     def load_all_speakers(self) -> None:
@@ -100,21 +145,59 @@ class Records:
         logger.info("Loading all speakers")
         the_dir = self.event_dir / "pretalx_speakers"
         the_dir.mkdir(parents=True, exist_ok=True)
-        if not self.reload and list(the_dir.glob("*.json")):
-            logger.info("Speakers already loaded, skipping")
-            return
-        subs_count, subs = self.pretalx_client.speakers(
-            conf.pretalx.event_slug, params=QueryParams(**{"questions": "all"})
-        )
+
+        # Always clear old data to ensure fresh fetch
+        logger.info("Clearing old speaker data...")
+        for x in the_dir.glob("*.json"):
+            x.unlink()
+        map_file = self.event_dir / "speaker_map.json"
+        if map_file.exists():
+            map_file.unlink()
+
+        try:
+            subs_count, subs = self.pretalx_client.speakers(
+                conf.pretalx.event_slug, params=QueryParams(**{"questions": "all"})
+            )
+        except Exception as e:
+            logger.error(f"Failed to fetch speakers from Pretalx: {e}")
+            raise RuntimeError(f"Unable to connect to Pretalx API: {e}") from e
+
+        if subs is None:
+            logger.error("Pretalx API returned None for speakers")
+            raise RuntimeError("Pretalx API returned no data. Please check your event slug and credentials.")
+
         logger.info(f"Loaded {subs_count} speakers")
         logger.info("Writing speakers to disk")
-        if self.reload:
-            logger.info("Reloading speakers, deleting all existing files")
-            for x in the_dir.glob("*.json"):
-                x.unlink()
-        for sub in subs:
-            (self.event_dir / "pretalx_speakers" / f"{sub.code}.json").write_text(sub.model_dump_json(indent=4))
-        logger.info(f"Done: wrote {subs_count} speakers to disk")
+
+        written_count = 0
+        try:
+            for idx, sub in enumerate(subs, 1):
+                try:
+                    sub_json = sub.model_dump_json(indent=4)
+                    file_path = self.event_dir / "pretalx_speakers" / f"{sub.code}.json"
+                    file_path.write_text(sub_json)
+                    written_count += 1
+                    if idx % 10 == 0:
+                        logger.info(f"Progress: {idx} speakers processed, {written_count} written...")
+                except Exception as e:
+                    logger.error(f"Failed to write speaker {getattr(sub, 'code', 'unknown')}: {e}")
+        except TypeError as e:
+            logger.error(f"Failed to iterate over speakers: {e}")
+            raise RuntimeError("Cannot iterate over speakers. The API may have returned an unexpected format.") from e
+
+        logger.info(f"Done: wrote {written_count}/{subs_count} speakers to disk")
+        
+        # Verify that at least some speakers were written
+        if written_count == 0:
+            logger.error("No speakers were successfully written to disk!")
+            logger.error("This usually indicates pytanis validation errors with the API response")
+            raise RuntimeError(
+                f"Failed to write any speakers to disk (0/{subs_count} succeeded). "
+                "Check logs for validation errors."
+            )
+        elif written_count < subs_count:
+            logger.warning(f"Only {written_count}/{subs_count} speakers were successfully written")
+            
         self.create_speaker_map()
 
     def create_confirmed_sessions_map(self) -> None:
@@ -144,22 +227,58 @@ class Records:
     @property
     def confirmed_sessions_map(self) -> dict:
         if not self._confirmed_sessions_map:
-            self._confirmed_sessions_map = json.load((self.event_dir / "confirmed_sessions_map.json").open())
+            map_file = self.event_dir / "confirmed_sessions_map.json"
+            if not map_file.exists():
+                logger.error(f"Confirmed sessions map not found at {map_file}")
+                return {}
+            self._confirmed_sessions_map = json.load(map_file.open())
         return self._confirmed_sessions_map
 
     @property
     def speakers_map(self) -> dict:
         if not self._speakers_map:
-            self._speakers_map = json.load((self.event_dir / "speaker_map.json").open())
+            map_file = self.event_dir / "speaker_map.json"
+            if not map_file.exists():
+                logger.error(f"Speaker map not found at {map_file}")
+                return {}
+            self._speakers_map = json.load(map_file.open())
         return self._speakers_map
 
-    def create_records(self) -> None:
-        """Create records for all confirmed sessions"""
-        for code, data in self.confirmed_sessions_map.items():
-            self.create_record(code, data)
+    def create_records(self) -> dict[str, int]:
+        """Create records for all confirmed sessions.
 
-    def create_record(self, code: str, data: dict) -> None:
-        """Create a record for a single session exclusively from pretalx data."""
+        Returns:
+            Dictionary with statistics: {"created": int, "updated": int, "total": int}
+        """
+        stats = {"created": 0, "updated": 0, "total": 0}
+        total_sessions = len(self.confirmed_sessions_map)
+
+        logger.info(f"Creating records for {total_sessions} confirmed sessions...")
+
+        for idx, (code, data) in enumerate(self.confirmed_sessions_map.items(), 1):
+            logger.info(f"[{idx}/{total_sessions}] Processing record for {code}...")
+            was_created = self.create_record(code, data)
+            stats["total"] += 1
+            if was_created:
+                stats["created"] += 1
+            else:
+                stats["updated"] += 1
+
+        logger.info(f"Record creation complete: {stats['created']} new, {stats['updated']} updated")
+        return stats
+
+    def create_record(self, code: str, data: dict) -> bool:
+        """Create a record for a single session exclusively from pretalx data.
+
+        Args:
+            code: Session code
+            data: Session data from Pretalx
+
+        Returns:
+            True if record was newly created, False if it was updated
+        """
+        record_path = self.records / f"{code}.json"
+        is_new = not record_path.exists()
         p_session = PretalxSession(
             pretalx_id=data["code"],
             title=data["title"],
@@ -169,16 +288,21 @@ class Records:
 
         def get_answer_via_id(answers: list[dict], answer_id: int):
             # answer_id is always > 0
+            if not answers:  # Handle None or empty list
+                return ""
             rec: list[dict[str, str]] = [x for x in answers if x.get("question", {}).get("id", -1) == answer_id]
             if rec:
                 answer = rec[0]["answer"]
                 if isinstance(answer, str):
                     answer = answer.strip()
                 return answer
+            return ""  # Return empty string instead of None
 
-        def add_attr(obj, qmap):
+        def add_attr(obj, qmap, answers):
+            if not qmap:  # Handle None or empty qmap
+                return obj
             for attr, qid in qmap.items():
-                answer = get_answer_via_id(speaker["answers"], qid)
+                answer = get_answer_via_id(answers, qid)
                 if answer:
                     if attr == "company":
                         answer = Organization(name=answer)
@@ -187,9 +311,15 @@ class Records:
             return obj
 
         speakers = []
-        for speaker in [self.speakers_map[x] for x in p_session.speakers]:
-            s = SpeakerInfo.model_validate(speaker)
-            s = add_attr(s, self.qmap)
+        for speaker_code in p_session.speakers:
+            speaker_data = self.speakers_map.get(speaker_code)
+            if not speaker_data:
+                logger.warning(f"Speaker {speaker_code} not found in speakers map")
+                continue
+            s = SpeakerInfo.model_validate(speaker_data)
+            # Ensure answers is a list, even if None or missing
+            answers = speaker_data.get("answers") or []
+            s = add_attr(s, self.qmap, answers)
             speakers.append(s)
 
         record = SessionRecord(
@@ -204,18 +334,44 @@ class Records:
             sm_short_text="",
             sm_long_text="",
         )
-        add_attr(record, self.qmap)
-        (self.records / f"{code}.json").write_text(record.model_dump_json(indent=4))
+        # Records don't have answers, so pass empty list
+        add_attr(record, self.qmap, [])
+        record_path.write_text(record.model_dump_json(indent=4))
 
-    def add_descriptions(self, replace=False) -> None:
-        """Add descriptions to all confirmed sessions"""
-        for x in self.records.glob("*.json"):
+        if is_new:
+            logger.debug(f"Created new record for {code}")
+        else:
+            logger.debug(f"Updated existing record for {code}")
+
+        return is_new
+
+    def add_descriptions(self, replace=False) -> dict[str, int]:
+        """Add descriptions to all confirmed sessions.
+
+        Args:
+            replace: Whether to replace existing descriptions
+
+        Returns:
+            Dictionary with statistics: {"processed": int, "added": int, "skipped": int}
+        """
+        stats = {"processed": 0, "added": 0, "skipped": 0}
+        records = list(self.records.glob("*.json"))
+        total_records = len(records)
+
+        logger.info(f"Adding AI-generated descriptions to {total_records} records...")
+
+        for idx, x in enumerate(records, 1):
             try:
                 data = SessionRecord.model_validate_json(x.read_text())
             except Exception as e:
-                jdata = json.load(x.open())
-                logger.error(f"Error adding descriptions to {jdata['pretalx_id']}: {e}")
-                return
+                stats["processed"] += 1
+                stats["skipped"] += 1
+                try:
+                    jdata = json.load(x.open())
+                    logger.error(f"Error adding descriptions to {jdata.get('pretalx_id', 'unknown')}: {e}")
+                except Exception:
+                    logger.error(f"Error adding descriptions to {x.name}: {e}")
+                continue
             # noinspection PyUnresolvedReferences
             speakers = "\n".join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
             info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
@@ -225,5 +381,24 @@ class Records:
                 data.sm_short_text = sized_text(info, max_tokens=100)
             if not data.sm_long_text or replace:
                 data.sm_long_text = sized_text(info, max_tokens=300)
+            # Check if any descriptions were actually added
+            descriptions_added = False
+            if not data.sm_teaser_text or replace:
+                descriptions_added = True
+            if not data.sm_short_text or replace:
+                descriptions_added = True
+            if not data.sm_long_text or replace:
+                descriptions_added = True
+
             (self.records / f"{data.pretalx_id}.json").write_text(data.model_dump_json(indent=4))
-            logger.info(f"Added descriptions to {data.pretalx_id}")
+
+            stats["processed"] += 1
+            if descriptions_added:
+                stats["added"] += 1
+                logger.info(f"[{idx}/{total_records}] Added descriptions to {data.pretalx_id}")
+            else:
+                stats["skipped"] += 1
+                logger.debug(f"[{idx}/{total_records}] Skipped {data.pretalx_id} (descriptions already exist)")
+
+        logger.info(f"Description generation complete: {stats['added']} added, {stats['skipped']} skipped")
+        return stats
