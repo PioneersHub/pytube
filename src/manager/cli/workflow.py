@@ -296,18 +296,36 @@ class WorkflowManager:
             },
         }
 
-        # Special check for organize_videos - it saves to video_dir not work_dir
+        # Special check for organize_videos - check if videos are actually moved to channels
         video_dir = Path(conf.dirs.video_dir)
         if video_dir.exists():
-            tracks_map = video_dir / "tracks_map.json"
-            if tracks_map.exists():
+            # Check for videos in channel directories
+            channel_dirs = ["pycon", "pydata", "do_not_release"]
+            videos_found = 0
+
+            for channel in channel_dirs:
+                channel_dir = video_dir / channel
+                if channel_dir.exists():
+                    video_patterns = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm", "*.m4v"]
+                    for pattern in video_patterns:
+                        videos_found += len(list(channel_dir.glob(pattern)))
+
+            if videos_found > 0:
                 # Find organize_videos step and mark it complete
                 for step in workflow.steps:
                     if step.name == "organize_videos":
                         step.status = StepStatus.COMPLETED
-                        detected[step.name] = 1
-                        self.console.print(f"  ✓ {step.name}: Found channel assignments", style="green")
+                        detected[step.name] = videos_found
+                        self.console.print(f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green")
                         break
+            else:
+                # Check if mapping exists but videos not moved
+                tracks_map = video_dir / "tracks_map.json"
+                if tracks_map.exists():
+                    for step in workflow.steps:
+                        if step.name == "organize_videos":
+                            self.console.print(f"  ⚡ {step.name}: Channel mappings exist but videos not moved yet", style="yellow")
+                            break
 
         # Check each step
         for step in workflow.steps:
@@ -369,11 +387,11 @@ def get_workflow_templates() -> dict[str, Workflow]:
     standard.add_step(
         WorkflowStep(
             "organize_videos",
-            "pytube video organize",
-            "Organize videos by channel and identify do_not_record",
+            "pytube video map-to-channels && pytube video move-to-channel-dirs",
+            "Map videos to channels and move to channel directories",
             required=True,
             dependencies=["fetch_pretalx"],
-            estimated_time=60,
+            estimated_time=120,  # Increased time for both operations
         )
     )
     standard.add_step(
