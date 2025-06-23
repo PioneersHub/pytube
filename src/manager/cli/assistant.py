@@ -426,6 +426,11 @@ class PyTubeAssistant:
                 for idx, cmd in enumerate(commands, 1):
                     self.console.print(f"\n[dim]Step {idx}/{len(commands)}: {cmd}[/dim]")
                     if not self._execute_command(cmd.strip(), step):
+                        # If this is a compound command and one part fails, 
+                        # make sure we have an error message
+                        if step and not step.error:
+                            step.error = f"Part {idx} of compound command failed: {cmd.strip()}"
+                        
                         if idx < len(commands):
                             # First part failed, ask about continuing
                             if Confirm.ask(f"\n[yellow]Part {idx} failed. Try part {idx+1} anyway?[/yellow]", default=False):
@@ -438,23 +443,25 @@ class PyTubeAssistant:
                 self.console.print("[yellow]Only pytube commands supported[/yellow]")
                 return False
 
-            runner = CliRunner(mix_stderr=False)
+            runner = CliRunner()
             result = runner.invoke(cli, parts[1:], obj={"console": self.console})
 
             # Capture error output for the step
-            if result.exit_code != 0 and step:
+            if result.exit_code != 0:
                 error_msg = result.output if result.output else "Command failed with no output"
                 # Clean up ANSI codes from error message
                 import re
                 error_msg = re.sub(r'\x1b\[[0-9;]*m', '', error_msg)
-                step.error = error_msg.strip()
+                if step:
+                    step.error = error_msg.strip() or f"Command failed with exit code {result.exit_code}"
 
             return result.exit_code == 0
 
         except Exception as e:
-            self.console.print(f"[red]Error: {e}[/red]")
+            error_msg = f"Error executing command: {str(e)}"
+            self.console.print(f"[red]{error_msg}[/red]")
             if step:
-                step.error = str(e)
+                step.error = error_msg
             return False
 
     def _handle_status(self) -> None:
