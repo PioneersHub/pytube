@@ -361,9 +361,15 @@ class ProcessMenu(Menu):
         self.console.print("\n[bold]Actions:[/bold]\n")
         self.console.print("  \\[7] Run all remaining steps", style="cyan")
         self.console.print("  \\[8] View detailed status", style="cyan")
+        self.console.print("  \\[9] Reset workflow (start fresh)", style="yellow")
         self.console.print("  \\[0] Back to main menu", style="cyan")
 
-        self.console.print("\n[dim]Select a step number to execute it directly[/dim]")
+        # Show appropriate tip based on workflow state
+        has_failed = any(s.status.value == "failed" for s in self.workflow.steps)
+        if has_failed:
+            self.console.print("\n[yellow]Tip: Select a failed step's number to retry it[/yellow]")
+        else:
+            self.console.print("\n[dim]Select a step number to execute it directly[/dim]")
 
     def get_choice(self) -> tuple[str, int | None]:
         """Get user's choice.
@@ -387,6 +393,8 @@ class ProcessMenu(Menu):
                     return ('run_all', None)
                 elif step_num == 8:
                     return ('view_status', None)
+                elif step_num == 9:
+                    return ('reset', None)
                 elif step_num == 0:
                     return ('back', None)
             except ValueError:
@@ -398,6 +406,8 @@ class ProcessMenu(Menu):
                 return ('run_all', None)
             elif normalized in ['s', 'status']:
                 return ('view_status', None)
+            elif normalized in ['r', 'reset']:
+                return ('reset', None)
             elif normalized in ['b', 'back']:
                 return ('back', None)
 
