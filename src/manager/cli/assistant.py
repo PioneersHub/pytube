@@ -8,7 +8,7 @@ from typing import Any
 import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 
 from manager import conf, logger
 from manager.cli.menu import Menu, MenuAction, MenuItem, ProcessMenu
@@ -207,7 +207,30 @@ class PyTubeAssistant:
         if existing:
             self.workflow_manager.display_workflow_status(existing)
 
-            if Confirm.ask("\nResume existing workflow?", default=True):
+            # Check if there are failed steps
+            failed_steps = [s for s in existing.steps if s.status.value == "failed"]
+            if failed_steps:
+                self.console.print("\n[yellow]⚠ This workflow has failed steps.[/yellow]")
+                self.console.print("\nWhat would you like to do?")
+                self.console.print("  1. Resume workflow (retry failed steps)")
+                self.console.print("  2. Reset workflow (delete progress tracking, start fresh)")
+                self.console.print("  3. Cancel")
+
+                choice = Prompt.ask("\nYour choice", choices=["1", "2", "3"], default="1")
+
+                if choice == "1":
+                    self._run_process_menu(existing)
+                    return
+                elif choice == "2":
+                    # Delete the existing workflow and create new one
+                    workflow_path = Path(conf.dirs.work_dir) / event_slug / "workflows" / f"{existing.name}_latest.json"
+                    if workflow_path.exists():
+                        workflow_path.unlink()
+                    self.console.print("\n[green]✓ Workflow reset. Starting fresh...[/green]\n")
+                    # Fall through to create new workflow
+                else:
+                    return
+            elif Confirm.ask("\nResume existing workflow?", default=True):
                 self._run_process_menu(existing)
                 return
 
@@ -231,7 +254,32 @@ class PyTubeAssistant:
 
     def _run_process_menu(self, workflow) -> None:
         """Run the process menu for workflow step selection."""
+        # Check if we should auto-advance to next pending step
+        auto_advance = True
+
         while True:
+            # Auto-advance to next pending/failed step if enabled
+            if auto_advance:
+                next_step_idx = None
+                for idx, step in enumerate(workflow.steps):
+                    if step.status.value in ["pending", "failed"]:
+                        next_step_idx = idx
+                        break
+
+                if next_step_idx is not None:
+                    next_step = workflow.steps[next_step_idx]
+                    self.console.print(f"\n[dim]Next step: {next_step.name}[/dim]")
+                    if Confirm.ask(f"Run '{next_step.name}' now?", default=True):
+                        if self._execute_single_step(workflow, next_step):
+                            workflow.save()
+                            continue  # Auto-advance to next step
+                        else:
+                            workflow.save()
+                            auto_advance = False  # Disable auto-advance after failure
+                            continue
+
+            auto_advance = False  # Reset after first iteration
+
             # Show process menu
             process_menu = ProcessMenu(self.console, workflow, self.workflow_manager)
             process_menu.display()
@@ -251,8 +299,38 @@ class PyTubeAssistant:
                     if not Confirm.ask(f"\nStep '{step.name}' is already {step.status.value}. Re-run it?", default=False):
                         continue
 
-                self._execute_single_step(workflow, step)
-                workflow.save()
+                if self._execute_single_step(workflow, step):
+                    workflow.save()
+                    # Ask if user wants to continue with next step
+                    remaining = [s for s in workflow.steps if s.status.value in ["pending", "failed"]]
+                    if remaining and Confirm.ask("\nContinue with next step?", default=True):
+                        auto_advance = True
+                else:
+                    workflow.save()
+            elif action_type == 'reset':
+                # Reset workflow with explicit confirmation
+                self.console.print("\n[bold red]WARNING: Reset Workflow[/bold red]")
+                self.console.print("\nThis will:")
+                self.console.print("  • Delete all workflow progress tracking")
+                self.console.print("  • Allow you to start the workflow from the beginning")
+                self.console.print("  • [bold]NOT[/bold] delete any actual data (records, videos, etc.)")
+                self.console.print("\nYou'll be able to create a new workflow that can re-detect completed work.")
+
+                if Confirm.ask("\n[yellow]Do you want to reset this workflow?[/yellow]", default=False):
+                    # Double confirmation for safety
+                    if Confirm.ask("[bold red]Are you absolutely sure? This cannot be undone.[/bold red]", default=False):
+                        workflow_path = Path(conf.dirs.work_dir) / workflow.event_slug / "workflows" / f"{workflow.name}_latest.json"
+                        if workflow_path.exists():
+                            workflow_path.unlink()
+                            # Also remove timestamped version if it exists
+                            timestamped = workflow_path.parent / f"{workflow.name}_{workflow.created_at.strftime('%Y%m%d_%H%M%S')}.json"
+                            if timestamped.exists():
+                                timestamped.unlink()
+                        self.console.print("\n[green]✓ Workflow reset successfully![/green]")
+                        self.console.print("[dim]Returning to main menu where you can start fresh...[/dim]\n")
+                        break
+                    else:
+                        self.console.print("\n[dim]Reset cancelled.[/dim]")
             elif action_type == 'run_all':
                 # Run all remaining steps
                 pending_steps = [s for s in workflow.steps if s.status.value in ["pending", "failed"]]
@@ -271,7 +349,7 @@ class PyTubeAssistant:
                     workflow.save()
 
     def _execute_single_step(self, workflow, step) -> bool:
-        """Execute a single workflow step.
+        """Execute a single workflow step with failure recovery.
         
         Returns:
             True if successful, False otherwise
@@ -297,38 +375,86 @@ class PyTubeAssistant:
         step.start_time = datetime.now()
         workflow.save()
 
-        success = self._execute_command(step.command)
+        success = self._execute_command(step.command, step)
 
         step.end_time = datetime.now()
         if success:
             step.status = StepStatus.COMPLETED
             self.console.print("[green]✓ Step completed successfully[/green]")
+            return True
         else:
+            # Step failed - provide recovery options
             step.status = StepStatus.FAILED
-            self.console.print("[red]✗ Step failed[/red]")
+            self.console.print("\n[red]✗ Step failed![/red]")
 
-        return success
+            if step.error:
+                self.console.print(f"\n[dim]Error: {step.error}[/dim]")
+
+            # Offer recovery options
+            self.console.print("\nWhat would you like to do?")
+            self.console.print("  1. Retry this step")
+            self.console.print("  2. Skip this step and continue")
+            self.console.print("  3. Stop workflow")
+
+            choice = Prompt.ask("\nYour choice", choices=["1", "2", "3"], default="1")
+
+            if choice == "1":
+                # Retry
+                self.console.print("\n[yellow]Retrying step...[/yellow]")
+                return self._execute_single_step(workflow, step)
+            elif choice == "2":
+                # Skip
+                step.status = StepStatus.SKIPPED
+                self.console.print("\n[yellow]Step skipped.[/yellow]")
+                workflow.save()
+                return True  # Return True to continue workflow
+            else:
+                # Stop
+                return False
 
 
-    def _execute_command(self, command: str) -> bool:
-        """Execute a PyTube command."""
+    def _execute_command(self, command: str, step=None) -> bool:
+        """Execute a PyTube command or compound commands with &&."""
         try:
             from click.testing import CliRunner
 
             from manager.cli.main import cli
+
+            # Handle compound commands with &&
+            if " && " in command:
+                commands = command.split(" && ")
+                for idx, cmd in enumerate(commands, 1):
+                    self.console.print(f"\n[dim]Step {idx}/{len(commands)}: {cmd}[/dim]")
+                    if not self._execute_command(cmd.strip(), step):
+                        if idx < len(commands):
+                            # First part failed, ask about continuing
+                            if Confirm.ask(f"\n[yellow]Part {idx} failed. Try part {idx+1} anyway?[/yellow]", default=False):
+                                continue
+                        return False
+                return True
 
             parts = command.split()
             if parts[0] != "pytube":
                 self.console.print("[yellow]Only pytube commands supported[/yellow]")
                 return False
 
-            runner = CliRunner()
+            runner = CliRunner(mix_stderr=False)
             result = runner.invoke(cli, parts[1:], obj={"console": self.console})
+
+            # Capture error output for the step
+            if result.exit_code != 0 and step:
+                error_msg = result.output if result.output else "Command failed with no output"
+                # Clean up ANSI codes from error message
+                import re
+                error_msg = re.sub(r'\x1b\[[0-9;]*m', '', error_msg)
+                step.error = error_msg.strip()
 
             return result.exit_code == 0
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
+            if step:
+                step.error = str(e)
             return False
 
     def _handle_status(self) -> None:
