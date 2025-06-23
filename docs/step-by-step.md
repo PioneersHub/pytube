@@ -136,15 +136,75 @@ pytube records show
 cat _tmp/records/ABC123.json | jq '.sm_teaser_text, .sm_short_text'
 ```
 
-## Phase 3: Upload Videos to YouTube
+## Phase 3: Organize Video Files
 
 ### 3.1 Prepare Video Files
 
-Ensure your video files follow the naming convention:
-- Include Pretalx session ID in the filename
+Place your video files in the downloads directory:
+- Files must include Pretalx session ID at the start
+- Format: `{SESSION_ID}-title.mp4`
 - Examples: `ABC123-python-basics.mp4`, `DEF456_advanced_topics.mov`
 
-### 3.2 Manual Upload Process
+### 3.2 Assign Videos to Channels
+
+```bash
+# Assign videos to channels based on tracks
+pytube video assign-channels
+
+# Preview assignments first
+pytube video assign-channels --dry-run
+```
+
+This will:
+- Analyze all confirmed sessions
+- Assign videos to pycon/pydata channels based on track patterns
+- Use AI heuristics for unmatched videos (if configured)
+- Handle `do_not_record` sessions → `no_publishing` channel
+- Create `tracks_map.json` with assignments
+
+### 3.3 Move Videos to Channel Directories
+
+```bash
+# Preview what will be moved
+pytube video move --dry-run
+
+# Actually move the files
+pytube video move
+```
+
+This creates the directory structure:
+```
+video_dir/
+├── downloads/         # Unmatched videos remain here
+├── pycon/            # Videos for PyCon channel
+├── pydata/           # Videos for PyData channel
+└── do_not_release/   # Videos marked do_not_record
+```
+
+### 3.4 Review Unassigned Videos
+
+```bash
+# Generate report of unassigned videos
+pytube video report
+```
+
+For any unassigned videos, add direct mappings to `config_local.yaml`:
+```yaml
+pretalx:
+  video_to_track:
+    XYZ789: "pycon"  # Add specific session mappings
+```
+
+Then re-run assignment and move commands.
+
+## Phase 4: Upload Videos to YouTube
+
+### 4.1 Manual Upload Process
+
+**IMPORTANT**: Only upload videos from the channel-specific directories:
+- `pycon/` → Upload to PyCon channel
+- `pydata/` → Upload to PyData channel
+- **NEVER upload from `do_not_release/`** - these are marked as do_not_record!
 
 1. Go to [YouTube Studio](https://studio.youtube.com)
 2. Click "Create" → "Upload videos"
@@ -155,16 +215,16 @@ Ensure your video files follow the naming convention:
    - Add all videos to your hidden playlist
    - Do NOT set publish date yet
 
-### 3.3 Verify Upload
+### 4.2 Verify Upload
 
 In YouTube Studio:
 - Check that all videos appear in your channel's content
 - Verify all videos are in the hidden playlist
 - Note that videos show filename as title
 
-## Phase 4: Process Videos
+## Phase 5: Process Videos
 
-### 4.1 Map Videos to Sessions
+### 5.1 Map Videos to Sessions
 
 ```bash
 # Get YouTube video IDs and create mappings
@@ -181,11 +241,13 @@ These commands will:
 1. Retrieve your channel ID (if not known)
 2. Get all video IDs from the hidden playlist
 3. Match video IDs to Pretalx session IDs (by filename)
-4. Generate video metadata from templates
-5. Set publishing schedule
-6. Update videos on YouTube
+4. **Skip videos marked as do_not_record (safety check)**
+5. **Warn if any do_not_record videos were accidentally uploaded**
+6. Generate video metadata from templates
+7. Set publishing schedule
+8. Update videos on YouTube
 
-### 4.2 Customize Publishing Schedule
+### 5.2 Customize Publishing Schedule
 
 You can customize the publishing schedule using CLI options:
 
@@ -200,16 +262,16 @@ pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
 pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h --preview
 ```
 
-### 4.3 Verify Video Updates
+### 5.3 Verify Video Updates
 
 Check YouTube Studio to confirm:
 - Videos now have proper titles and descriptions
 - Scheduled publish dates are set
 - Videos are set to "Private" (required for scheduling)
 
-## Phase 5: Monitor and Notify
+## Phase 6: Monitor and Notify
 
-### 5.1 Set Up Monitoring
+### 6.1 Set Up Monitoring
 
 The notify command should run periodically to check for published videos:
 
@@ -225,7 +287,7 @@ crontab -e
 # Add: 0 * * * * cd /path/to/pytube && /path/to/.venv/bin/pytube notify check --auto-post
 ```
 
-### 5.2 What Happens on Publish
+### 6.2 What Happens on Publish
 
 When a video goes live, the notify script will:
 1. Detect the newly published video
@@ -233,7 +295,7 @@ When a video goes live, the notify script will:
 3. Queue an email to speakers (if configured)
 4. Move the record to `video_published` status
 
-### 5.3 Monitor Progress
+### 6.3 Monitor Progress
 
 ```bash
 # Check overall system status

@@ -31,51 +31,35 @@ in [Pretalx](https://github.com/pretalx/pretalx)
 
 ## High level process overview
 
-1. Involve your video recording team from the very start
-2. Upload videos to YouTube
-3. Collect data from Pretalx, store local JSON files `records`
-4. Add descriptions to `records` via Natural Language Processing (NLP).`
-5. Process `records` to `video metadata` incl. publishing date, store in directory `video_records`
-6. Update videos via API on YouTube with `video metadata`: move to `video_records_updated`
-7. Confirm recently published videos: move to `video_published` and create Social Media posts and Email notifications
-8. Send out Social Media posts and Emails
+1. **Pre-Production**: Coordinate with video team, establish naming conventions
+2. **Data Collection**: Fetch session/speaker data from Pretalx (`pytube records fetch`)
+3. **Video Organization**: Assign videos to channels and organize files (`pytube video assign-channels` + `move`)
+4. **Upload**: Manually upload videos to YouTube (maintaining filename as title)
+5. **Processing**: Map videos and update metadata (`pytube youtube map` + `update` + `schedule`)
+6. **Automation**: Monitor publications and send notifications (`pytube notify check --auto-post`)
 
-⚠️ **Note**: You need to follow a few conventions to make everything work seamlessly.
-Best familiarize yourself with the process upfront.
+⚠️ **Note**: Video files must include the Pretalx session ID (e.g., `ABC123-title.mp4`)
 ---
 
 ### Simplified graph of the process
 
 ``` mermaid
 graph LR;
-
-    P[1 Pretalx];
-    R[2 Records];
-    N[3 descriptions];
-    V[4 Video metadata];
-    F((Process));
-    G((Process));
-    H((Process));
-    VS[5 YouTube];
-    S[6 Post/Email];
-    X((End));
-    P --> R;
-    R --> N --add --> R;
-    F --process--> R;
-    F --create---> V;
-    G --check ready--> V;
-    G --update--> VS;
-    H --check done--> VS;
-    H --send--> S;
-    S --> X;
+    P[Pretalx] --> R[Records]
+    R --> O[Organize Videos]
+    O --> U[Manual Upload]
+    U --> Y[YouTube Processing]
+    Y --> M[Monitor & Notify]
+    M --> S[Social Media/Email]
     
+    O -.->|do_not_record| DNR[Do Not Release]
 ```
 
 ## Conventions
 
-For file naming, always use the Pretix-ID is used.
-
-For each status a separate directory is used. Move the files to the next status directory after successful processing.
+- **Video files**: Must include the Pretalx session ID at the start (e.g., `ABC123-title.mp4`)
+- **Status tracking**: JSON files move between directories to track progress
+- **Channel assignment**: Based on track patterns, with special handling for `do_not_record` sessions
 
 ## Preparations
 
@@ -103,14 +87,7 @@ Individual configurations are stored in the local file `config_local.yaml` which
 For detailed setup instructions, see:
 - [API Credentials Guide](api-credentials.md) - Step-by-step instructions for obtaining API keys
 - [Quick Setup Guide](quick-setup-services.md) - Fastest path to get started
-    * Custom assignments of Pretalx ID to a release channel (e.g., PyCon DE / PyData)
-* YouTube
-    * credentials
-    * channels
-* OpenAI: credentials
-* Other:
-    * Vimeo API access (optional)
-    * Google Spreadsheets (optional). Often used for managing custom information like opt-outs.
+- [Step-by-Step Guide](step-by-step.md) - Complete workflow walkthrough
 
 !!! note
     Pretalx access is provided via `pythanis` which stores the credentials in a separate local file
