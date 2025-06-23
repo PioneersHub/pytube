@@ -248,22 +248,138 @@ class YT:
         logger.info(f"Channel ID: {channel_id}")
 
     @classmethod
-    def map_pretalx_id_youtube_id(cls):
-        """The pretalx id is in the video title after upload.
-        We need to create a map of pretalx id to the YouTube video id
-        before updating the data on YouTube."""
-        videos = []
+    def map_pretalx_id_youtube_id(cls, skip_do_not_record=True, filter_by_channel=None):
+        """Map Pretalx IDs to YouTube video IDs, respecting channel assignments.
+        
+        The pretalx id is extracted from the video title after upload.
+        This method now respects channel assignments and do_not_record flags.
+        
+        Args:
+            skip_do_not_record: If True, skip videos marked as do_not_record
+            filter_by_channel: If specified, only process videos assigned to this channel
+        
+        Returns:
+            tuple: (pretalx_yt_map, warnings) where warnings is a list of issues found
+        """
+        from manager.handlers.records import Records
+        
         # Determine event directory for current context
         event_dir = YT()._get_event_dir()
+        video_dir = Path(conf.dirs.video_dir)
+        
+        # Load channel assignments if they exist
+        tracks_map_file = video_dir / "tracks_map.json"
+        channel_assignments = {}
+        if tracks_map_file.exists():
+            try:
+                channel_assignments = json.load(tracks_map_file.open())
+                logger.info(f"Loaded channel assignments for {len(channel_assignments)} videos")
+            except Exception as e:
+                logger.warning(f"Could not load channel assignments: {e}")
+        
+        # Load confirmed sessions to check do_not_record flag
+        records = Records()
+        session_data = records.confirmed_sessions_map
+        
+        # Process videos from YouTube playlists
+        videos = []
+        warnings = []
+        
         for channel in conf.youtube.channels:
-            data = json.load((event_dir / "videos" / f"youtube_{channel}_playlist.json").open())
+            playlist_file = event_dir / "videos" / f"youtube_{channel}_playlist.json"
+            if not playlist_file.exists():
+                logger.warning(f"Playlist file not found: {playlist_file}")
+                continue
+                
+            data = json.load(playlist_file.open())
+            
+            # Add channel info to each video
+            for video in data:
+                video["_channel"] = channel
             videos.extend(data)
+        
+        # Create the mapping with safety checks
         pretalx_yt_map = {}
+        skipped_videos = []
+        
         for video in videos:
             pretalx_id = video["snippet"]["title"].strip()[:6]
             youtube_id = video["snippet"]["resourceId"]["videoId"]
+            video_channel = video.get("_channel", "unknown")
+            
+            # Check if we have session data for this video
+            if pretalx_id not in session_data:
+                warnings.append(f"Video {pretalx_id} not found in Pretalx data (YouTube ID: {youtube_id})")
+                continue
+            
+            session = session_data[pretalx_id]
+            
+            # Check do_not_record flag
+            if skip_do_not_record and session.get("do_not_record", False):
+                warnings.append(
+                    f"WARNING: Video {pretalx_id} is marked as do_not_record but found in YouTube playlist! "
+                    f"(YouTube ID: {youtube_id}, Channel: {video_channel})"
+                )
+                skipped_videos.append({
+                    "pretalx_id": pretalx_id,
+                    "youtube_id": youtube_id,
+                    "title": session.get("title", "Unknown"),
+                    "channel": video_channel,
+                    "reason": "do_not_record"
+                })
+                continue
+            
+            # Check channel assignment
+            if channel_assignments:
+                assigned_channel = channel_assignments.get(pretalx_id)
+                
+                # Skip if assigned to no_publishing
+                if assigned_channel == "no_publishing":
+                    warnings.append(
+                        f"WARNING: Video {pretalx_id} assigned to 'no_publishing' but found in YouTube! "
+                        f"(YouTube ID: {youtube_id}, Channel: {video_channel})"
+                    )
+                    skipped_videos.append({
+                        "pretalx_id": pretalx_id,
+                        "youtube_id": youtube_id,
+                        "title": session.get("title", "Unknown"),
+                        "channel": video_channel,
+                        "reason": "no_publishing"
+                    })
+                    continue
+                
+                # If filtering by channel, skip videos not assigned to that channel
+                if filter_by_channel and assigned_channel != filter_by_channel:
+                    logger.debug(
+                        f"Skipping {pretalx_id} - assigned to {assigned_channel}, "
+                        f"filtering for {filter_by_channel}"
+                    )
+                    continue
+            
+            # Add to mapping
             pretalx_yt_map[pretalx_id] = youtube_id
-        json.dump(pretalx_yt_map, (event_dir / "videos" / "pretalx_yt_map.json").open("w"), indent=4)
+            logger.debug(f"Mapped {pretalx_id} -> {youtube_id} (Channel: {video_channel})")
+        
+        # Save the mapping
+        output_file = event_dir / "videos" / "pretalx_yt_map.json"
+        json.dump(pretalx_yt_map, output_file.open("w"), indent=4)
+        logger.info(f"Created YouTube mapping with {len(pretalx_yt_map)} videos")
+        
+        # Save skipped videos report if any were skipped
+        if skipped_videos:
+            skipped_file = event_dir / "videos" / "skipped_videos_report.json"
+            json.dump({
+                "timestamp": datetime.now(tz=UTC).isoformat(),
+                "total_skipped": len(skipped_videos),
+                "videos": skipped_videos
+            }, skipped_file.open("w"), indent=4)
+            logger.warning(f"Skipped {len(skipped_videos)} videos - see {skipped_file}")
+        
+        # Log warnings
+        for warning in warnings:
+            logger.warning(warning)
+        
+        return pretalx_yt_map, warnings
 
 
 class PrepareVideoMetadata:

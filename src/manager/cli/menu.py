@@ -122,8 +122,21 @@ class Menu:
 
         # Show enabled items first
         for item in enabled_items:
-            shortcuts = "/".join([item.action.command] + list(item.action.shortcuts))
-            self.console.print(f"  [{shortcuts}] {item.display_name}", style="cyan" if item.enabled else "dim")
+            # Get the primary shortcut (prefer numbers, then single letters)
+            primary_shortcut = None
+            for shortcut in item.action.shortcuts:
+                if shortcut.isdigit():
+                    primary_shortcut = shortcut
+                    break
+                elif len(shortcut) == 1 and primary_shortcut is None:  # Single letter shortcuts
+                    primary_shortcut = shortcut
+
+            # Display with primary shortcut in brackets (escape for Rich markup)
+            if primary_shortcut:
+                self.console.print(f"  \\[{primary_shortcut}] {item.display_name}", style="cyan")
+            else:
+                # Fallback for items without number shortcuts
+                self.console.print(f"  {item.display_name}", style="cyan")
 
         # Show disabled items
         if disabled_items:
@@ -247,61 +260,145 @@ Useful for monitoring progress.
         self.console.print(help_text)
 
 
-class WorkflowMenu(Menu):
-    """Specialized menu for workflow selection with checkboxes."""
+class ProcessAction(Enum):
+    """Available process workflow actions."""
 
-    def __init__(self, console: Console, steps: list[tuple[str, str, bool]]):
-        """Initialize workflow menu.
+    # Workflow steps (dynamically assigned)
+    STEP_1 = ("step_1", "Step 1", "1")
+    STEP_2 = ("step_2", "Step 2", "2")
+    STEP_3 = ("step_3", "Step 3", "3")
+    STEP_4 = ("step_4", "Step 4", "4")
+    STEP_5 = ("step_5", "Step 5", "5")
+    STEP_6 = ("step_6", "Step 6", "6")
 
+    # Special actions
+    RUN_ALL = ("run_all", "Run all remaining steps", "7", "a")
+    VIEW_STATUS = ("status", "View detailed status", "8", "s")
+    BACK = ("back", "Back to main menu", "0", "b")
+
+    def __init__(self, command: str, description: str, *shortcuts: str):
+        self.command = command
+        self.description = description
+        self.shortcuts = shortcuts
+
+    @classmethod
+    def from_input(cls, user_input: str) -> "ProcessAction | None":
+        """Get process action from user input."""
+        normalized = user_input.lower().strip()
+
+        for action in cls:
+            if normalized == action.command:
+                return action
+            if normalized in action.shortcuts:
+                return action
+
+        return None
+
+
+class ProcessMenu(Menu):
+    """Menu for workflow process steps with direct execution."""
+
+    def __init__(self, console: Console, workflow, workflow_manager):
+        """Initialize process menu.
+        
         Args:
             console: Rich console
-            steps: List of (name, command, enabled) tuples
+            workflow: The workflow object with steps
+            workflow_manager: WorkflowManager instance
         """
-        super().__init__(console, "Select Workflow Steps")
-        self.steps = steps
-        self.selected = [i for i, (_, _, enabled) in enumerate(steps) if enabled]
+        super().__init__(console, "Process Conference Videos")
+        self.workflow = workflow
+        self.workflow_manager = workflow_manager
+        self.step_actions = {}  # Map step index to ProcessAction
 
-    def display_workflow(self) -> None:
-        """Display workflow with checkboxes."""
-        self.console.print("\n[bold]Workflow Steps:[/bold]\n")
+    def display(self) -> None:
+        """Display workflow steps with status indicators."""
+        self.console.clear()
 
-        for i, (name, command, _) in enumerate(self.steps):
-            checkbox = "☑" if i in self.selected else "☐"
-            style = "cyan" if i in self.selected else "dim"
-            self.console.print(f"  {i + 1}. {checkbox} {name:<30} [{command}]", style=style)
+        # Header
+        header = "PyTube Assistant > Process Videos"
+        self.console.print(Panel(header, style="bold cyan", expand=False))
 
-        self.console.print("\n[dim]Commands: [t]oggle, [a]ll, [n]one, [r]un, [b]ack[/dim]")
+        # Workflow status summary
+        completed, total = self.workflow.get_progress()
+        self.console.print(f"\nWorkflow Progress: {completed}/{total} steps completed\n")
 
-    def get_workflow_choice(self) -> list[int] | None:
-        """Get workflow selection from user."""
+        self.console.print("[bold]Available Steps:[/bold]\n")
+
+        # Display each step with status
+        for i, step in enumerate(self.workflow.steps):
+            # Status indicators
+            if step.status.value == "completed":
+                status_icon = "✓"
+                style = "green"
+            elif step.status.value == "running":
+                status_icon = "⚡"
+                style = "yellow"
+            elif step.status.value == "failed":
+                status_icon = "✗"
+                style = "red"
+            elif step.status.value == "skipped":
+                status_icon = "⏭"
+                style = "dim"
+            else:  # pending
+                status_icon = "⏸"
+                style = "cyan"
+
+            # Display step
+            step_num = i + 1
+            self.console.print(
+                f"  \\[{step_num}] {step.name:<35} {status_icon} {step.status.value.capitalize()}",
+                style=style
+            )
+
+            # Map to action
+            if step_num <= 6:  # We have 6 step actions defined
+                action_name = f"STEP_{step_num}"
+                if hasattr(ProcessAction, action_name):
+                    self.step_actions[i] = getattr(ProcessAction, action_name)
+
+        # Special actions
+        self.console.print("\n[bold]Actions:[/bold]\n")
+        self.console.print("  \\[7] Run all remaining steps", style="cyan")
+        self.console.print("  \\[8] View detailed status", style="cyan")
+        self.console.print("  \\[0] Back to main menu", style="cyan")
+
+        self.console.print("\n[dim]Select a step number to execute it directly[/dim]")
+
+    def get_choice(self) -> tuple[str, int | None]:
+        """Get user's choice.
+        
+        Returns:
+            Tuple of (action_type, step_index or None)
+            action_type can be: 'execute_step', 'run_all', 'view_status', 'back'
+        """
         while True:
-            self.display_workflow()
+            user_input = Prompt.ask("\n[bold]Your choice[/bold]").strip()
 
-            choice = Prompt.ask("\n[bold]Action[/bold]").lower().strip()
+            if not user_input:
+                continue
 
-            if choice == "r" or choice == "run":
-                return self.selected
-            elif choice == "b" or choice == "back":
-                return None
-            elif choice == "a" or choice == "all":
-                self.selected = list(range(len(self.steps)))
-            elif choice == "n" or choice == "none":
-                self.selected = []
-            elif choice.startswith("t ") or choice.isdigit():
-                # Toggle specific item
-                try:
-                    if choice.startswith("t "):
-                        idx = int(choice[2:]) - 1
-                    else:
-                        idx = int(choice) - 1
+            # Check if it's a step number
+            try:
+                step_num = int(user_input)
+                if 1 <= step_num <= len(self.workflow.steps):
+                    return ('execute_step', step_num - 1)
+                elif step_num == 7:
+                    return ('run_all', None)
+                elif step_num == 8:
+                    return ('view_status', None)
+                elif step_num == 0:
+                    return ('back', None)
+            except ValueError:
+                pass
 
-                    if 0 <= idx < len(self.steps):
-                        if idx in self.selected:
-                            self.selected.remove(idx)
-                        else:
-                            self.selected.append(idx)
-                            self.selected.sort()
-                except ValueError:
-                    self.console.print("[red]Invalid step number[/red]")
-            else:
-                self.console.print("[red]Invalid choice[/red]")
+            # Check text commands
+            normalized = user_input.lower()
+            if normalized in ['a', 'all', 'run all']:
+                return ('run_all', None)
+            elif normalized in ['s', 'status']:
+                return ('view_status', None)
+            elif normalized in ['b', 'back']:
+                return ('back', None)
+
+            self.console.print(f"[red]Invalid choice: '{user_input}'[/red]")
