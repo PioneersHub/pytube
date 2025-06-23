@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "video_manager"
-version = "3.0.4"
+version = "3.1.0"
 description = "Download videos from Vimeo to publish on YouTube, add metadata from pretalx."
 authors = [{ name = "Alexander CS Hendorf", email = "alexander@pioneershub.org" }]
 
