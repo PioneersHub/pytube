@@ -312,13 +312,23 @@ class WorkflowManager:
             # Check for videos in channel directories
             channel_dirs = ["pycon", "pydata", "do_not_release"]
             videos_found = 0
+            expected_videos = 0
+
+            # Load tracks map to get expected count
+            if tracks_map.exists():
+                import json
+                with open(tracks_map) as f:
+                    tracks_data = json.load(f)
+                    expected_videos = len(tracks_data)
 
             for channel in channel_dirs:
                 channel_dir = video_dir / channel
                 if channel_dir.exists():
                     video_patterns = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm", "*.m4v"]
                     for pattern in video_patterns:
-                        videos_found += len(list(channel_dir.glob(pattern)))
+                        # Count videos but exclude macOS metadata files
+                        videos = [f for f in channel_dir.glob(pattern) if not f.name.startswith("._")]
+                        videos_found += len(videos)
 
             if videos_found > 0:
                 # Find move_to_channel_dirs step and mark it complete
@@ -326,7 +336,21 @@ class WorkflowManager:
                     if step.name == "move_to_channel_dirs":
                         step.status = StepStatus.COMPLETED
                         detected[step.name] = videos_found
-                        self.console.print(f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green")
+                        
+                        # Show the count with a warning if there's a mismatch
+                        if expected_videos > 0 and videos_found != expected_videos:
+                            self.console.print(
+                                f"  ✓ {step.name}: Found {videos_found} videos in channel directories "
+                                f"[yellow](expected {expected_videos} from mappings)[/yellow]", 
+                                style="green"
+                            )
+                            if videos_found > expected_videos:
+                                self.console.print(
+                                    f"    ⚠️  {videos_found - expected_videos} extra videos found that don't match any session!",
+                                    style="yellow"
+                                )
+                        else:
+                            self.console.print(f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green")
                         break
             elif tracks_map.exists():
                 # Mapping exists but videos not moved yet
