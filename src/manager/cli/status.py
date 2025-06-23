@@ -34,6 +34,15 @@ def status(ctx: click.Context, detailed: bool) -> None:
     pipeline_table.add_column("Count", style="green", justify="right")
     pipeline_table.add_column("Location", style="dim")
 
+    # Determine if using event-based structure
+    event_slug = getattr(conf.pretalx, "event_slug", None)
+    use_event_structure = event_slug and event_slug != "pretalx-uri-slug"
+    
+    if use_event_structure:
+        event_dir = conf.dirs.work_dir / event_slug
+    else:
+        event_dir = conf.dirs.work_dir
+
     # Check each stage
     stages = [
         ("Records", "records", "Initial Pretalx data"),
@@ -48,7 +57,14 @@ def status(ctx: click.Context, detailed: bool) -> None:
 
     total_in_pipeline = 0
     for stage_name, dir_name, description in stages:
-        stage_dir = conf.dirs.work_dir / dir_name
+        # Check both event-based and legacy locations
+        if use_event_structure:
+            stage_dir = event_dir / dir_name
+            # Also check legacy location
+            if not stage_dir.exists():
+                stage_dir = conf.dirs.work_dir / dir_name
+        else:
+            stage_dir = conf.dirs.work_dir / dir_name
         if stage_dir.exists():
             count = len(list(stage_dir.glob("*.json")))
             total_in_pipeline += count if "Queue" not in stage_name and "Posted" not in stage_name else 0
@@ -71,22 +87,31 @@ def status(ctx: click.Context, detailed: bool) -> None:
         config_checks.append(("Pretalx Event", "[red]✗ Not configured[/red]"))
 
     # YouTube
-    if conf.youtube.channels:
-        channel_count = len(conf.youtube.channels)
-        config_checks.append(("YouTube Channels", f"✓ {channel_count} configured"))
-    else:
-        config_checks.append(("YouTube Channels", "[red]✗ Not configured[/red]"))
+    try:
+        if hasattr(conf, 'youtube') and hasattr(conf.youtube, 'channels') and conf.youtube.channels:
+            channel_count = len(conf.youtube.channels)
+            config_checks.append(("YouTube Channels", f"✓ {channel_count} configured"))
+        else:
+            config_checks.append(("YouTube Channels", "[red]✗ Not configured[/red]"))
+    except Exception:
+        config_checks.append(("YouTube Channels", "[red]✗ Error checking config[/red]"))
 
     # API Keys
-    if conf.openai.get("api_key"):
-        config_checks.append(("OpenAI API", "✓ Configured"))
-    else:
-        config_checks.append(("OpenAI API", "[yellow]⚠ Not configured[/yellow]"))
+    try:
+        if hasattr(conf, 'openai') and conf.openai.get("api_key"):
+            config_checks.append(("OpenAI API", "✓ Configured"))
+        else:
+            config_checks.append(("OpenAI API", "[yellow]⚠ Not configured[/yellow]"))
+    except Exception:
+        config_checks.append(("OpenAI API", "[yellow]⚠ Error checking config[/yellow]"))
 
-    if conf.linkedin.get("access_token"):
-        config_checks.append(("LinkedIn API", "✓ Configured"))
-    else:
-        config_checks.append(("LinkedIn API", "[yellow]⚠ Not configured[/yellow]"))
+    try:
+        if hasattr(conf, 'linkedin') and conf.linkedin.get("access_token"):
+            config_checks.append(("LinkedIn API", "✓ Configured"))
+        else:
+            config_checks.append(("LinkedIn API", "[yellow]⚠ Not configured[/yellow]"))
+    except Exception:
+        config_checks.append(("LinkedIn API", "[yellow]⚠ Error checking config[/yellow]"))
 
     for item, status in config_checks:
         config_table.add_row(item, status)
@@ -95,16 +120,23 @@ def status(ctx: click.Context, detailed: bool) -> None:
     activity_items = []
 
     # Check for recent publishes
-    published_dir = conf.dirs.work_dir / "video_published"
-    if published_dir.exists():
-        recent_files = sorted(published_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)[:5]
+    try:
+        published_dir = event_dir / "video_published"
+        if not published_dir.exists():
+            # Try legacy location
+            published_dir = conf.dirs.work_dir / "video_published"
+            
+        if published_dir.exists():
+            recent_files = sorted(published_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)[:5]
 
-        if recent_files:
-            activity_items.append("[bold]Recently Published:[/bold]")
-            for f in recent_files:
-                mtime = datetime.fromtimestamp(f.stat().st_mtime)
-                time_str = mtime.strftime("%Y-%m-%d %H:%M")
-                activity_items.append(f"  {f.stem} - {time_str}")
+            if recent_files:
+                activity_items.append("[bold]Recently Published:[/bold]")
+                for f in recent_files:
+                    mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                    time_str = mtime.strftime("%Y-%m-%d %H:%M")
+                    activity_items.append(f"  {f.stem} - {time_str}")
+    except Exception:
+        pass  # Skip if can't access published directory
 
     # Summary
     summary_items = [
@@ -117,9 +149,12 @@ def status(ctx: click.Context, detailed: bool) -> None:
         event_slug = getattr(conf.pretalx, "event_slug", "unknown")
         summary_items.append(f"[bold]Event:[/bold] {event_slug}")
 
-    if conf.dirs.video_dir.exists():
-        video_count = len(list(conf.dirs.video_dir.glob("*.mp4"))) + len(list(conf.dirs.video_dir.glob("*.mov")))
-        summary_items.append(f"[bold]Video Files:[/bold] {video_count}")
+    try:
+        if hasattr(conf, 'dirs') and hasattr(conf.dirs, 'video_dir') and conf.dirs.video_dir.exists():
+            video_count = len(list(conf.dirs.video_dir.glob("*.mp4"))) + len(list(conf.dirs.video_dir.glob("*.mov")))
+            summary_items.append(f"[bold]Video Files:[/bold] {video_count}")
+    except Exception:
+        pass  # Skip if video directory is not accessible
 
     # Display everything
     console.print(
