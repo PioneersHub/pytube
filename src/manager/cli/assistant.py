@@ -13,7 +13,7 @@ from rich.prompt import Confirm, Prompt
 from manager import conf, logger
 from manager.cli.menu import Menu, MenuAction, MenuItem, ProcessMenu
 from manager.cli.setup import SetupWizard
-from manager.cli.workflow import WorkflowManager, get_workflow_templates
+from manager.cli.workflow import WorkflowManager
 
 
 class PyTubeAssistant:
@@ -90,12 +90,8 @@ class PyTubeAssistant:
                 self._handle_process()
             elif action == MenuAction.STATUS:
                 self._handle_status()
-            elif action == MenuAction.WORKFLOW:
-                self._handle_workflow_management()
             elif action == MenuAction.VALIDATE:
                 self._handle_validate()
-            elif action == MenuAction.TROUBLESHOOT:
-                self._handle_troubleshoot()
             elif action == MenuAction.HELP:
                 self._show_general_help()
 
@@ -108,7 +104,6 @@ class PyTubeAssistant:
 
         # Determine what items to show based on context
         config_exists = Path("config_local.yaml").exists()
-        has_event = "event" in self.context
         has_videos = self.context.get("stats", {}).get("total", 0) > 0
         pending_count = self.context.get("stats", {}).get("pending", 0)
         has_pending = pending_count > 0
@@ -140,22 +135,8 @@ class PyTubeAssistant:
         # Status - always available
         menu.add_item(MenuItem(MenuAction.STATUS, self._handle_status, enabled=True))
 
-        # Workflow management
-        menu.add_item(
-            MenuItem(
-                MenuAction.WORKFLOW,
-                self._handle_workflow_management,
-                enabled=config_exists and has_event,
-                badge="",
-                status="[dim](advanced)[/dim]",
-            )
-        )
-
         # Validate
         menu.add_item(MenuItem(MenuAction.VALIDATE, self._handle_validate, enabled=config_exists))
-
-        # Troubleshoot
-        menu.add_item(MenuItem(MenuAction.TROUBLESHOOT, self._handle_troubleshoot, enabled=True))
 
         # Help
         menu.add_item(MenuItem(MenuAction.HELP, self._show_general_help, enabled=True))
@@ -286,17 +267,19 @@ class PyTubeAssistant:
 
             action_type, step_index = process_menu.get_choice()
 
-            if action_type == 'back':
+            if action_type == "back":
                 break
-            elif action_type == 'view_status':
+            elif action_type == "view_status":
                 self.workflow_manager.display_workflow_status(workflow)
                 self.console.print("\n[dim]Press Enter to continue[/dim]")
                 input()
-            elif action_type == 'execute_step':
+            elif action_type == "execute_step":
                 # Execute single step
                 step = workflow.steps[step_index]
                 if step.status.value in ["completed", "running"]:
-                    if not Confirm.ask(f"\nStep '{step.name}' is already {step.status.value}. Re-run it?", default=False):
+                    if not Confirm.ask(
+                        f"\nStep '{step.name}' is already {step.status.value}. Re-run it?", default=False
+                    ):
                         continue
 
                 if self._execute_single_step(workflow, step):
@@ -307,7 +290,7 @@ class PyTubeAssistant:
                         auto_advance = True
                 else:
                     workflow.save()
-            elif action_type == 'reset':
+            elif action_type == "reset":
                 # Reset workflow with explicit confirmation
                 self.console.print("\n[bold red]WARNING: Reset Workflow[/bold red]")
                 self.console.print("\nThis will:")
@@ -318,12 +301,22 @@ class PyTubeAssistant:
 
                 if Confirm.ask("\n[yellow]Do you want to reset this workflow?[/yellow]", default=False):
                     # Double confirmation for safety
-                    if Confirm.ask("[bold red]Are you absolutely sure? This cannot be undone.[/bold red]", default=False):
-                        workflow_path = Path(conf.dirs.work_dir) / workflow.event_slug / "workflows" / f"{workflow.name}_latest.json"
+                    if Confirm.ask(
+                        "[bold red]Are you absolutely sure? This cannot be undone.[/bold red]", default=False
+                    ):
+                        workflow_path = (
+                            Path(conf.dirs.work_dir)
+                            / workflow.event_slug
+                            / "workflows"
+                            / f"{workflow.name}_latest.json"
+                        )
                         if workflow_path.exists():
                             workflow_path.unlink()
                             # Also remove timestamped version if it exists
-                            timestamped = workflow_path.parent / f"{workflow.name}_{workflow.created_at.strftime('%Y%m%d_%H%M%S')}.json"
+                            timestamped = (
+                                workflow_path.parent
+                                / f"{workflow.name}_{workflow.created_at.strftime('%Y%m%d_%H%M%S')}.json"
+                            )
                             if timestamped.exists():
                                 timestamped.unlink()
                         self.console.print("\n[green]✓ Workflow reset successfully![/green]")
@@ -331,7 +324,7 @@ class PyTubeAssistant:
                         break
                     else:
                         self.console.print("\n[dim]Reset cancelled.[/dim]")
-            elif action_type == 'run_all':
+            elif action_type == "run_all":
                 # Run all remaining steps
                 pending_steps = [s for s in workflow.steps if s.status.value in ["pending", "failed"]]
                 if not pending_steps:
@@ -350,7 +343,7 @@ class PyTubeAssistant:
 
     def _execute_single_step(self, workflow, step) -> bool:
         """Execute a single workflow step with failure recovery.
-        
+
         Returns:
             True if successful, False otherwise
         """
@@ -412,7 +405,6 @@ class PyTubeAssistant:
                 # Stop
                 return False
 
-
     def _execute_command(self, command: str, step=None) -> bool:
         """Execute a PyTube command or compound commands with &&."""
         try:
@@ -426,14 +418,16 @@ class PyTubeAssistant:
                 for idx, cmd in enumerate(commands, 1):
                     self.console.print(f"\n[dim]Step {idx}/{len(commands)}: {cmd}[/dim]")
                     if not self._execute_command(cmd.strip(), step):
-                        # If this is a compound command and one part fails, 
+                        # If this is a compound command and one part fails,
                         # make sure we have an error message
                         if step and not step.error:
                             step.error = f"Part {idx} of compound command failed: {cmd.strip()}"
-                        
+
                         if idx < len(commands):
                             # First part failed, ask about continuing
-                            if Confirm.ask(f"\n[yellow]Part {idx} failed. Try part {idx+1} anyway?[/yellow]", default=False):
+                            if Confirm.ask(
+                                f"\n[yellow]Part {idx} failed. Try part {idx + 1} anyway?[/yellow]", default=False
+                            ):
                                 continue
                         return False
                 return True
@@ -451,7 +445,8 @@ class PyTubeAssistant:
                 error_msg = result.output if result.output else "Command failed with no output"
                 # Clean up ANSI codes from error message
                 import re
-                error_msg = re.sub(r'\x1b\[[0-9;]*m', '', error_msg)
+
+                error_msg = re.sub(r"\x1b\[[0-9;]*m", "", error_msg)
                 if step:
                     step.error = error_msg.strip() or f"Command failed with exit code {result.exit_code}"
 
@@ -476,28 +471,6 @@ class PyTubeAssistant:
         except Exception as e:
             self.console.print(f"[red]Error checking status: {e}[/red]")
 
-    def _handle_workflow_management(self) -> None:
-        """Handle workflow management."""
-        self.console.print("\n[bold cyan]Workflow Management[/bold cyan]\n")
-
-        # List available workflows
-        event_slug = self.context.get("event", conf.pretalx.event_slug)
-        workflow_dir = Path(conf.dirs.work_dir) / event_slug / "workflows"
-
-        if workflow_dir.exists():
-            workflows = list(workflow_dir.glob("*_latest.json"))
-            if workflows:
-                self.console.print("[bold]Saved Workflows:[/bold]")
-                for wf in workflows:
-                    name = wf.stem.replace("_latest", "")
-                    self.console.print(f"  • {name}")
-
-        self.console.print("\n[bold]Workflow Templates:[/bold]")
-        templates = get_workflow_templates()
-        for name, template in templates.items():
-            steps = len(template.steps)
-            self.console.print(f"  • {name} ({steps} steps)")
-
     def _handle_validate(self) -> None:
         """Handle configuration validation."""
         self.console.print("\n[bold cyan]Configuration Validation[/bold cyan]\n")
@@ -521,14 +494,6 @@ class PyTubeAssistant:
             for service, result in invalid:
                 self.console.print(f"  [red]✗[/red] {service.title()}: {result['message']}")
 
-    def _handle_troubleshoot(self) -> None:
-        """Handle troubleshooting."""
-        # Reuse existing troubleshooting logic
-        from manager.cli.assistant import PyTubeAssistant
-
-        assistant = PyTubeAssistant(self.console)
-        assistant.troubleshoot()
-
     def _show_general_help(self) -> None:
         """Show general help."""
         self.console.print("""
@@ -541,8 +506,8 @@ class PyTubeAssistant:
 
 [bold cyan]Common Workflows:[/bold cyan]
   1. First time: setup → process → monitor
-  2. Daily: status → process pending → check
-  3. Troubleshooting: validate → troubleshoot
+  2. Daily: status → process pending videos
+  3. Check health: validate configuration
 
 [bold cyan]Tips:[/bold cyan]
   • The assistant shows context-aware options
