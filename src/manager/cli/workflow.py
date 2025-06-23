@@ -265,6 +265,95 @@ class WorkflowManager:
 
         return options
 
+    def detect_completed_steps(self, workflow: Workflow) -> dict[str, int]:
+        """Detect and mark already completed steps based on existing files.
+
+        Returns:
+            Dict mapping step names to file counts found
+        """
+        from pathlib import Path
+
+        detected = {}
+        work_dir = Path(conf.dirs.work_dir) / workflow.event_slug
+
+        # Map step names to their detection logic
+        step_detectors = {
+            "fetch_pretalx": {"dirs": ["records"], "pattern": "*.json", "description": "Pretalx records"},
+            "map_videos": {
+                "dirs": ["videos/youtube/video_records", "video_records"],  # Check both possible locations
+                "pattern": "*.json",
+                "description": "video mappings",
+            },
+            "update_metadata": {
+                "dirs": ["videos/youtube/video_records_updated", "video_records_updated"],
+                "pattern": "*.json",
+                "description": "updated metadata",
+            },
+            "monitor_releases": {
+                "dirs": ["videos/youtube/video_published", "video_published"],
+                "pattern": "*.json",
+                "description": "published videos",
+            },
+        }
+
+        # Special check for organize_videos - it saves to video_dir not work_dir
+        video_dir = Path(conf.dirs.video_dir)
+        if video_dir.exists():
+            tracks_map = video_dir / "tracks_map.json"
+            if tracks_map.exists():
+                # Find organize_videos step and mark it complete
+                for step in workflow.steps:
+                    if step.name == "organize_videos":
+                        step.status = StepStatus.COMPLETED
+                        detected[step.name] = 1
+                        self.console.print(f"  ✓ {step.name}: Found channel assignments", style="green")
+                        break
+
+        # Check each step
+        for step in workflow.steps:
+            if step.name in step_detectors:
+                detector = step_detectors[step.name]
+
+                # Check all possible directories
+                for dir_path in detector["dirs"]:
+                    check_dir = work_dir / dir_path
+                    if check_dir.exists():
+                        files = list(check_dir.glob(detector["pattern"]))
+                        if files:
+                            # Mark step as completed
+                            step.status = StepStatus.COMPLETED
+                            detected[step.name] = len(files)
+
+                            # Log what we found
+                            self.console.print(
+                                f"  ✓ {step.name}: Found {len(files)} {detector['description']}", style="green"
+                            )
+                            break
+
+            # Special handling for manual steps
+            elif step.name == "upload_videos" and "Manual" in step.command:
+                # Check if we have video records but no pretalx records
+                # This suggests videos were uploaded
+                video_records_dirs = [work_dir / "videos/youtube/video_records", work_dir / "video_records"]
+                for vr_dir in video_records_dirs:
+                    if vr_dir.exists() and list(vr_dir.glob("*.json")):
+                        self.console.print(f"  ⚡ {step.name}: Likely completed (found video records)", style="yellow")
+                        break
+
+        # Handle dependencies - if a later step is completed, earlier ones must be too
+        for step in workflow.steps:
+            if step.status != StepStatus.COMPLETED:
+                # Check if any of its dependents are completed
+                for other_step in workflow.steps:
+                    if step.name in other_step.dependencies and other_step.status == StepStatus.COMPLETED:
+                        step.status = StepStatus.COMPLETED
+                        self.console.print(
+                            f"  ✓ {step.name}: Marked complete (required by {other_step.name})", style="green dim"
+                        )
+                        break
+
+        return detected
+
 
 def get_workflow_templates() -> dict[str, Workflow]:
     """Get available workflow templates."""
@@ -279,11 +368,21 @@ def get_workflow_templates() -> dict[str, Workflow]:
     )
     standard.add_step(
         WorkflowStep(
-            "upload_videos",
-            "Manual: Upload to YouTube",
-            "Upload video files to YouTube",
+            "organize_videos",
+            "pytube video organize",
+            "Organize videos by channel and identify do_not_record",
             required=True,
             dependencies=["fetch_pretalx"],
+            estimated_time=60,
+        )
+    )
+    standard.add_step(
+        WorkflowStep(
+            "upload_videos",
+            "Manual: Upload to YouTube",
+            "Upload video files to YouTube (respecting channel assignments)",
+            required=True,
+            dependencies=["organize_videos"],
             estimated_time=1800,  # 30 minutes estimate
         )
     )
