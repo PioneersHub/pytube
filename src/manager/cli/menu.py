@@ -15,9 +15,7 @@ class MenuAction(Enum):
     SETUP = ("setup", "Configure PyTube", "1")
     PROCESS = ("process", "Process conference videos", "2")
     STATUS = ("status", "Check system status", "3")
-    WORKFLOW = ("workflow", "Manage workflows", "4")
-    VALIDATE = ("validate", "Validate configuration", "5")
-    TROUBLESHOOT = ("troubleshoot", "Troubleshoot issues", "6")
+    VALIDATE = ("validate", "Validate configuration", "4")
     HELP = ("help", "Get help", "h")
     BACK = ("back", "Go back", "b")
     EXIT = ("exit", "Exit", "0", "q")
@@ -300,7 +298,7 @@ class ProcessMenu(Menu):
 
     def __init__(self, console: Console, workflow, workflow_manager):
         """Initialize process menu.
-        
+
         Args:
             console: Rich console
             workflow: The workflow object with steps
@@ -347,8 +345,7 @@ class ProcessMenu(Menu):
             # Display step
             step_num = i + 1
             self.console.print(
-                f"  \\[{step_num}] {step.name:<35} {status_icon} {step.status.value.capitalize()}",
-                style=style
+                f"  \\[{step_num}] {step.name:<35} {status_icon} {step.status.value.capitalize()}", style=style
             )
 
             # Map to action
@@ -373,7 +370,7 @@ class ProcessMenu(Menu):
 
     def get_choice(self) -> tuple[str, int | None]:
         """Get user's choice.
-        
+
         Returns:
             Tuple of (action_type, step_index or None)
             action_type can be: 'execute_step', 'run_all', 'view_status', 'back'
@@ -388,27 +385,27 @@ class ProcessMenu(Menu):
             try:
                 step_num = int(user_input)
                 if 1 <= step_num <= len(self.workflow.steps):
-                    return ('execute_step', step_num - 1)
+                    return ("execute_step", step_num - 1)
                 elif step_num == 7:
-                    return ('run_all', None)
+                    return ("run_all", None)
                 elif step_num == 8:
-                    return ('view_status', None)
+                    return ("view_status", None)
                 elif step_num == 9:
-                    return ('reset', None)
+                    return ("reset", None)
                 elif step_num == 0:
-                    return ('back', None)
+                    return ("back", None)
             except ValueError:
                 pass
 
             # Check text commands
             normalized = user_input.lower()
-            if normalized in ['a', 'all', 'run all']:
-                return ('run_all', None)
-            elif normalized in ['s', 'status']:
-                return ('view_status', None)
-            elif normalized in ['r', 'reset']:
-                return ('reset', None)
-            elif normalized in ['b', 'back']:
-                return ('back', None)
+            if normalized in ["a", "all", "run all"]:
+                return ("run_all", None)
+            elif normalized in ["s", "status"]:
+                return ("view_status", None)
+            elif normalized in ["r", "reset"]:
+                return ("reset", None)
+            elif normalized in ["b", "back"]:
+                return ("back", None)
 
             self.console.print(f"[red]Invalid choice: '{user_input}'[/red]")

@@ -41,6 +41,20 @@ pretalx:
     # attributes must exist in SpeakerInfo data class
     some_attribute: 0
 # ########################################
+# Claude API for heuristic matching
+claude:
+  prompt: |
+    You are an assistant that decides whether a conference talk should be on the **PyCon DE** channel or the **PyData** channel, based on its title and abstract.
+
+    **PyCon DE (Python Conference DE)** sessions cover Python software engineering topics: Python development, DevOps/MLOps in Python, updates in the Python language and libraries, web development (e.g. Django), testing, security, community, and general programming use-cases in Python.
+
+    **PyData** sessions cover data-centric topics: data science, analytics, machine learning, deep learning, artificial intelligence, visualization, and related tools or business use-cases in these areas (using Python).
+
+    **Task:** Read the talk title and abstract below. Decide which category the talk falls into (PyCon DE or PyData) based on its content focus, *then output only the single category name* (exactly "PyCon DE" or "PyData") with no additional text.
+
+    Title: {title}
+    Abstract: {abstract}
+# ########################################
 # Event
 event:
   name: "PyCon DE & PyData Berlin 2024"
