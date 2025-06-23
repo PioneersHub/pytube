@@ -36,10 +36,13 @@ Example: `ABC123-introduction-to-python.mp4`
 
 ## Channel Assignment Logic
 
-Videos are assigned to channels using a two-tier system:
+Videos are assigned to channels using a priority system:
 
-1. **Direct Mapping**: Session codes listed in `pretalx.video_to_track` config
-2. **Track Matching**: Track names matching patterns in `pretalx.track_to_channel`
+1. **Do Not Record**: Sessions with `do_not_record: true` → `no_publishing` channel
+2. **Direct Mapping**: Session codes listed in `pretalx.video_to_track` config
+3. **Track Matching**: Track names matching patterns in `pretalx.track_to_channel`
+4. **AI Heuristics**: Claude/OpenAI analyze title+abstract (if configured and above methods fail)
+5. **Unmatched**: Remains in `downloads/` for manual handling
 
 ### Configuration Example
 
@@ -55,7 +58,23 @@ pretalx:
     pycon: "pycon"      # Tracks containing "pycon" → PyCon channel
     pydata: "pydata"    # Tracks containing "pydata" → PyData channel
     data: "pydata"      # Tracks containing "data" → PyData channel
+
+# Optional: AI heuristics for unmatched videos
+openai:
+  api_key: "sk-..."
+anthropic:
+  api_key: "sk-..."
 ```
+
+### Special Cases
+
+- **Do Not Record**: Videos marked with `do_not_record: true` in Pretalx are automatically moved to `do_not_release/` directory
+- **No Publishing**: These videos are tracked but not uploaded or published
+
+!!! danger "Important Safety Note"
+    **NEVER upload videos from the `do_not_release/` directory to YouTube!**
+    These videos are marked as `do_not_record` for privacy reasons.
+    The `pytube youtube map` command will automatically skip these videos and warn if they are found on YouTube.
 
 ## Workflow
 

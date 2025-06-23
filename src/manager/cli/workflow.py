@@ -296,9 +296,19 @@ class WorkflowManager:
             },
         }
 
-        # Special check for organize_videos - check if videos are actually moved to channels
+        # Special check for map_to_channels and move_to_channel_dirs
         video_dir = Path(conf.dirs.video_dir)
         if video_dir.exists():
+            # Check if channel mapping exists
+            tracks_map = video_dir / "tracks_map.json"
+            if tracks_map.exists():
+                for step in workflow.steps:
+                    if step.name == "map_to_channels":
+                        step.status = StepStatus.COMPLETED
+                        detected[step.name] = 1
+                        self.console.print(f"  ✓ {step.name}: Channel mapping file exists", style="green")
+                        break
+            
             # Check for videos in channel directories
             channel_dirs = ["pycon", "pydata", "do_not_release"]
             videos_found = 0
@@ -311,21 +321,19 @@ class WorkflowManager:
                         videos_found += len(list(channel_dir.glob(pattern)))
 
             if videos_found > 0:
-                # Find organize_videos step and mark it complete
+                # Find move_to_channel_dirs step and mark it complete
                 for step in workflow.steps:
-                    if step.name == "organize_videos":
+                    if step.name == "move_to_channel_dirs":
                         step.status = StepStatus.COMPLETED
                         detected[step.name] = videos_found
                         self.console.print(f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green")
                         break
-            else:
-                # Check if mapping exists but videos not moved
-                tracks_map = video_dir / "tracks_map.json"
-                if tracks_map.exists():
-                    for step in workflow.steps:
-                        if step.name == "organize_videos":
-                            self.console.print(f"  ⚡ {step.name}: Channel mappings exist but videos not moved yet", style="yellow")
-                            break
+            elif tracks_map.exists():
+                # Mapping exists but videos not moved yet
+                for step in workflow.steps:
+                    if step.name == "move_to_channel_dirs":
+                        self.console.print(f"  ⚡ {step.name}: Channel mappings exist but videos not moved yet", style="yellow")
+                        break
 
         # Check each step
         for step in workflow.steps:
@@ -386,12 +394,22 @@ def get_workflow_templates() -> dict[str, Workflow]:
     )
     standard.add_step(
         WorkflowStep(
-            "organize_videos",
-            "pytube video map-to-channels && pytube video move-to-channel-dirs",
-            "Map videos to channels and move to channel directories",
+            "map_to_channels",
+            "pytube video map-to-channels",
+            "Assign videos to YouTube channels based on Pretalx tracks",
             required=True,
             dependencies=["fetch_pretalx"],
-            estimated_time=120,  # Increased time for both operations
+            estimated_time=10,  # Very fast in single-channel mode
+        )
+    )
+    standard.add_step(
+        WorkflowStep(
+            "move_to_channel_dirs",
+            "pytube video move-to-channel-dirs",
+            "Move video files to channel-specific directories",
+            required=True,
+            dependencies=["map_to_channels"],
+            estimated_time=60,
         )
     )
     standard.add_step(
@@ -400,7 +418,7 @@ def get_workflow_templates() -> dict[str, Workflow]:
             "Manual: Upload to YouTube",
             "Upload video files to YouTube (respecting channel assignments)",
             required=True,
-            dependencies=["organize_videos"],
+            dependencies=["move_to_channel_dirs"],
             estimated_time=1800,  # 30 minutes estimate
         )
     )

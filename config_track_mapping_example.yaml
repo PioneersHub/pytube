@@ -1,0 +1,50 @@
+# Example track mapping configuration for video separation
+# Add these settings to your config_local.yaml
+
+pretalx:
+  # Map specific session codes to tracks (for exceptions)
+  video_to_track:
+    # Example: Force specific sessions to specific channels
+    ABCD12: "pyconde"    # Override to PyCon channel
+    WXYZ34: "pydata"     # Override to PyData channel
+    
+  # Map track name patterns to YouTube channels
+  # The system checks if these patterns exist in the track name (case-insensitive)
+  track_to_channel:
+    # PyCon DE channel patterns
+    "Python Basics": "pyconde"
+    "Python Advanced": "pyconde"
+    "Software Engineering": "pyconde"
+    "DevOps": "pyconde"
+    "Testing": "pyconde"
+    "Web Development": "pyconde"
+    "Community": "pyconde"
+    "Career": "pyconde"
+    "Ethics": "pyconde"
+    
+    # PyData channel patterns
+    "Data Science": "pydata"
+    "Machine Learning": "pydata"
+    "Deep Learning": "pydata"
+    "Data Engineering": "pydata"
+    "Big Data": "pydata"
+    "Analytics": "pydata"
+    "Visualization": "pydata"
+    "Scientific": "pydata"
+    "Research": "pydata"
+    "Statistics": "pydata"
+    "AI": "pydata"
+    
+    # Fallback patterns (checked last)
+    "pycon": "pyconde"
+    "pydata": "pydata"
+
+# YouTube channel configuration should match the track_to_channel values
+youtube:
+  channels:
+    pyconde:
+      id: "UCji5VWDkGzuRenyRQZ9OpFQ"
+      playlist_id: "PLHd2BPBhxqRK4cSON6xH100Der5nc8yWq"
+    pydata:
+      id: "UCOjD18EJYcsBog4IozkF_7w"
+      playlist_id: "PLGVZCDnMOq0pUROSY87riTyk5sH8JIk3W"
