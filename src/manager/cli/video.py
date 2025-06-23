@@ -209,6 +209,14 @@ def map_to_channels(ctx: click.Context, dry_run: bool) -> None:
         console.print("[red]No Pretalx data found. Run 'pytube pretalx download' first.[/red]")
         return
 
+    # Check for single-channel mode
+    youtube_channels = conf.get("youtube", {}).get("channels", {})
+    channel_names = [name for name in youtube_channels if name != "do_not_release"]
+
+    if len(channel_names) == 1:
+        console.print(f"[cyan]ℹ️  Single channel mode: All videos will be assigned to '{channel_names[0]}'[/cyan]")
+        console.print("[dim]Skipping track analysis and AI heuristics...[/dim]\n")
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -234,9 +242,7 @@ def map_to_channels(ctx: click.Context, dry_run: bool) -> None:
 
         # Process channel assignments
         collect_tracks, assignment_methods = video_organizer.assign_video_to_channel(
-            dry_run=dry_run,
-            use_heuristics=True,
-            progress_callback=update_progress
+            dry_run=dry_run, use_heuristics=True, progress_callback=update_progress
         )
 
         progress.update(process_task, completed=total_sessions, description="Assignment complete!")
@@ -284,6 +290,7 @@ def map_to_channels(ctx: click.Context, dry_run: bool) -> None:
         video_organizer.generate_assignment_report(collect_tracks, assignment_methods, video_map)
 
         # Show statistics
+        single_channel_count = sum(1 for v in assignment_methods.values() if v == "single_channel")
         track_count = sum(1 for v in assignment_methods.values() if v == "track")
         consensus_count = sum(1 for v in assignment_methods.values() if v == "consensus")
         claude_count = sum(1 for v in assignment_methods.values() if v == "claude")
@@ -291,6 +298,10 @@ def map_to_channels(ctx: click.Context, dry_run: bool) -> None:
         random_count = sum(1 for v in assignment_methods.values() if v == "random")
 
         console.print("\n📊 Assignment Statistics:")
+        if single_channel_count > 0:
+            console.print(
+                f"  • Single channel mode: {single_channel_count} [dim](all videos assigned to one channel)[/dim]"
+            )
         console.print(f"  • Track-based: {track_count}")
         if consensus_count + claude_count + openai_count + random_count > 0:
             console.print(f"  • AI Consensus: {consensus_count}")

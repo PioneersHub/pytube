@@ -26,8 +26,7 @@ These options can be used with any command:
 
 ```
 pytube
-├── assistant     # Standard interactive assistant
-├── enhanced      # Enhanced interactive assistant (recommended)
+├── assistant     # Interactive assistant
 ├── setup         # Configuration wizard
 ├── records       # Manage Pretalx records
 ├── youtube       # YouTube operations
@@ -36,31 +35,17 @@ pytube
 └── status        # Show system status
 ```
 
-## Interactive Assistants
+## Interactive Assistant
 
 ### pytube assistant
 
-Launch the standard interactive PyTube assistant for guided workflows.
+Launch the interactive PyTube assistant for guided workflows.
 
 ```bash
 pytube assistant
 ```
 
-The assistant provides:
-- Step-by-step guidance through common workflows
-- Configuration validation
-- Automated command execution
-- Progress tracking
-
-### pytube enhanced (Recommended)
-
-Launch the enhanced interactive assistant with improved navigation and features.
-
-```bash
-pytube enhanced
-```
-
-**Enhanced Features:**
+**Features:**
 - **Named command support**: Type command names (e.g., 'setup', 'process') or numbers
 - **Context-aware menus**: Shows relevant options based on system state
 - **Workflow management**: Save and resume multi-step workflows
@@ -193,18 +178,34 @@ Map uploaded YouTube videos to Pretalx sessions.
 pytube youtube map [OPTIONS]
 
 Options:
-  --channel TEXT    YouTube channel name from config
-  --help           Show help message
+  --channel TEXT             YouTube channel name from config
+  --include-do-not-record    Include videos marked as do_not_record (dangerous!)
+  --filter-channel TEXT      Only map videos assigned to this channel
+  --help                     Show help message
 ```
 
 **Example:**
 ```bash
-# Map videos for default channel
+# Map videos (automatically skips do_not_record)
 pytube youtube map
 
-# Map videos for specific channel
+# Map videos for specific YouTube channel
 pytube youtube map --channel pycon
+
+# Only map videos assigned to pydata channel
+pytube youtube map --filter-channel pydata
+
+# Include do_not_record videos (NOT RECOMMENDED)
+pytube youtube map --include-do-not-record
 ```
+
+This command:
+- Retrieves video IDs from YouTube playlists
+- Matches videos to Pretalx sessions by filename
+- **Automatically skips videos marked as do_not_record**
+- **Respects channel assignments from video organization**
+- **Warns about videos that shouldn't be on YouTube**
+- Creates mapping files for further processing
 
 ### pytube youtube update
 
@@ -368,6 +369,8 @@ This command:
 - Determines which YouTube channel (PyData/PyCon) each video should be uploaded to
 - Creates mapping files: `tracks.json` and `tracks_map.json`
 - Uses track names and custom mappings from configuration
+- Optionally uses AI (Claude/OpenAI) to analyze unmatched videos
+- Handles `do_not_record` sessions → `no_publishing` channel
 
 ### pytube video move
 

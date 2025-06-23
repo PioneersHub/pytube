@@ -71,8 +71,24 @@ youtube:
 You need to **prepare mapping files** for the processing pipeline.
 These files are expected by the handler (`Publisher`) by convention. 
 
-The methods below create mappings of the pretalx id and the YouTube id and store them in JSON files.
+The mapping process now includes safety checks:
+- Automatically skips videos marked as `do_not_record`
+- Respects channel assignments from video organization
+- Warns about videos that shouldn't be on YouTube
 
+**Using the CLI (recommended):**
+```bash
+# Map videos with safety checks enabled
+pytube youtube map
+
+# Only map videos assigned to specific channel
+pytube youtube map --filter-channel pydata
+
+# Include do_not_record videos (NOT RECOMMENDED)
+pytube youtube map --include-do-not-record
+```
+
+**Using Python directly:**
 ```python
 from pytube.handlers.youtube import YT
 
@@ -80,7 +96,11 @@ yt = YT()
 yt.get_youtube_ids_for_uploads("my_channel")
 
 # Match the pretalx id with the YouTube video id
-yt.map_pretalx_id_youtube_id()
+# This now includes safety checks by default
+mapping, warnings = yt.map_pretalx_id_youtube_id(
+    skip_do_not_record=True,  # Skip do_not_record videos (default)
+    filter_by_channel="pydata"  # Optional: only map videos for this channel
+)
 ```
 
 ### Caveats
