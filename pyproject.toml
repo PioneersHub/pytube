@@ -15,7 +15,9 @@ license-files = [
 requires-python = ">=3.13.1"
 
 dependencies = [
-    "pytanis>=0.8",
+#    "pytanis>=0.9",
+    # temp local update # TODO: remove once published
+    "pytanis @ file:///Users/hendorf/code/pioneershub/pytanis",
     "colorama>=0.4.6",
     "rich>=14.0.0",
     "structlog>=25.3.0",

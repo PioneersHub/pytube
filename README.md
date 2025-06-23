@@ -56,9 +56,7 @@ Manage and update metadata for your conference videos on YouTube using data from
 
 4. **Process Conference:**
    ```bash
-   pytube enhanced   # Enhanced interactive mode (recommended)
-   # or
-   pytube assistant  # Standard interactive mode
+   pytube assistant  # Interactive mode
    # or
    pytube records fetch && pytube youtube update  # Manual commands
    ```
