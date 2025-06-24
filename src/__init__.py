@@ -4,11 +4,11 @@ import os
 import colorama
 import structlog
 
-from manager.config import load_config
+from manager.config import load_config, validate_config
 
 os.environ["FORCE_COLOR"] = "1"
 
-__version__ = "3.1.4"
+__version__ = "3.1.5"
 
 cr = structlog.dev.ConsoleRenderer(
     columns=[
@@ -76,5 +76,20 @@ logger = structlog.get_logger()
 
 # Load configuration
 conf = load_config()
+
+# Validate configuration on startup
+errors, warnings = validate_config(conf)
+
+# Log warnings
+for warning in warnings:
+    logger.warning(f"Config validation: {warning}")
+
+# Log errors and optionally exit
+if errors:
+    logger.error("Configuration validation failed!")
+    for error in errors:
+        logger.error(f"  - {error}")
+    # Don't exit by default, but log prominently
+    logger.error("PyTube may not function correctly with these configuration errors")
 
 __ALL__ = ["logger", "conf"]
