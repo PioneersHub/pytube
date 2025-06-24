@@ -33,6 +33,7 @@ import yaml
 
 from manager import conf, logger
 from manager.handlers.records import Records
+from manager.utils.common import SafeConfig
 
 records = Records()
 
@@ -42,12 +43,17 @@ def call_claude_api(title: str, abstract: str) -> str | None:
 
     Returns 'pycon' or 'pydata', or None on error.
     """
-    api_key = conf.get("anthropic", {}).get("api_key", "")
+    safe_conf = SafeConfig(conf)
+    api_key = safe_conf.get("anthropic.api_key", "")
     if not api_key:
         logger.warning("No Anthropic API key configured")
         return None
 
-    prompt = conf.claude.prompt.format(title=title, abstract=abstract)
+    prompt_template = safe_conf.get(
+        "claude.prompt",
+        "Determine if this talk belongs to PyCon or PyData based on: Title: {title}, Abstract: {abstract}",
+    )
+    prompt = prompt_template.format(title=title, abstract=abstract)
 
     try:
         response = httpx.post(
@@ -58,7 +64,7 @@ def call_claude_api(title: str, abstract: str) -> str | None:
                 "content-type": "application/json",
             },
             json={
-                "model": conf.get("anthropic", {}).get("model", "claude-3-haiku-20240307"),
+                "model": safe_conf.get("anthropic.model", "claude-3-haiku-20240307"),
                 "max_tokens": 10,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -87,12 +93,17 @@ def call_openai_api(title: str, abstract: str) -> str | None:
 
     Returns 'pycon' or 'pydata', or None on error.
     """
-    api_key = conf.get("openai", {}).get("api_key", "")
+    safe_conf = SafeConfig(conf)
+    api_key = safe_conf.get("openai.api_key", "")
     if not api_key:
         logger.warning("No OpenAI API key configured")
         return None
 
-    prompt = conf.claude.prompt.format(title=title, abstract=abstract)
+    prompt_template = safe_conf.get(
+        "claude.prompt",
+        "Determine if this talk belongs to PyCon or PyData based on: Title: {title}, Abstract: {abstract}",
+    )
+    prompt = prompt_template.format(title=title, abstract=abstract)
 
     try:
         response = httpx.post(
@@ -102,7 +113,7 @@ def call_openai_api(title: str, abstract: str) -> str | None:
                 "Content-Type": "application/json",
             },
             json={
-                "model": conf.get("openai", {}).get("model", "gpt-4-turbo"),
+                "model": safe_conf.get("openai.model", "gpt-4-turbo"),
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 10,
                 "temperature": 0,
@@ -187,10 +198,12 @@ def split_pycon_pydata(video: dict) -> str | None:
     add the pretalx code in the config.
     """
     code = video["code"]
+    safe_conf = SafeConfig(conf)
 
     # Check direct mapping first
-    if code in conf.pretalx.video_to_track:
-        return conf.pretalx.video_to_track[code]
+    video_to_track = safe_conf.get("pretalx.video_to_track", {})
+    if code in video_to_track:
+        return video_to_track[code]
 
     # Handle missing or null track
     if not video.get("track"):
@@ -202,9 +215,10 @@ def split_pycon_pydata(video: dict) -> str | None:
 
     # Check track patterns
     if track_name:
-        for snippet in conf.pretalx.track_to_channel:
+        track_to_channel = safe_conf.get("pretalx.track_to_channel", {})
+        for snippet in track_to_channel:
             if snippet.casefold() in track_name.casefold():
-                return conf.pretalx.track_to_channel[snippet]
+                return track_to_channel[snippet]
 
     # Log unmatched video
     title = video.get("title", "Unknown")
@@ -235,7 +249,8 @@ def assign_video_to_channel(
     total_sessions = len(records.confirmed_sessions_map)
 
     # Check if only one channel is configured
-    youtube_channels = conf.get("youtube", {}).get("channels", {})
+    safe_conf = SafeConfig(conf)
+    youtube_channels = safe_conf.get("youtube.channels", {})
     channel_names = [name for name in youtube_channels if name != "do_not_release"]
 
     if len(channel_names) == 1:
@@ -281,7 +296,8 @@ def assign_video_to_channel(
 
     # Save mapping files only if not dry run
     if not dry_run:
-        video_dir = Path(conf.dirs.video_dir)
+        safe_conf = SafeConfig(conf)
+        video_dir = Path(safe_conf.get("dirs.video_dir", "."))
         video_dir.mkdir(parents=True, exist_ok=True)
 
         (video_dir / "tracks.json").write_text(json.dumps(collect_tracks, indent=4))
@@ -327,7 +343,10 @@ def generate_assignment_report(collect_tracks: dict, assignment_methods: dict, v
                 report["unmatched"].append(entry)
 
     # Save YAML report
-    event_dir = Path(conf.dirs.work_dir) / conf.pretalx.event_slug
+    safe_conf = SafeConfig(conf)
+    work_dir = safe_conf.get("dirs.work_dir", ".")
+    event_slug = safe_conf.get("pretalx.event_slug", "default")
+    event_dir = Path(work_dir) / event_slug
     event_dir.mkdir(parents=True, exist_ok=True)
 
     report_file = event_dir / "channel_assignments.yaml"
@@ -356,7 +375,9 @@ def generate_assignment_report(collect_tracks: dict, assignment_methods: dict, v
 
 
 def load_tracks_map() -> dict:
-    the_file = conf.dirs.video_dir / "tracks_map.json"
+    safe_conf = SafeConfig(conf)
+    video_dir = Path(safe_conf.get("dirs.video_dir", "."))
+    the_file = video_dir / "tracks_map.json"
     if not the_file.exists():
         logger.error(f"File {the_file} does not exist, did you run `assign_video_to_channel`?")
         return {}
@@ -365,7 +386,9 @@ def load_tracks_map() -> dict:
 
 def video_code_map() -> dict[Any, Any]:
     """Mapping of all downloaded videos using first 6 characters of filename"""
-    downloads_dir = Path(conf.dirs.video_dir / "downloads")
+    safe_conf = SafeConfig(conf)
+    video_dir = Path(safe_conf.get("dirs.video_dir", "."))
+    downloads_dir = video_dir / "downloads"
     video_extensions = ["*.mp4", "*.mov", "*.avi", "*.mkv", "*.webm", "*.m4v"]
 
     downloaded = []
@@ -442,9 +465,11 @@ def move_videos_to_upload_channel(dry_run=False, progress_callback=None):
             logger.debug(f"{code} -> {channel}: {title}")
 
     # Create necessary directories
+    safe_conf = SafeConfig(conf)
+    video_dir = Path(safe_conf.get("dirs.video_dir", "."))
     channels_needed = {item[2] for item in move_to_channel}
     for channel in channels_needed:
-        channel_dir = conf.dirs.video_dir / channel
+        channel_dir = video_dir / channel
         if dry_run:
             if not channel_dir.exists():
                 logger.info(f"Would create directory: {channel_dir}")
@@ -456,7 +481,7 @@ def move_videos_to_upload_channel(dry_run=False, progress_callback=None):
 
     # Create do_not_release directory if needed
     if move_to_dnr:
-        dnr_dir = conf.dirs.video_dir / "do_not_release"
+        dnr_dir = video_dir / "do_not_release"
         if dry_run:
             if not dnr_dir.exists():
                 logger.info(f"Would create directory: {dnr_dir}")
@@ -476,7 +501,7 @@ def move_videos_to_upload_channel(dry_run=False, progress_callback=None):
         if progress_callback:
             progress_callback(current_move, total_moves, f"Moving to {channel}: {code} - {src_path.name}")
 
-        dst_path = conf.dirs.video_dir / channel / src_path.name
+        dst_path = video_dir / channel / src_path.name
         if dry_run:
             logger.info(f"Would move {code} to {channel}/: {src_path.name}")
             moved_count += 1
@@ -495,7 +520,7 @@ def move_videos_to_upload_channel(dry_run=False, progress_callback=None):
         if progress_callback:
             progress_callback(current_move, total_moves, f"Moving to do_not_release: {code} - {src_path.name}")
 
-        dst_path = conf.dirs.video_dir / "do_not_release" / src_path.name
+        dst_path = video_dir / "do_not_release" / src_path.name
         if dry_run:
             logger.info(f"Would move {code} to do_not_release/: {src_path.name}")
             dnr_count += 1
@@ -569,7 +594,9 @@ def report_unassigned_videos():
             logger.info("")
 
         # Save report to file
-        report_file = conf.dirs.video_dir / "unassigned_videos_report.json"
+        safe_conf = SafeConfig(conf)
+        video_dir = Path(safe_conf.get("dirs.video_dir", "."))
+        report_file = video_dir / "unassigned_videos_report.json"
         with open(report_file, "w") as f:
             json.dump(unassigned, f, indent=2)
         logger.info(f"Report saved to: {report_file}")
