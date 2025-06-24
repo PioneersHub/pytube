@@ -2,7 +2,7 @@ import datetime
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
-from pytube.handlers import Publisher
+from manager.handlers.publisher import Publisher
 
 
 @pytest.fixture

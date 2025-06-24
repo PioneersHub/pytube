@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pytube.handlers.youtube import YT, PrepareVideoMetadata
+from manager.handlers.youtube import YT, PrepareVideoMetadata
 
 
 @patch("src.youtube_videos.YT.check_macos_sequoia")
