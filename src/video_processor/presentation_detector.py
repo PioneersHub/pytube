@@ -9,7 +9,7 @@ Supports batch processing of multiple videos from an input folder.
 import argparse
 import glob
 import json
-import os
+import subprocess
 import time
 import traceback
 from collections import defaultdict
@@ -35,7 +35,8 @@ def get_video_files(input_folder: str, extensions: str) -> list[str]:
     Returns:
         List of video file paths
     """
-    if not os.path.isdir(input_folder):
+    input_path = Path(input_folder)
+    if not input_path.is_dir():
         logger.info(f"Error: Input folder does not exist: {input_folder}")
         return []
 
@@ -49,11 +50,11 @@ def get_video_files(input_folder: str, extensions: str) -> list[str]:
         if not ext.startswith("."):
             ext = f".{ext}"
 
-        pattern = os.path.join(input_folder, f"*{ext}")
+        pattern = str(input_path / f"*{ext}")
         video_files.extend(glob.glob(pattern))
 
         # Also try uppercase extension
-        pattern = os.path.join(input_folder, f"*{ext.upper()}")
+        pattern = str(input_path / f"*{ext.upper()}")
         video_files.extend(glob.glob(pattern))
 
     # Sort files for consistent processing order
@@ -287,15 +288,20 @@ class VideoPresenterDetector:
 
     def load_break_images(self, break_images_dir: str) -> list[np.ndarray]:
         """Load break images from a directory"""
-        if not break_images_dir or not os.path.isdir(break_images_dir):
-            logger.info(f"No valid break images directory provided: {break_images_dir}")
+        if not break_images_dir:
+            logger.info("No break images directory provided")
+            return []
+            
+        break_images_path = Path(break_images_dir)
+        if not break_images_path.is_dir():
+            logger.info(f"Break images directory does not exist: {break_images_dir}")
             return []
 
         logger.info(f"Loading break images from {break_images_dir}...")
         image_files = (
-            glob.glob(os.path.join(break_images_dir, "*.jpg"))
-            + glob.glob(os.path.join(break_images_dir, "*.png"))
-            + glob.glob(os.path.join(break_images_dir, "*.jpeg"))
+            glob.glob(str(break_images_path / "*.jpg"))
+            + glob.glob(str(break_images_path / "*.png"))
+            + glob.glob(str(break_images_path / "*.jpeg"))
         )
 
         if not image_files:
@@ -313,7 +319,7 @@ class VideoPresenterDetector:
                     img = cv2.resize(img, (width, height))
 
                 break_images.append(img)
-                logger.info(f"  Loaded: {os.path.basename(img_path)}")
+                logger.info(f"  Loaded: {Path(img_path).name}")
 
         logger.info(f"✅ Loaded {len(break_images)} break images")
         return break_images
@@ -414,10 +420,10 @@ class VideoPresenterDetector:
             )
 
         # Save the top break screens for verification
-        detected_dir = self.cfg.break_detection.detected_screens_dir
-        os.makedirs(detected_dir, exist_ok=True)
+        detected_dir = Path(self.cfg.break_detection.detected_screens_dir)
+        detected_dir.mkdir(parents=True, exist_ok=True)
         for i, screen in enumerate(top_break_screens):
-            cv2.imwrite(f"{detected_dir}/break_screen_{i + 1}.jpg", screen)
+            cv2.imwrite(str(detected_dir / f"break_screen_{i + 1}.jpg"), screen)
 
         logger.info(f"✅ Detected {len(top_break_screens)} potential break screens")
         logger.info(f"Break screen images saved to {detected_dir}/ directory for verification")
@@ -817,20 +823,35 @@ class VideoPresenterDetector:
 
             logger.info(f"Extracting presentation {i + 1} video...")
             # FFmpeg command for video extraction without re-encoding
-            video_cmd = (
-                f'ffmpeg -i "{plan["input_video"]}" -ss {int(start)} -t {int(duration)} -c copy "{output_video}"'
-            )
-            logger.info(f"Command: {video_cmd}")
-            os.system(video_cmd)
-            logger.info(f"✅ Extracted video: {output_video}")
+            video_cmd = [
+                "ffmpeg", "-i", plan["input_video"], 
+                "-ss", str(int(start)), 
+                "-t", str(int(duration)), 
+                "-c", "copy", 
+                output_video
+            ]
+            logger.info(f"Command: {' '.join(video_cmd)}")
+            result = subprocess.run(video_cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"FFmpeg error: {result.stderr}")
+            else:
+                logger.info(f"✅ Extracted video: {output_video}")
 
             # Extract audio if configured
             if self.cfg.output.extract_audio:
-                audio_cmd = f'ffmpeg -i "{output_video}" -vn -ar 44100 -ac 2 -ab 192k -f mp3 "{output_audio}"'
+                audio_cmd = [
+                    "ffmpeg", "-i", output_video, 
+                    "-vn", "-ar", "44100", "-ac", "2", 
+                    "-ab", "192k", "-f", "mp3", 
+                    output_audio
+                ]
                 logger.info(f"Extracting audio for presentation {i + 1}...")
-                logger.info(f"Command: {audio_cmd}")
-                os.system(audio_cmd)
-                logger.info(f"✅ Extracted audio: {output_audio}")
+                logger.info(f"Command: {' '.join(audio_cmd)}")
+                result = subprocess.run(audio_cmd, capture_output=True, text=True)
+                if result.returncode != 0:
+                    logger.error(f"FFmpeg audio error: {result.stderr}")
+                else:
+                    logger.info(f"✅ Extracted audio: {output_audio}")
 
     def _load_mapping_data(self):
         """Load mapping data from file"""
@@ -952,7 +973,8 @@ def main():
     args = parser.parse_args()
 
     # Load configuration
-    if not os.path.exists(args.config):
+    config_path = Path(args.config)
+    if not config_path.exists():
         logger.info(f"Config file not found: {args.config}")
         logger.info("Creating default config file...")
         default_cfg = OmegaConf.create(
