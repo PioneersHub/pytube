@@ -7,7 +7,6 @@ This file can be used for multiple use cases like:
 - etc.
 """
 
-import json
 from contextlib import suppress
 from pathlib import Path
 
@@ -16,8 +15,10 @@ from pytanis import PretalxClient
 from pytanis.pretalx.models import Submission
 
 from manager import conf, logger
+from manager.config import get_event_dir
 from manager.handlers import sized_text, teaser_text
 from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
+from manager.utils.common import ensure_directory, load_json, save_json
 
 
 class Records:
@@ -58,23 +59,15 @@ class Records:
         self._speakers_map: dict = {}
 
         # Event-specific directories
-        self.event_dir = self._get_event_dir()
+        self.event_dir = get_event_dir(conf)
         self.records: Path = self.event_dir / "records"
-        self.records.mkdir(parents=True, exist_ok=True)
-
-    def _get_event_dir(self) -> Path:
-        """Get the event-specific directory for data storage."""
-        event_slug = conf.pretalx.event_slug
-        if not event_slug or event_slug == "pretalx-uri-slug":
-            # Fallback to default structure for backward compatibility
-            return conf.dirs.work_dir
-        return conf.dirs.work_dir / event_slug
+        ensure_directory(self.records)
 
     def load_all_confirmed_sessions(self) -> None:
         """Load all confirmed talks from pretalx and store it into a single JSON file stored in event-specific directory"""
         logger.info("Loading all confirmed sessions")
         the_dir = self.event_dir / "pretalx"
-        the_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directory(the_dir)
 
         # Always clear old data to ensure fresh fetch
         logger.info("Clearing old session data...")
@@ -144,7 +137,7 @@ class Records:
         """Load all speakers from pretalx and store it into a single JSON file stored in event-specific directory"""
         logger.info("Loading all speakers")
         the_dir = self.event_dir / "pretalx_speakers"
-        the_dir.mkdir(parents=True, exist_ok=True)
+        ensure_directory(the_dir)
 
         # Always clear old data to ensure fresh fetch
         logger.info("Clearing old speaker data...")
@@ -186,7 +179,7 @@ class Records:
             raise RuntimeError("Cannot iterate over speakers. The API may have returned an unexpected format.") from e
 
         logger.info(f"Done: wrote {written_count}/{subs_count} speakers to disk")
-        
+
         # Verify that at least some speakers were written
         if written_count == 0:
             logger.error("No speakers were successfully written to disk!")
@@ -197,7 +190,7 @@ class Records:
             )
         elif written_count < subs_count:
             logger.warning(f"Only {written_count}/{subs_count} speakers were successfully written")
-            
+
         self.create_speaker_map()
 
     def create_confirmed_sessions_map(self) -> None:
@@ -205,11 +198,11 @@ class Records:
         the_dir = self.event_dir / "pretalx"
         confirmed_map = {}
         for x in the_dir.glob("*.json"):
-            data = json.load(x.open())
+            data = load_json(x)
             confirmed_map[data["code"]] = data
         if not confirmed_map:
             logger.error("No confirmed sessions found, did you run `load_all_confirmed_sessions`?")
-        json.dump(confirmed_map, (self.event_dir / "confirmed_sessions_map.json").open("w"), indent=4)
+        save_json(confirmed_map, self.event_dir / "confirmed_sessions_map.json")
         logger.info("Created confirmed sessions map")
 
     def create_speaker_map(self) -> None:
@@ -217,11 +210,11 @@ class Records:
         the_dir = self.event_dir / "pretalx_speakers"
         confirmed_map = {}
         for x in the_dir.glob("*.json"):
-            data = json.load(x.open())
+            data = load_json(x)
             confirmed_map[data["code"]] = data
         if not confirmed_map:
             logger.error("No speakers found, did you run `load_all_speakers`?")
-        json.dump(confirmed_map, (self.event_dir / "speaker_map.json").open("w"), indent=4)
+        save_json(confirmed_map, self.event_dir / "speaker_map.json")
         logger.info("Created confirmed speakers map")
 
     @property
@@ -231,7 +224,7 @@ class Records:
             if not map_file.exists():
                 logger.error(f"Confirmed sessions map not found at {map_file}")
                 return {}
-            self._confirmed_sessions_map = json.load(map_file.open())
+            self._confirmed_sessions_map = load_json(map_file)
         return self._confirmed_sessions_map
 
     @property
@@ -241,7 +234,7 @@ class Records:
             if not map_file.exists():
                 logger.error(f"Speaker map not found at {map_file}")
                 return {}
-            self._speakers_map = json.load(map_file.open())
+            self._speakers_map = load_json(map_file)
         return self._speakers_map
 
     def create_records(self) -> dict[str, int]:
@@ -367,7 +360,7 @@ class Records:
                 stats["processed"] += 1
                 stats["skipped"] += 1
                 try:
-                    jdata = json.load(x.open())
+                    jdata = load_json(x)
                     logger.error(f"Error adding descriptions to {jdata.get('pretalx_id', 'unknown')}: {e}")
                 except Exception:
                     logger.error(f"Error adding descriptions to {x.name}: {e}")
