@@ -21,6 +21,7 @@ Configuration in config.yaml/config_local.yaml:
 from abc import ABC, abstractmethod
 
 from manager import conf, logger
+from manager.utils.common import SafeConfig
 
 
 class AIProvider(ABC):
@@ -39,8 +40,14 @@ class OpenAIProvider(AIProvider):
         try:
             from openai import OpenAI
 
-            self.client = OpenAI(api_key=conf.openai.api_key, organization=conf.openai.get("organization"))
-            self.model = conf.openai.get("model", "gpt-3.5-turbo")
+            safe_conf = SafeConfig(conf)
+            api_key = safe_conf.get("openai.api_key")
+            if not api_key:
+                raise ValueError("OpenAI API key not configured. Please set openai.api_key in config_local.yaml")
+
+            organization = safe_conf.get("openai.organization")
+            self.client = OpenAI(api_key=api_key, organization=organization)
+            self.model = safe_conf.get("openai.model", "gpt-3.5-turbo")
         except ImportError:
             raise ImportError("Please install openai: pip install openai")
 
@@ -65,9 +72,14 @@ class AnthropicProvider(AIProvider):
         try:
             from anthropic import Anthropic
 
-            self.client = Anthropic(api_key=conf.anthropic.api_key)
-            self.model = conf.anthropic.get("model", "claude-3-sonnet-20240229")
-            self.max_tokens = conf.anthropic.get("max_tokens", 1000)
+            safe_conf = SafeConfig(conf)
+            api_key = safe_conf.get("anthropic.api_key")
+            if not api_key:
+                raise ValueError("Anthropic API key not configured. Please set anthropic.api_key in config_local.yaml")
+
+            self.client = Anthropic(api_key=api_key)
+            self.model = safe_conf.get("anthropic.model", "claude-3-sonnet-20240229")
+            self.max_tokens = safe_conf.get("anthropic.max_tokens", 1000)
         except ImportError:
             raise ImportError("Please install anthropic: pip install anthropic")
 
@@ -91,9 +103,15 @@ class GoogleProvider(AIProvider):
         try:
             import google.generativeai as genai
 
-            genai.configure(api_key=conf.google.api_key)
-            self.model = genai.GenerativeModel(conf.google.get("model", "gemini-pro"))
-            self.safety_settings = conf.google.get("safety_settings", {})
+            safe_conf = SafeConfig(conf)
+            api_key = safe_conf.get("google.api_key")
+            if not api_key:
+                raise ValueError("Google API key not configured. Please set google.api_key in config_local.yaml")
+
+            genai.configure(api_key=api_key)
+            model_name = safe_conf.get("google.model", "gemini-pro")
+            self.model = genai.GenerativeModel(model_name)
+            self.safety_settings = safe_conf.get("google.safety_settings", {})
         except ImportError:
             raise ImportError("Please install google-generativeai: pip install google-generativeai")
 
@@ -120,8 +138,13 @@ class CohereProvider(AIProvider):
         try:
             import cohere
 
-            self.client = cohere.Client(conf.cohere.api_key)
-            self.model = conf.cohere.get("model", "command")
+            safe_conf = SafeConfig(conf)
+            api_key = safe_conf.get("cohere.api_key")
+            if not api_key:
+                raise ValueError("Cohere API key not configured. Please set cohere.api_key in config_local.yaml")
+
+            self.client = cohere.Client(api_key)
+            self.model = safe_conf.get("cohere.model", "command")
         except ImportError:
             raise ImportError("Please install cohere: pip install cohere")
 
@@ -142,7 +165,8 @@ class CohereProvider(AIProvider):
 # Factory function to get the appropriate provider
 def get_ai_provider() -> AIProvider:
     """Get the configured AI provider."""
-    service = conf.get("ai_service", "openai").lower()
+    safe_conf = SafeConfig(conf)
+    service = safe_conf.get("ai_service", "openai").lower()
 
     providers = {
         "openai": OpenAIProvider,
@@ -166,29 +190,32 @@ def get_ai_provider() -> AIProvider:
 def teaser_text(text: str, max_tokens: int = 50, temperature: float | None = None) -> str:
     """Generate a teaser text using the configured AI provider."""
     provider = get_ai_provider()
-    service = conf.get("ai_service", "openai").lower()
+    safe_conf = SafeConfig(conf)
+    service = safe_conf.get("ai_service", "openai").lower()
 
     # Use temperature from config if not specified
     if temperature is None:
-        service_config = getattr(conf, service, {})
-        temperature = service_config.get("temperature", {}).get("teaser", 0.7)
+        temperature = safe_conf.get(f"{service}.temperature.teaser", 0.7)
+
+    system_prompt = safe_conf.get("prompts.teaser", "Generate a teaser for the following text:")
 
     return provider.generate_text(
-        system_prompt=conf.prompts.teaser, user_prompt=text, max_tokens=max_tokens, temperature=temperature
+        system_prompt=system_prompt, user_prompt=text, max_tokens=max_tokens, temperature=temperature
     )
 
 
 def sized_text(text: str, max_tokens: int = 100, temperature: float | None = None) -> str:
     """Generate a sized description text using the configured AI provider."""
     provider = get_ai_provider()
-    service = conf.get("ai_service", "openai").lower()
+    safe_conf = SafeConfig(conf)
+    service = safe_conf.get("ai_service", "openai").lower()
 
     # Use temperature from config if not specified
     if temperature is None:
-        service_config = getattr(conf, service, {})
-        temperature = service_config.get("temperature", {}).get("description", 0.9)
+        temperature = safe_conf.get(f"{service}.temperature.description", 0.9)
 
-    system_prompt = conf.prompts.description.format(max_tokens=max_tokens)
+    prompt_template = safe_conf.get("prompts.description", "Generate a description with max {max_tokens} tokens:")
+    system_prompt = prompt_template.format(max_tokens=max_tokens)
 
     return provider.generate_text(
         system_prompt=system_prompt, user_prompt=text, max_tokens=max_tokens, temperature=temperature

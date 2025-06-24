@@ -23,7 +23,7 @@ from manager.models.video import (
     YouTubeMetadata,
     YoutubeVideoResource,
 )
-from manager.utils.common import ensure_directory, load_json, save_json
+from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
 
 
 class YT:
@@ -67,7 +67,10 @@ class YT:
             raise RuntimeError("macOS Sequoia detected. Exiting.")
         api_service_name = "youtube"
         api_version = "v3"
-        client_secrets_file = conf.youtube.client_secrets_file
+        safe_conf = SafeConfig(conf)
+        client_secrets_file = safe_conf.get("youtube.client_secrets_file")
+        if not client_secrets_file:
+            raise ValueError("YouTube client secrets file not configured")
 
         flow = google_auth_oauthlib.flow.InstalledAppFlow.from_client_secrets_file(client_secrets_file, self.scopes)
         credentials = flow.run_local_server(port=0)
@@ -81,8 +84,13 @@ class YT:
 
         # The token.json stores the user's access and refresh tokens, and is created automatically
         # when the authorization flow completes for the first time.
-        client_secrets_file = conf.youtube.client_secrets_file
-        token_path = conf.dirs.root / conf.youtube.token_path
+        safe_conf = SafeConfig(conf)
+        client_secrets_file = safe_conf.get("youtube.client_secrets_file")
+        if not client_secrets_file:
+            raise ValueError("YouTube client secrets file not configured")
+        root_dir = Path(safe_conf.get("dirs.root", "."))
+        token_path_str = safe_conf.get("youtube.token_path", "token.json")
+        token_path = root_dir / token_path_str
         if token_path.exists():
             creds = Credentials.from_authorized_user_file(str(token_path), self.scopes)
 
@@ -104,7 +112,11 @@ class YT:
         return service
 
     def get_authenticated_service_via_api_key(self):
-        self._youtube = build("youtube", "v3", developerKey=conf.youtube.api_key)
+        safe_conf = SafeConfig(conf)
+        api_key = safe_conf.get("youtube.api_key")
+        if not api_key:
+            raise ValueError("YouTube API key not configured")
+        self._youtube = build("youtube", "v3", developerKey=api_key)
 
     def get_channel_id(self):
         """Required if channel id is unknown"""
@@ -226,11 +238,15 @@ class YT:
         # To update the metadata, we need the YouTube video id
         # unpublished videos data can be retrieved via an unpublished playlist only
         # youtube_pydata_playlist
-        videos = self.list_all_videos_in_playlist(conf.youtube.channels[youtube_channel].playlist_id)
-        save_json(
-            videos,
-            self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json"
-        )
+        safe_conf = SafeConfig(conf)
+        channels = safe_conf.get("youtube.channels", {})
+        if youtube_channel not in channels:
+            raise ValueError(f"YouTube channel '{youtube_channel}' not configured")
+        playlist_id = channels[youtube_channel].get("playlist_id")
+        if not playlist_id:
+            raise ValueError(f"Playlist ID not configured for channel '{youtube_channel}'")
+        videos = self.list_all_videos_in_playlist(playlist_id)
+        save_json(videos, self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json")
 
     def get_channel_id_for_config(self):
         """Log the channel ID for the config.
@@ -242,14 +258,14 @@ class YT:
     @classmethod
     def map_pretalx_id_youtube_id(cls, skip_do_not_record=True, filter_by_channel=None):
         """Map Pretalx IDs to YouTube video IDs, respecting channel assignments.
-        
+
         The pretalx id is extracted from the video title after upload.
         This method now respects channel assignments and do_not_record flags.
-        
+
         Args:
             skip_do_not_record: If True, skip videos marked as do_not_record
             filter_by_channel: If specified, only process videos assigned to this channel
-        
+
         Returns:
             tuple: (pretalx_yt_map, warnings) where warnings is a list of issues found
         """
@@ -257,7 +273,8 @@ class YT:
 
         # Determine event directory for current context
         event_dir = get_event_dir(conf)
-        video_dir = Path(conf.dirs.video_dir)
+        safe_conf = SafeConfig(conf)
+        video_dir = Path(safe_conf.get("dirs.video_dir", "."))
 
         # Load channel assignments if they exist
         tracks_map_file = video_dir / "tracks_map.json"
@@ -277,7 +294,9 @@ class YT:
         videos = []
         warnings = []
 
-        for channel in conf.youtube.channels:
+        safe_conf = SafeConfig(conf)
+        channels = safe_conf.get("youtube.channels", {})
+        for channel in channels:
             playlist_file = event_dir / "videos" / f"youtube_{channel}_playlist.json"
             if not playlist_file.exists():
                 logger.warning(f"Playlist file not found: {playlist_file}")
@@ -312,13 +331,15 @@ class YT:
                     f"WARNING: Video {pretalx_id} is marked as do_not_record but found in YouTube playlist! "
                     f"(YouTube ID: {youtube_id}, Channel: {video_channel})"
                 )
-                skipped_videos.append({
-                    "pretalx_id": pretalx_id,
-                    "youtube_id": youtube_id,
-                    "title": session.get("title", "Unknown"),
-                    "channel": video_channel,
-                    "reason": "do_not_record"
-                })
+                skipped_videos.append(
+                    {
+                        "pretalx_id": pretalx_id,
+                        "youtube_id": youtube_id,
+                        "title": session.get("title", "Unknown"),
+                        "channel": video_channel,
+                        "reason": "do_not_record",
+                    }
+                )
                 continue
 
             # Check channel assignment
@@ -331,20 +352,21 @@ class YT:
                         f"WARNING: Video {pretalx_id} assigned to 'no_publishing' but found in YouTube! "
                         f"(YouTube ID: {youtube_id}, Channel: {video_channel})"
                     )
-                    skipped_videos.append({
-                        "pretalx_id": pretalx_id,
-                        "youtube_id": youtube_id,
-                        "title": session.get("title", "Unknown"),
-                        "channel": video_channel,
-                        "reason": "no_publishing"
-                    })
+                    skipped_videos.append(
+                        {
+                            "pretalx_id": pretalx_id,
+                            "youtube_id": youtube_id,
+                            "title": session.get("title", "Unknown"),
+                            "channel": video_channel,
+                            "reason": "no_publishing",
+                        }
+                    )
                     continue
 
                 # If filtering by channel, skip videos not assigned to that channel
                 if filter_by_channel and assigned_channel != filter_by_channel:
                     logger.debug(
-                        f"Skipping {pretalx_id} - assigned to {assigned_channel}, "
-                        f"filtering for {filter_by_channel}"
+                        f"Skipping {pretalx_id} - assigned to {assigned_channel}, filtering for {filter_by_channel}"
                     )
                     continue
 
@@ -360,11 +382,14 @@ class YT:
         # Save skipped videos report if any were skipped
         if skipped_videos:
             skipped_file = event_dir / "videos" / "skipped_videos_report.json"
-            save_json({
-                "timestamp": datetime.now(tz=UTC).isoformat(),
-                "total_skipped": len(skipped_videos),
-                "videos": skipped_videos
-            }, skipped_file)
+            save_json(
+                {
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
+                    "total_skipped": len(skipped_videos),
+                    "videos": skipped_videos,
+                },
+                skipped_file,
+            )
             logger.warning(f"Skipped {len(skipped_videos)} videos - see {skipped_file}")
 
         # Log warnings
@@ -430,7 +455,9 @@ class PrepareVideoMetadata:
 
     def load_yt_metadata(self):
         videos = []
-        for channel in conf.youtube.channels:
+        safe_conf = SafeConfig(conf)
+        channels = safe_conf.get("youtube.channels", {})
+        for channel in channels:
             data = load_json(self.event_dir / "videos" / f"youtube_{channel}_playlist.json")
             videos.extend(data)
         for video in videos:
@@ -499,7 +526,8 @@ class PrepareVideoMetadata:
         # <, > not allowed in YT titles, description
         youtube_description = youtube_description.replace(">", "").replace("<", "")
         # Make sure the length is not too long
-        yt_max = conf.youtube.max_description_length
+        safe_conf = SafeConfig(conf)
+        yt_max = safe_conf.get("youtube.max_description_length", 5000)
         if len(youtube_description) > yt_max:
             logger.info(f"YouTube description of {record.pretalx_id} is too long: {len(youtube_description)}>{yt_max}")
             youtube_description = self.render_description(record.sm_short_text, record)
@@ -538,7 +566,7 @@ class PrepareVideoMetadata:
         """Provides commonly used values for rendering the description"""
         description_kwargs = {
             "date": record.recorded_date.strftime("%d.%m.%Y"),
-            "session_link": f"{conf.event.program_url}{record.pretalx_id}/",
+            "session_link": f"{safe_conf.get('event.program_url', '')}{record.pretalx_id}/",
             "teaser_text": record.sm_teaser_text,
             "speakers": ", ".join([f"{s.name}" for s in record.speakers]),
             "description": description,

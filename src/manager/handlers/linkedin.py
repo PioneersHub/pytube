@@ -3,11 +3,13 @@ import json
 import requests
 
 from manager import conf, logger
+from manager.utils.common import SafeConfig
 
 
 class LinkedInPost:
     def __init__(self):
-        self.credentials = conf.linkedin
+        safe_conf = SafeConfig(conf)
+        self.safe_conf = safe_conf
         # same for all requests
         self.headers = {
             "Authorization": f"Bearer {self.access_token}",
@@ -18,11 +20,11 @@ class LinkedInPost:
 
     @property
     def company_id(self) -> str:
-        return self.credentials.company_id
+        return self.safe_conf.get("linkedin.company_id", "")
 
     @property
     def access_token(self) -> str:
-        return self.credentials.access_token
+        return self.safe_conf.get("linkedin.access_token", "")
 
     # noinspection SpellCheckingInspection
     def register_image(self):

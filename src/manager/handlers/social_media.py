@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from manager import conf, logger
+from manager.utils.common import SafeConfig
 
 
 class SocialMediaProvider(ABC):
@@ -46,9 +47,10 @@ class LinkedInProvider(SocialMediaProvider):
     """LinkedIn posting provider."""
 
     def __init__(self):
-        self.config = conf.linkedin
-        self.access_token = self.config.get("access_token")
-        self.company_id = self.config.get("company_id")
+        safe_conf = SafeConfig(conf)
+        self.safe_conf = safe_conf
+        self.access_token = safe_conf.get("linkedin.access_token")
+        self.company_id = safe_conf.get("linkedin.company_id")
 
     def validate_config(self) -> bool:
         """Validate LinkedIn configuration."""
@@ -79,11 +81,12 @@ class TwitterProvider(SocialMediaProvider):
     """Twitter/X posting provider."""
 
     def __init__(self):
-        self.config = conf.twitter
-        self.api_key = self.config.get("api_key")
-        self.api_secret = self.config.get("api_secret")
-        self.access_token = self.config.get("access_token")
-        self.access_token_secret = self.config.get("access_token_secret")
+        safe_conf = SafeConfig(conf)
+        self.safe_conf = safe_conf
+        self.api_key = self.safe_conf.get("twitter.api_key")
+        self.api_secret = self.safe_conf.get("twitter.api_secret")
+        self.access_token = self.safe_conf.get("twitter.access_token")
+        self.access_token_secret = self.safe_conf.get("twitter.access_token_secret")
 
     def validate_config(self) -> bool:
         """Validate Twitter configuration."""
@@ -131,10 +134,11 @@ class MastodonProvider(SocialMediaProvider):
     """Mastodon posting provider."""
 
     def __init__(self):
-        self.config = conf.mastodon
-        self.instance_url = self.config.get("instance_url", "https://mastodon.social")
-        self.access_token = self.config.get("access_token")
-        self.visibility = self.config.get("visibility", "public")
+        safe_conf = SafeConfig(conf)
+        self.safe_conf = safe_conf
+        self.instance_url = self.safe_conf.get("mastodon.instance_url", "https://mastodon.social")
+        self.access_token = self.safe_conf.get("mastodon.access_token")
+        self.visibility = self.safe_conf.get("mastodon.visibility", "public")
 
     def validate_config(self) -> bool:
         """Validate Mastodon configuration."""
@@ -176,9 +180,10 @@ class BlueskyProvider(SocialMediaProvider):
     """Bluesky posting provider."""
 
     def __init__(self):
-        self.config = conf.bluesky
-        self.handle = self.config.get("handle")
-        self.app_password = self.config.get("app_password")
+        safe_conf = SafeConfig(conf)
+        self.safe_conf = safe_conf
+        self.handle = self.safe_conf.get("bluesky.handle")
+        self.app_password = self.safe_conf.get("bluesky.app_password")
 
     def validate_config(self) -> bool:
         """Validate Bluesky configuration."""
@@ -230,7 +235,8 @@ class BlueskyProvider(SocialMediaProvider):
 # Factory function to get the appropriate provider
 def get_social_media_provider() -> SocialMediaProvider:
     """Get the configured social media provider."""
-    service = conf.get("social_media_service", "linkedin").lower()
+    safe_conf = SafeConfig(conf)
+    service = safe_conf.get("social_media_service", "linkedin").lower()
 
     providers = {
         "linkedin": LinkedInProvider,
@@ -261,7 +267,8 @@ def post_to_social_media(text: str, image_path: Path | str | None = None) -> dic
     if isinstance(image_path, str):
         image_path = Path(image_path)
 
-    logger.info(f"Posting to {conf.get('social_media_service', 'linkedin')}")
+    safe_conf = SafeConfig(conf)
+    logger.info(f"Posting to {safe_conf.get('social_media_service', 'linkedin')}")
 
     try:
         result = provider.post(text, image_path)

@@ -9,11 +9,13 @@ import requests
 from pytanis.helpdesk import Mail, MailClient, Recipient
 
 from manager import conf, logger
+from manager.config import get_event_dir
 from manager.handlers import LinkedInPost
 from manager.handlers.social_media import post_to_social_media
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.sessions import SessionRecord
 from manager.models.video import YoutubeVideoResource
+from manager.utils.common import SafeConfig
 
 
 class MailClient:
@@ -101,11 +103,7 @@ class Publisher:
 
     def _get_event_dir(self) -> Path:
         """Get the event-specific directory for data storage."""
-        event_slug = conf.pretalx.event_slug
-        if not event_slug or event_slug == "pretalx-uri-slug":
-            # Fallback to default structure for backward compatibility
-            return Path(conf.dirs.work_dir)
-        return Path(conf.dirs.work_dir) / event_slug
+        return get_event_dir(conf)
 
     def release_on_youtube_now(self, video_id: str, title, description, category_id):
         # Prepare the request body
@@ -287,7 +285,13 @@ class Publisher:
         print(asset_urn)
         upload_url = image_res["value"]["uploadUrl"]
         # upload image
-        file_path = Path(conf.session_images) / f"{data['pretalx_id']}.png"
+        safe_conf = SafeConfig(conf)
+        session_images_dir = safe_conf.get("session_images")
+        if not session_images_dir:
+            logger.warning("Session images directory not configured. Using default.")
+            session_images_dir = self.event_dir / "session_images"
+
+        file_path = Path(session_images_dir) / f"{data['pretalx_id']}.png"
         image_upload_res = self.linkedin.upload_media(
             url=upload_url,
             file_path=file_path,

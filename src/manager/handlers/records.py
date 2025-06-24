@@ -18,7 +18,7 @@ from manager import conf, logger
 from manager.config import get_event_dir
 from manager.handlers import sized_text, teaser_text
 from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
-from manager.utils.common import ensure_directory, load_json, save_json
+from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
 
 
 class Records:
@@ -80,8 +80,13 @@ class Records:
         try:
             # Get ONLY confirmed submissions
             # Note: Removed questions="all" due to pytanis validation bug with option IDs
+            safe_conf = SafeConfig(conf)
+            event_slug = safe_conf.get("pretalx.event_slug", "")
+            if not event_slug:
+                logger.error("No event slug configured")
+                raise RuntimeError("Event slug not configured in config")
             subs_count, subs = self.pretalx_client.submissions(
-                conf.pretalx.event_slug,
+                event_slug,
                 params=QueryParams(state="confirmed"),
             )
         except Exception as e:
@@ -96,7 +101,8 @@ class Records:
 
         if subs_count == 0:
             logger.warning("No confirmed sessions found!")
-            logger.warning(f"Event slug: {conf.pretalx.event_slug}")
+            safe_conf = SafeConfig(conf)
+            logger.warning(f"Event slug: {safe_conf.get('pretalx.event_slug', 'not configured')}")
             logger.warning("Please check that your event has confirmed sessions in Pretalx")
 
         logger.info("Writing confirmed sessions to disk")
@@ -148,9 +154,12 @@ class Records:
             map_file.unlink()
 
         try:
-            subs_count, subs = self.pretalx_client.speakers(
-                conf.pretalx.event_slug, params=QueryParams(**{"questions": "all"})
-            )
+            safe_conf = SafeConfig(conf)
+            event_slug = safe_conf.get("pretalx.event_slug", "")
+            if not event_slug:
+                logger.error("No event slug configured")
+                raise RuntimeError("Event slug not configured in config")
+            subs_count, subs = self.pretalx_client.speakers(event_slug, params=QueryParams(**{"questions": "all"}))
         except Exception as e:
             logger.error(f"Failed to fetch speakers from Pretalx: {e}")
             raise RuntimeError(f"Unable to connect to Pretalx API: {e}") from e
@@ -185,8 +194,7 @@ class Records:
             logger.error("No speakers were successfully written to disk!")
             logger.error("This usually indicates pytanis validation errors with the API response")
             raise RuntimeError(
-                f"Failed to write any speakers to disk (0/{subs_count} succeeded). "
-                "Check logs for validation errors."
+                f"Failed to write any speakers to disk (0/{subs_count} succeeded). Check logs for validation errors."
             )
         elif written_count < subs_count:
             logger.warning(f"Only {written_count}/{subs_count} speakers were successfully written")
