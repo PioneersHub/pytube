@@ -8,7 +8,7 @@ from manager.config import load_config, validate_config
 
 os.environ["FORCE_COLOR"] = "1"
 
-__version__ = "3.1.6"
+__version__ = "3.1.7"
 
 cr = structlog.dev.ConsoleRenderer(
     columns=[
