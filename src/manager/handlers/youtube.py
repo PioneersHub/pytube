@@ -1,4 +1,3 @@
-import json
 import platform
 import random
 import warnings
@@ -16,6 +15,7 @@ from googleapiclient.discovery import build
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from manager import conf, logger
+from manager.config import get_event_dir
 from manager.models.sessions import SessionRecord
 from manager.models.video import (
     BaseRecordingDetails,
@@ -23,6 +23,7 @@ from manager.models.video import (
     YouTubeMetadata,
     YoutubeVideoResource,
 )
+from manager.utils.common import ensure_directory, load_json, save_json
 
 
 class YT:
@@ -34,23 +35,15 @@ class YT:
         self.youtube_offline = youtube_offline
 
         # Use event-specific directory structure
-        self.event_dir = self._get_event_dir()
+        self.event_dir = get_event_dir(conf)
         self.video_records_path = self.event_dir / "videos" / "youtube" / "video_records"
-        self.video_records_path.mkdir(parents=True, exist_ok=True)
+        ensure_directory(self.video_records_path)
         # data updated at YouTube
         self.video_records_path_updated = self.event_dir / "videos" / "youtube" / "video_records_updated"
-        self.video_records_path_updated.mkdir(parents=True, exist_ok=True)
+        ensure_directory(self.video_records_path_updated)
         # videos published on YouTube
         self.video_records_path_published = self.event_dir / "videos" / "youtube" / "video_published"
-        self.video_records_path_published.mkdir(parents=True, exist_ok=True)
-
-    def _get_event_dir(self) -> Path:
-        """Get the event-specific directory for data storage."""
-        event_slug = conf.pretalx.event_slug
-        if not event_slug or event_slug == "pretalx-uri-slug":
-            # Fallback to default structure for backward compatibility
-            return Path(conf.dirs.work_dir)
-        return Path(conf.dirs.work_dir) / event_slug
+        ensure_directory(self.video_records_path_published)
 
     @property
     def youtube(self):
@@ -234,10 +227,9 @@ class YT:
         # unpublished videos data can be retrieved via an unpublished playlist only
         # youtube_pydata_playlist
         videos = self.list_all_videos_in_playlist(conf.youtube.channels[youtube_channel].playlist_id)
-        json.dump(
+        save_json(
             videos,
-            (self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json").open("w"),
-            indent=4,
+            self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json"
         )
 
     def get_channel_id_for_config(self):
@@ -262,58 +254,58 @@ class YT:
             tuple: (pretalx_yt_map, warnings) where warnings is a list of issues found
         """
         from manager.handlers.records import Records
-        
+
         # Determine event directory for current context
-        event_dir = YT()._get_event_dir()
+        event_dir = get_event_dir(conf)
         video_dir = Path(conf.dirs.video_dir)
-        
+
         # Load channel assignments if they exist
         tracks_map_file = video_dir / "tracks_map.json"
         channel_assignments = {}
         if tracks_map_file.exists():
             try:
-                channel_assignments = json.load(tracks_map_file.open())
+                channel_assignments = load_json(tracks_map_file)
                 logger.info(f"Loaded channel assignments for {len(channel_assignments)} videos")
             except Exception as e:
                 logger.warning(f"Could not load channel assignments: {e}")
-        
+
         # Load confirmed sessions to check do_not_record flag
         records = Records()
         session_data = records.confirmed_sessions_map
-        
+
         # Process videos from YouTube playlists
         videos = []
         warnings = []
-        
+
         for channel in conf.youtube.channels:
             playlist_file = event_dir / "videos" / f"youtube_{channel}_playlist.json"
             if not playlist_file.exists():
                 logger.warning(f"Playlist file not found: {playlist_file}")
                 continue
-                
-            data = json.load(playlist_file.open())
-            
+
+            data = load_json(playlist_file)
+
             # Add channel info to each video
             for video in data:
                 video["_channel"] = channel
             videos.extend(data)
-        
+
         # Create the mapping with safety checks
         pretalx_yt_map = {}
         skipped_videos = []
-        
+
         for video in videos:
             pretalx_id = video["snippet"]["title"].strip()[:6]
             youtube_id = video["snippet"]["resourceId"]["videoId"]
             video_channel = video.get("_channel", "unknown")
-            
+
             # Check if we have session data for this video
             if pretalx_id not in session_data:
                 warnings.append(f"Video {pretalx_id} not found in Pretalx data (YouTube ID: {youtube_id})")
                 continue
-            
+
             session = session_data[pretalx_id]
-            
+
             # Check do_not_record flag
             if skip_do_not_record and session.get("do_not_record", False):
                 warnings.append(
@@ -328,11 +320,11 @@ class YT:
                     "reason": "do_not_record"
                 })
                 continue
-            
+
             # Check channel assignment
             if channel_assignments:
                 assigned_channel = channel_assignments.get(pretalx_id)
-                
+
                 # Skip if assigned to no_publishing
                 if assigned_channel == "no_publishing":
                     warnings.append(
@@ -347,7 +339,7 @@ class YT:
                         "reason": "no_publishing"
                     })
                     continue
-                
+
                 # If filtering by channel, skip videos not assigned to that channel
                 if filter_by_channel and assigned_channel != filter_by_channel:
                     logger.debug(
@@ -355,30 +347,30 @@ class YT:
                         f"filtering for {filter_by_channel}"
                     )
                     continue
-            
+
             # Add to mapping
             pretalx_yt_map[pretalx_id] = youtube_id
             logger.debug(f"Mapped {pretalx_id} -> {youtube_id} (Channel: {video_channel})")
-        
+
         # Save the mapping
         output_file = event_dir / "videos" / "pretalx_yt_map.json"
-        json.dump(pretalx_yt_map, output_file.open("w"), indent=4)
+        save_json(pretalx_yt_map, output_file)
         logger.info(f"Created YouTube mapping with {len(pretalx_yt_map)} videos")
-        
+
         # Save skipped videos report if any were skipped
         if skipped_videos:
             skipped_file = event_dir / "videos" / "skipped_videos_report.json"
-            json.dump({
+            save_json({
                 "timestamp": datetime.now(tz=UTC).isoformat(),
                 "total_skipped": len(skipped_videos),
                 "videos": skipped_videos
-            }, skipped_file.open("w"), indent=4)
+            }, skipped_file)
             logger.warning(f"Skipped {len(skipped_videos)} videos - see {skipped_file}")
-        
+
         # Log warnings
         for warning in warnings:
             logger.warning(warning)
-        
+
         return pretalx_yt_map, warnings
 
 
@@ -405,18 +397,10 @@ class PrepareVideoMetadata:
         self.load_yt_metadata()
 
         # Use event-specific directory structure
-        self.event_dir = self._get_event_dir()
+        self.event_dir = get_event_dir(conf)
         self.records_path = self.event_dir / "records"
         self.video_records_path = self.event_dir / "videos" / "youtube" / "video_records"
-        self.video_records_path.mkdir(parents=True, exist_ok=True)
-
-    def _get_event_dir(self) -> Path:
-        """Get the event-specific directory for data storage."""
-        event_slug = conf.pretalx.event_slug
-        if not event_slug or event_slug == "pretalx-uri-slug":
-            # Fallback to default structure for backward compatibility
-            return Path(conf.dirs.work_dir)
-        return Path(conf.dirs.work_dir) / event_slug
+        ensure_directory(self.video_records_path)
         # default values
 
     @property
@@ -430,14 +414,14 @@ class PrepareVideoMetadata:
     def pretalx_youtube_channel_map(self):
         """Depends on a previously created mapping file {pretalx ID: YouTube channel} see `video_organizer.py`"""
         if not self._pretalx_youtube_channel_map:
-            self._pretalx_youtube_channel_map = json.load((self.event_dir / "videos" / "tracks_map.json").open())
+            self._pretalx_youtube_channel_map = load_json(self.event_dir / "videos" / "tracks_map.json")
         return self._pretalx_youtube_channel_map
 
     @property
     def pretalx_youtube_id_map(self):
         """Depends on a previously created mapping file {pretalx ID: YouTube video ID} see `video_organizer.py`"""
         if not self._pretalx_youtube_id_map:
-            self._pretalx_youtube_id_map = json.load((self.event_dir / "videos" / "pretalx_yt_map.json").open())
+            self._pretalx_youtube_id_map = load_json(self.event_dir / "videos" / "pretalx_yt_map.json")
         return self._pretalx_youtube_id_map
 
     @property
@@ -447,7 +431,7 @@ class PrepareVideoMetadata:
     def load_yt_metadata(self):
         videos = []
         for channel in conf.youtube.channels:
-            data = json.load((self.event_dir / "videos" / f"youtube_{channel}_playlist.json").open())
+            data = load_json(self.event_dir / "videos" / f"youtube_{channel}_playlist.json")
             videos.extend(data)
         for video in videos:
             ytv = YouTubeMetadata(**video["snippet"])
@@ -458,7 +442,7 @@ class PrepareVideoMetadata:
         self._template = env.get_template(self.template_file)
 
     def make_all_video_metadata(self):
-        manifest = json.load((self.event_dir / "manifest.json").open())
+        manifest = load_json(self.event_dir / "manifest.json")
         for video in manifest:
             self.make_video_metadata(video)
 
@@ -615,12 +599,10 @@ class PrepareVideoMetadata:
     @classmethod
     def update_publish_date(cls, record: Path, publish_date: datetime):
         """Sets the publishing date at YouTube for videos"""
-        with record.open("r") as f:
-            record_data = json.load(f)
+        record_data = load_json(record)
         record_data["status"]["publish_at"] = publish_date.isoformat()
         print("Updated publish date to", publish_date.isoformat())
-        with record.open("w") as f:
-            json.dump(record_data, f, indent=4)
+        save_json(record_data, record)
 
     def update_publish_dates(
         self,
