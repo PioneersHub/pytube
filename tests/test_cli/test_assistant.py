@@ -96,17 +96,23 @@ class TestAssistantMenus:
     def test_error_handling_with_pause(self, assistant):
         """Test that errors are shown with pause functionality."""
         # Arrange
-        # Make a method that should exist fail
-        with patch.object(assistant, '_show_main_menu', side_effect=Exception("Test error")):
-            with patch("builtins.input", return_value=""):
-                try:
-                    # Act
-                    assistant._show_main_menu()
-                except Exception:
-                    pass  # Expected to fail
-
-        # Assert - just verify the test setup worked
-        assert True  # Test passes if no unexpected exceptions
+        # Create a method that uses the interactive_command decorator and will fail
+        from manager.cli.utils import interactive_command
+        
+        @interactive_command()
+        def failing_method(self):
+            raise Exception("Test error")
+        
+        # Bind method to assistant
+        assistant.test_method = failing_method.__get__(assistant, type(assistant))
+        
+        # Act - Mock input() calls for the decorator's pause functionality
+        with patch("builtins.input", return_value=""):
+            assistant.test_method()
+        
+        # Assert - Check that error was printed
+        calls = [str(call) for call in assistant.console.print.call_args_list]
+        assert any("Error: Test error" in call for call in calls)
 
     def test_disabled_menu_items(self, assistant):
         """Test that disabled menu items cannot be selected."""
