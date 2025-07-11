@@ -1,0 +1,86 @@
+{
+    "kind": "youtube#playlistItemListResponse",
+    "etag": "test-etag",
+    "nextPageToken": null,
+    "items": [
+        {
+            "kind": "youtube#playlistItem",
+            "etag": "item-etag-1",
+            "id": "playlist-item-1",
+            "snippet": {
+                "publishedAt": "2024-05-01T12:00:00Z",
+                "channelId": "UC_test_main",
+                "title": "[ABC123] Introduction to Python Testing - Jane Developer",
+                "description": "Learn the fundamentals of testing in Python using pytest.",
+                "thumbnails": {
+                    "default": {
+                        "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
+                        "width": 120,
+                        "height": 90
+                    }
+                },
+                "channelTitle": "Test Conference Channel",
+                "playlistId": "PL_test_main",
+                "position": 0,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": "dQw4w9WgXcQ"
+                }
+            }
+        },
+        {
+            "kind": "youtube#playlistItem",
+            "etag": "item-etag-2",
+            "id": "playlist-item-2",
+            "snippet": {
+                "publishedAt": "2024-05-01T13:00:00Z",
+                "channelId": "UC_test_main",
+                "title": "XYZ789 - Advanced pytest Techniques",
+                "description": "Deep dive into advanced pytest features.",
+                "thumbnails": {
+                    "default": {
+                        "url": "https://i.ytimg.com/vi/abc123xyz/default.jpg",
+                        "width": 120,
+                        "height": 90
+                    }
+                },
+                "channelTitle": "Test Conference Channel",
+                "playlistId": "PL_test_main",
+                "position": 1,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": "abc123xyz"
+                }
+            }
+        },
+        {
+            "kind": "youtube#playlistItem",
+            "etag": "item-etag-3",
+            "id": "playlist-item-3",
+            "snippet": {
+                "publishedAt": "2024-05-01T14:00:00Z",
+                "channelId": "UC_test_main",
+                "title": "No Match - Random Video Title",
+                "description": "This video doesn't match any session.",
+                "thumbnails": {
+                    "default": {
+                        "url": "https://i.ytimg.com/vi/nomatch123/default.jpg",
+                        "width": 120,
+                        "height": 90
+                    }
+                },
+                "channelTitle": "Test Conference Channel",
+                "playlistId": "PL_test_main",
+                "position": 2,
+                "resourceId": {
+                    "kind": "youtube#video",
+                    "videoId": "nomatch123"
+                }
+            }
+        }
+    ],
+    "pageInfo": {
+        "totalResults": 3,
+        "resultsPerPage": 50
+    }
+}
