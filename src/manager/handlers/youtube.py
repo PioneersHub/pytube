@@ -1,6 +1,4 @@
-import platform
 import random
-import warnings
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -16,6 +14,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from manager import conf, logger
 from manager.config import get_event_dir
+from manager.handlers.records import Records
 from manager.models.sessions import SessionRecord
 from manager.models.video import (
     BaseRecordingDetails,
@@ -68,7 +67,7 @@ class YT:
         api_service_name = "youtube"
         api_version = "v3"
         safe_conf = SafeConfig(conf)
-        client_secrets_file = safe_conf.get("youtube.client_secrets_file")
+        client_secrets_file = conf.dirs["root"] / safe_conf.get("youtube.client_secrets_file")
         if not client_secrets_file:
             raise ValueError("YouTube client secrets file not configured")
 
@@ -214,11 +213,11 @@ class YT:
         if self.youtube_offline:
             # does not apply when using a service account
             return False
-        system = platform.system()
-        version = platform.mac_ver()[0]
-        if system == "Darwin" and version.startswith("15."):  # macOS Sequoia is version 15.x
-            warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)  # noqa: B028
-            return True
+        # system = platform.system()
+        # version = platform.mac_ver()[0]
+        # if system == "Darwin" and version.startswith("15."):  # macOS Sequoia is version 15.x
+        #     warnings.warn("Warning: macOS Sequoia (14.x) detected.", UserWarning)  # noqa: B028
+        #     return True
         return False
 
     def check_video_status_by_youtube_ids(self, video_id: str | list[str]):
@@ -233,6 +232,7 @@ class YT:
         """Save the YouTube video ids for the uploads to the channel to file.
         This file is required for the metadata management to map the pretalx id with the YouTube video id.
         :param youtube_channel: str, the channel name to get the video ids for, must match the name in the config
+        :return: int, number of videos found in the playlist
         """
         # After videos are uploaded to YouTube, we need to update the metadata
         # To update the metadata, we need the YouTube video id
@@ -241,12 +241,25 @@ class YT:
         safe_conf = SafeConfig(conf)
         channels = safe_conf.get("youtube.channels", {})
         if youtube_channel not in channels:
-            raise ValueError(f"YouTube channel '{youtube_channel}' not configured")
+            raise ValueError(f"YouTube channel '{youtube_channel}' not configured in config")
         playlist_id = channels[youtube_channel].get("playlist_id")
         if not playlist_id:
             raise ValueError(f"Playlist ID not configured for channel '{youtube_channel}'")
-        videos = self.list_all_videos_in_playlist(playlist_id)
+
+        try:
+            videos = self.list_all_videos_in_playlist(playlist_id)
+        except Exception as e:
+            err_str = str(e)
+            if "404" in str(e) or "playlistNotFound" in err_str:
+                msg = f"Playlist '{playlist_id}' not found or not accessible. The playlist may be private or the ID is incorrect."
+            elif "403" in err_str:
+                msg = f"Access denied to playlist '{playlist_id}'. This playlist may require OAuth authentication instead of API key."
+            else:
+                msg = f"Unable to access playlist '{playlist_id}': {err_str}"
+            raise ValueError(msg) from e
+
         save_json(videos, self.event_dir / "videos" / f"youtube_{youtube_channel}_playlist.json")
+        return len(videos)
 
     def get_channel_id_for_config(self):
         """Log the channel ID for the config.
@@ -256,20 +269,18 @@ class YT:
         logger.info(f"Channel ID: {channel_id}")
 
     @classmethod
-    def map_pretalx_id_youtube_id(cls, skip_do_not_record=True, filter_by_channel=None):
+    def map_pretalx_id_youtube_id(cls, filter_by_channel=None):
         """Map Pretalx IDs to YouTube video IDs, respecting channel assignments.
 
         The pretalx id is extracted from the video title after upload.
         This method now respects channel assignments and do_not_record flags.
 
         Args:
-            skip_do_not_record: If True, skip videos marked as do_not_record
             filter_by_channel: If specified, only process videos assigned to this channel
 
         Returns:
             tuple: (pretalx_yt_map, warnings) where warnings is a list of issues found
         """
-        from manager.handlers.records import Records
 
         # Determine event directory for current context
         event_dir = get_event_dir(conf)
@@ -326,7 +337,7 @@ class YT:
             session = session_data[pretalx_id]
 
             # Check do_not_record flag
-            if skip_do_not_record and session.get("do_not_record", False):
+            if session.get("do_not_record", False):
                 warnings.append(
                     f"WARNING: Video {pretalx_id} is marked as do_not_record but found in YouTube playlist! "
                     f"(YouTube ID: {youtube_id}, Channel: {video_channel})"

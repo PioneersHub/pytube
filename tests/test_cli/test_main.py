@@ -53,7 +53,7 @@ class TestCLI:
         assert result.exit_code == 0
         assert "Manage Pretalx records" in result.output
         assert "fetch" in result.output
-        assert "enhance" in result.output
+        assert "generate-descriptions" in result.output
         assert "show" in result.output
 
     def test_youtube_help(self):

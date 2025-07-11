@@ -10,7 +10,6 @@ Following TDD principles:
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import click
 import pytest
 from rich.console import Console
 
@@ -148,11 +147,11 @@ class TestAssistantWorkflows:
         assistant, workflow = assistant_with_workflow
 
         # Check if workflow manager has resume method
-        if not hasattr(assistant.workflow_manager, 'resume_workflow'):
+        if not hasattr(assistant.workflow_manager, "resume_workflow"):
             pytest.skip("resume_workflow method not implemented")
-        
+
         # Check if workflow has save method
-        if not hasattr(workflow, 'save'):
+        if not hasattr(workflow, "save"):
             pytest.skip("Workflow.save method not implemented")
 
         try:
@@ -182,7 +181,7 @@ class TestAssistantWorkflows:
         assistant, workflow = assistant_with_workflow
 
         # Check if workflow manager has detect method
-        if not hasattr(assistant.workflow_manager, 'detect_completed_steps'):
+        if not hasattr(assistant.workflow_manager, "detect_completed_steps"):
             pytest.skip("detect_completed_steps method not implemented")
 
         # Arrange - Create evidence of completed steps
@@ -215,7 +214,7 @@ class TestAssistantWorkflows:
         assistant, workflow = assistant_with_workflow
 
         # Check if workflow has save method
-        if not hasattr(workflow, 'save'):
+        if not hasattr(workflow, "save"):
             pytest.skip("Workflow.save method not implemented")
 
         # Arrange
@@ -234,7 +233,7 @@ class TestAssistantWorkflows:
             latest_file = tmp_path / "test-event-2024" / "workflows" / "test_workflow_latest.json"
             if latest_file.exists():
                 # Load and verify if load method exists
-                if hasattr(Workflow, 'load_latest'):
+                if hasattr(Workflow, "load_latest"):
                     loaded = Workflow.load_latest("test_workflow", "test-event-2024")
                     assert loaded.steps[0].status == StepStatus.COMPLETED
                     assert loaded.steps[1].status == StepStatus.RUNNING
@@ -247,7 +246,7 @@ class TestAssistantWorkflows:
         assistant, workflow = assistant_with_workflow
 
         # Check if workflow has save method
-        if not hasattr(workflow, 'save'):
+        if not hasattr(workflow, "save"):
             pytest.skip("Workflow.save method not implemented")
 
         # Arrange - Try to save workflow first
@@ -308,7 +307,7 @@ class TestAssistantCommands:
             mock_runner_class.return_value = mock_runner
 
             # Mock the method if it exists
-            if hasattr(assistant_mock, '_execute_command'):
+            if hasattr(assistant_mock, "_execute_command"):
                 # Act
                 result = assistant_mock._execute_command("pytube status")
                 # Assert
@@ -328,7 +327,7 @@ class TestAssistantCommands:
             step = WorkflowStep("test", "pytube fail", "Test step")
 
             # Mock the method if it exists
-            if hasattr(assistant_mock, '_execute_command'):
+            if hasattr(assistant_mock, "_execute_command"):
                 # Act
                 result = assistant_mock._execute_command("pytube fail", step)
                 # Assert
@@ -349,7 +348,7 @@ class TestAssistantCommands:
             mock_runner_class.return_value = mock_runner
 
             # Mock the method if it exists
-            if hasattr(assistant_mock, '_execute_command'):
+            if hasattr(assistant_mock, "_execute_command"):
                 # Act
                 result = assistant_mock._execute_command("pytube status && pytube validate")
                 # Assert
@@ -386,11 +385,11 @@ class TestAssistantEdgeCases:
         try:
             # Try to import the CLI command
             from manager.cli.assistant import assistant as cli_command
-            
+
             # Act & Assert - Test KeyboardInterrupt handling
             with patch("manager.cli.assistant.conf", mock_config):
                 assistant = PyTubeAssistant(console)
-                
+
                 # Simulate KeyboardInterrupt during run
                 with patch.object(assistant, "run", side_effect=KeyboardInterrupt()):
                     try:
@@ -398,10 +397,10 @@ class TestAssistantEdgeCases:
                     except KeyboardInterrupt:
                         # KeyboardInterrupt should be propagated
                         pass
-                    
+
                 # Test passes if no unexpected exceptions
                 assert True
-                
+
         except ImportError:
             # Skip if CLI command doesn't exist
             pytest.skip("assistant CLI command not available for import")

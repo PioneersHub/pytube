@@ -17,12 +17,11 @@ def read_manifest():
     return manifest
 
 
-def make_vimeo_client(client_id=None):
-    vimeo_credentials = conf.vimeo.get(f"vimeo_{client_id}") if client_id else conf.vimeo
+def make_vimeo_client():
     _client = VimeoClient(
-        token=vimeo_credentials.access_token,
-        key=vimeo_credentials.client_id,
-        secret=vimeo_credentials.client_secret,
+        token=conf.vimeo.access_token,
+        key=conf.vimeo.client_id,
+        secret=conf.vimeo.client_secret,
     )
     return _client
 
@@ -198,8 +197,42 @@ def download_videos_via_pattern(search_term):
         print(f"Downloaded {video_name}")
 
 
+def get_all_items_in_a_folder(folder):
+    all_videos = []
+    page = 1
+    per_page = 100  # Vimeo's maximum per page
+    url = f"https://api.vimeo.com/users/{conf.vimeo.user_id}/projects/{folder}/items"
+    while True:
+        params = {"page": page, "per_page": per_page}
+        response = client.get(url, params=params)
+
+        if response.status_code != 200:
+            print(f"Error fetching page {page}: {response.status_code}")
+            print(response.text)
+            break
+
+        data = response.json()
+        videos = data.get("data", [])
+
+        if not videos:
+            break
+
+        all_videos.extend(videos)
+
+        # Check if there's a next page
+        paging = data.get("paging", {})
+        if not paging.get("next"):
+            break
+
+        page += 1
+
+    return all_videos
+
+
 if __name__ == "__main__":
-    for i in [2, 3, 4]:
-        client = make_vimeo_client(i)
-        download_videos_via_pattern(search_term="2025")
+    client = make_vimeo_client()
+    folder_videos = get_all_items_in_a_folder(folder="25746204")
+    with open("/Users/hendorf/Downloads/vimeo_folder_2025.json", "w") as f:
+        json.dump({"folder": folder_videos}, f, indent=4)
+    # download_videos_via_pattern(search_term="2025")
     # manifest_to_slowly_download_jobs()

@@ -111,8 +111,9 @@ def main():
             result = run_command(["pytest", "--cov=src", "--cov-report=html"])
             if result == 0:
                 print("Opening coverage report...")
-                import webbrowser
                 import os
+                import webbrowser
+
                 report_path = os.path.join(os.getcwd(), "htmlcov", "index.html")
                 webbrowser.open(f"file://{report_path}")
             return result
@@ -130,13 +131,13 @@ def main():
             if lint_result != 0:
                 print("❌ Linting failed!")
                 return lint_result
-            
+
             print("Step 2/3: Formatting check...")
             format_result = run_command(["ruff", "format", "--check", "src", "tests"])
             if format_result != 0:
                 print("❌ Code formatting check failed!")
                 return format_result
-            
+
             print("Step 3/3: Tests with coverage...")
             cmd = ["pytest", "--cov=src", "--cov-report=term-missing", "--cov-report=html"]
 

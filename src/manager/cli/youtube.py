@@ -33,13 +33,12 @@ def youtube():
     help="Only map videos assigned to this channel",
 )
 @click.pass_context
-def map(ctx: click.Context, channel: str | None, include_do_not_record: bool, filter_channel: str | None) -> None:
+def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> None:
     """Map uploaded YouTube videos to Pretalx sessions.
 
     This command will:
     - Retrieve video IDs from YouTube playlist
     - Match videos to Pretalx sessions by filename
-    - Skip videos marked as do_not_record (unless --include-do-not-record)
     - Respect channel assignments from video organization
     - Create mapping files for further processing
     """
@@ -52,13 +51,14 @@ def map(ctx: click.Context, channel: str | None, include_do_not_record: bool, fi
     ) as progress:
         task = progress.add_task("Initializing YouTube client...", total=None)
 
-        yt = YT()
+        # Use API key authentication for read-only mapping operations
+        yt = YT(youtube_offline=True)
+        # yt.get_authenticated_service_via_api_key()
+        yt.get_authenticated_service()
 
-        # Get channel ID if needed
-        progress.update(task, description="Getting channel information...")
-        channel_info = yt.get_channel_id()
-        if channel_info:
-            console.print(f"✓ Channel ID: {channel_info}", style="green")
+        # Skip channel ID retrieval for API key auth - already configured
+        progress.update(task, description="Using configured channel IDs...")
+        console.print("✓ Using channel IDs from configuration", style="green")
 
         # Get YouTube IDs for uploads
         channels_to_process = []
@@ -71,20 +71,78 @@ def map(ctx: click.Context, channel: str | None, include_do_not_record: bool, fi
                 return
 
         # Retrieve videos from all channels
+        channel_results = {}
+        has_errors = False
         for ch in channels_to_process:
             progress.update(task, description=f"Retrieving videos from {ch} playlist...")
-            yt.get_youtube_ids_for_uploads(ch)
+            try:
+                video_count = yt.get_youtube_ids_for_uploads(ch)
+                channel_results[ch] = {"status": "success", "count": video_count, "error": None}
+            except Exception as e:
+                channel_results[ch] = {"status": "error", "count": 0, "error": str(e)}
+                has_errors = True
+                progress.stop()
+                console.print(f"\n[red]❌ Error retrieving {ch} playlist:[/red]")
+                console.print(f"[red]   {e}[/red]")
+
+        # If there were errors, show summary and exit
+        if has_errors:
+            console.print("\n[bold red]Playlist Access Summary:[/bold red]")
+            for ch, result in channel_results.items():
+                if result["status"] == "success":
+                    console.print(f"  ✓ {ch}: Successfully retrieved {result['count']} videos", style="green")
+                else:
+                    console.print(f"  ✗ {ch}: {result['error']}", style="red")
+
+            console.print("\n[yellow]Please check your playlist IDs in config_local.yaml[/yellow]")
+            console.print("[yellow]The playlist may be:[/yellow]")
+            console.print("  • Private (requires OAuth authentication)")
+            console.print("  • Deleted or moved")
+            console.print("  • Using an incorrect ID")
+            return
 
         # Map Pretalx IDs to YouTube IDs with safety checks
         progress.update(task, description="Mapping videos to sessions...")
-        mapping_result, warnings = yt.map_pretalx_id_youtube_id(
-            skip_do_not_record=not include_do_not_record,
-            filter_by_channel=filter_channel
-        )
+        mapping_result, warnings = yt.map_pretalx_id_youtube_id(filter_by_channel=filter_channel)
 
         progress.stop()
 
-    # Display results
+    # Display channel results
+    console.print("\n[bold]Channel Results:[/bold]")
+    total_videos_found = 0
+    successful_channels = 0
+
+    for ch, result in channel_results.items():
+        if result["status"] == "success":
+            count = result["count"]
+            total_videos_found += count
+            successful_channels += 1
+            if count == 0:
+                console.print(f"  {ch}: [yellow]No videos found in playlist[/yellow]")
+            else:
+                console.print(f"  {ch}: [green]Found {count} videos[/green]")
+        else:
+            console.print(f"  {ch}: [red]Failed - {result['error']}[/red]")
+
+    # Display mapping results
+    console.print("\n[bold]Mapping Results:[/bold]")
+    if len(mapping_result) > 0:
+        console.print(f"✓ Successfully mapped {len(mapping_result)} videos to sessions", style="green")
+    elif total_videos_found == 0:
+        console.print("[yellow]No videos found in any playlist[/yellow]")
+        console.print("\n[bold]Next Steps:[/bold]")
+        console.print("  1. Upload videos to YouTube")
+        console.print("  2. Add videos to the configured playlists:")
+        for ch in channels_to_process:
+            if ch in channel_results and channel_results[ch]["status"] == "success":
+                playlist_id = conf.youtube.channels[ch].get("playlist_id", "Not configured")
+                console.print(f"     • {ch}: {playlist_id}")
+        console.print("  3. Run this command again to map videos to sessions")
+    else:
+        console.print(f"[yellow]Found {total_videos_found} videos but mapped 0 to sessions[/yellow]")
+        console.print("This might be normal if videos don't match session codes or are filtered out.")
+
+    # Display warnings
     if warnings:
         console.print("\n[yellow]⚠️  Warnings:[/yellow]")
         for warning in warnings[:10]:  # Show first 10 warnings
@@ -92,11 +150,7 @@ def map(ctx: click.Context, channel: str | None, include_do_not_record: bool, fi
         if len(warnings) > 10:
             console.print(f"  [dim]... and {len(warnings) - 10} more warnings[/dim]")
 
-    console.print(f"\n✓ Video mapping completed with {len(mapping_result)} videos", style="green")
-    console.print(f"  Mapping files created in: {conf.dirs.work_dir}")
-    
-    if include_do_not_record:
-        console.print("\n[red]⚠️  WARNING: Including do_not_record videos! Make sure this is intentional.[/red]")
+    console.print(f"\n[dim]Mapping files created in: {conf.dirs.work_dir}[/dim]")
 
 
 @youtube.command()

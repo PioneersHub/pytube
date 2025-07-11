@@ -7,7 +7,7 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn
 from rich.table import Table
 
 from manager import conf
-from manager.scripts import video_organizer, vimeo_download
+from manager.scripts import video_organizer
 
 
 @click.group()
@@ -36,6 +36,13 @@ def download(ctx: click.Context, client_id: str | None, limit: int | None) -> No
     Videos are saved to the configured video directory.
     """
     console = ctx.obj["console"]
+    
+    # Lazy import vimeo_download only when needed
+    try:
+        from manager.scripts import vimeo_download
+    except ImportError:
+        console.print("[red]Vimeo support not installed. Install with: uv pip install -e '.[vimeo]'[/red]")
+        return
 
     # Check manifest
     manifest_file = conf.dirs.work_dir / "manifest.json"

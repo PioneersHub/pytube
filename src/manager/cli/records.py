@@ -78,12 +78,12 @@ def fetch(ctx: click.Context) -> None:
             # Create records
             progress.update(task, description="Creating session records...")
             stats = r.create_records()
-            
+
             # Always show stats, but only show success if records were actually created/updated
-            if stats['total'] > 0:
+            if stats["total"] > 0:
                 console.print(f"✓ Records: {stats['created']} new, {stats['updated']} existing updated", style="green")
             else:
-                console.print(f"✗ No records created (0 new, 0 updated)", style="red")
+                console.print("✗ No records created (0 new, 0 updated)", style="red")
                 console.print("\n[yellow]Possible issues:[/yellow]")
                 console.print("• No confirmed sessions found in Pretalx")
                 console.print("• API returned data but failed validation")
@@ -103,16 +103,16 @@ def fetch(ctx: click.Context) -> None:
     console.print(f"    - New records: {stats['created']}")
     console.print(f"    - Existing updated: {stats['updated']}")
     console.print(f"  Location: {r.records}")
-    
+
     # Show overall status
-    if stats['total'] == 0 and len(r.confirmed_sessions_map) > 0:
+    if stats["total"] == 0 and len(r.confirmed_sessions_map) > 0:
         console.print("\n[red]⚠ Warning: Sessions were loaded but no records were created![/red]")
         console.print("[yellow]This usually indicates a validation error in pytanis.[/yellow]")
-    elif stats['total'] == 0:
+    elif stats["total"] == 0:
         console.print("\n[red]✗ No data was fetched or processed.[/red]")
-    
+
     # Exit with error code if no records were created
-    if stats['total'] == 0:
+    if stats["total"] == 0:
         ctx.exit(1)
 
 

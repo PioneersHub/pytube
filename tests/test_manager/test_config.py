@@ -1,4 +1,5 @@
 """Tests for configuration management module."""
+
 from pathlib import Path
 
 import pytest
@@ -102,10 +103,7 @@ class TestConfigLoading:
         config_file.write_text(config_content)
 
         # Act
-        config = load_config(
-            config_path=config_file,
-            overrides=["model.name=large-model", "model.epochs=20"]
-        )
+        config = load_config(config_path=config_file, overrides=["model.name=large-model", "model.epochs=20"])
 
         # Assert
         assert config.model.name == "large-model"
@@ -183,12 +181,7 @@ class TestConfigSaving:
     def test_save_config_preserves_structure(self, tmp_path):
         """Test that complex config structure is preserved."""
         # Arrange
-        config = OmegaConf.create({
-            "nested": {
-                "key": "value",
-                "list": [1, 2, 3]
-            }
-        })
+        config = OmegaConf.create({"nested": {"key": "value", "list": [1, 2, 3]}})
         output_path = tmp_path / "config.yaml"
 
         # Act
@@ -205,20 +198,13 @@ class TestConfigValidation:
     def test_validate_config_with_valid_config(self):
         """Test validation passes for valid configuration."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {
-                "work_dir": "_tmp",
-                "video_dir": "videos"
-            },
-            "pretalx": {
-                "event_slug": "test-event"
-            },
-            "youtube": {
-                "channels": {
-                    "main": {"id": "UC123"}
-                }
+        config = OmegaConf.create(
+            {
+                "dirs": {"work_dir": "_tmp", "video_dir": "videos"},
+                "pretalx": {"event_slug": "test-event"},
+                "youtube": {"channels": {"main": {"id": "UC123"}}},
             }
-        })
+        )
 
         # Act
         errors = validate_config(config)
@@ -242,11 +228,7 @@ class TestConfigValidation:
     def test_validate_config_missing_event_slug(self):
         """Test validation catches missing event slug."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {"work_dir": "_tmp", "video_dir": "videos"},
-            "pretalx": {},
-            "youtube": {}
-        })
+        config = OmegaConf.create({"dirs": {"work_dir": "_tmp", "video_dir": "videos"}, "pretalx": {}, "youtube": {}})
 
         # Act
         errors = validate_config(config)
@@ -257,15 +239,17 @@ class TestConfigValidation:
     def test_validate_config_missing_channel_id(self):
         """Test validation catches missing YouTube channel ID."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {"work_dir": "_tmp", "video_dir": "videos"},
-            "pretalx": {"event_slug": "test"},
-            "youtube": {
-                "channels": {
-                    "main": {"playlist_id": "PL123"}  # Missing id
-                }
+        config = OmegaConf.create(
+            {
+                "dirs": {"work_dir": "_tmp", "video_dir": "videos"},
+                "pretalx": {"event_slug": "test"},
+                "youtube": {
+                    "channels": {
+                        "main": {"playlist_id": "PL123"}  # Missing id
+                    }
+                },
             }
-        })
+        )
 
         # Act
         errors = validate_config(config)
@@ -280,10 +264,7 @@ class TestGetEventDir:
     def test_get_event_dir_with_valid_slug(self):
         """Test event directory with valid event slug."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {"work_dir": Path("/tmp/work")},
-            "pretalx": {"event_slug": "pycon-2024"}
-        })
+        config = OmegaConf.create({"dirs": {"work_dir": Path("/tmp/work")}, "pretalx": {"event_slug": "pycon-2024"}})
 
         # Act
         event_dir = get_event_dir(config)
@@ -294,10 +275,9 @@ class TestGetEventDir:
     def test_get_event_dir_with_default_slug(self):
         """Test event directory falls back to work_dir for default slug."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {"work_dir": Path("/tmp/work")},
-            "pretalx": {"event_slug": "pretalx-uri-slug"}
-        })
+        config = OmegaConf.create(
+            {"dirs": {"work_dir": Path("/tmp/work")}, "pretalx": {"event_slug": "pretalx-uri-slug"}}
+        )
 
         # Act
         event_dir = get_event_dir(config)
@@ -308,10 +288,7 @@ class TestGetEventDir:
     def test_get_event_dir_with_empty_slug(self):
         """Test event directory falls back to work_dir for empty slug."""
         # Arrange
-        config = OmegaConf.create({
-            "dirs": {"work_dir": Path("/tmp/work")},
-            "pretalx": {"event_slug": ""}
-        })
+        config = OmegaConf.create({"dirs": {"work_dir": Path("/tmp/work")}, "pretalx": {"event_slug": ""}})
 
         # Act
         event_dir = get_event_dir(config)

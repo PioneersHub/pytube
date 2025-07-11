@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 
 
