@@ -1,0 +1,46 @@
+{
+    "pretalx_id": "ABC123",
+    "title": "Introduction to Python Testing",
+    "speakers": ["Jane Developer", "John Coder"],
+    "speaker_infos": [
+        {
+            "name": "Jane Developer",
+            "code": "SPKR001",
+            "biography": "Experienced Python developer and testing advocate with 10+ years in the field.",
+            "affiliation": "TechCorp Inc.",
+            "linkedin_url": "https://linkedin.com/in/janedev",
+            "github_url": "https://github.com/janedev",
+            "email": "jane@example.com"
+        },
+        {
+            "name": "John Coder",
+            "code": "SPKR002",
+            "biography": "Software architect specializing in test automation.",
+            "affiliation": "CodeWorks Ltd.",
+            "linkedin_url": "https://linkedin.com/in/johncoder",
+            "email": "john@example.com"
+        }
+    ],
+    "abstract": "Learn the fundamentals of testing in Python using pytest. This session covers the basics of writing effective tests, using fixtures, and following best practices.",
+    "description": "This comprehensive talk covers test-driven development, fixtures, mocking, and best practices for Python testing. We'll explore real-world examples and common pitfalls to avoid.",
+    "track": "Python Basics",
+    "duration": 30,
+    "room": "Main Hall",
+    "start_time": "2024-05-15T10:00:00+00:00",
+    "end_time": "2024-05-15T10:30:00+00:00",
+    "submission_type": "Talk",
+    "state": "confirmed",
+    "resources": [
+        {
+            "description": "Slides",
+            "url": "https://speakerdeck.com/example/python-testing"
+        }
+    ],
+    "youtube_id": "dQw4w9WgXcQ",
+    "youtube_url": "https://youtube.com/watch?v=dQw4w9WgXcQ",
+    "teaser_text": "Discover the power of Python testing with pytest in this comprehensive introduction.",
+    "short_text": "An engaging introduction to Python testing with pytest, covering fixtures, mocking, and best practices through practical examples.",
+    "long_text": "Join Jane Developer and John Coder for a comprehensive introduction to Python testing using pytest. This session is perfect for developers who want to level up their testing skills.\n\nWe'll start with the basics of writing your first test, then dive into more advanced topics like fixtures, parametrization, and mocking. You'll learn how to structure your tests for maintainability and how to achieve good test coverage without sacrificing development speed.\n\nKey topics include:\n- Writing your first pytest test\n- Understanding and using fixtures effectively\n- Parametrized testing for comprehensive coverage\n- Mocking external dependencies\n- Best practices and common pitfalls\n- Integration with CI/CD pipelines\n\nBy the end of this session, you'll have the knowledge and confidence to implement a robust testing strategy in your Python projects.",
+    "created_at": "2024-01-15T09:00:00Z",
+    "updated_at": "2024-05-01T14:30:00Z"
+}
