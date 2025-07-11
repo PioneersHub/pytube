@@ -68,25 +68,22 @@ session_images: ""
 # YouTube
 # ########################################
 youtube:
-  client_secrets_file: "client_secrets.json"
+  client_secrets_file: "~/code/pioneershub/py_tube/_secret/client_secrets.json"
   api_key: ""
   max_description_length: 5000
-  token_path: "./_secret/youtube_token.json"
+  token_path: "~/code/pioneershub/py_tube/_secret/youtube_token.json"
 # ########################################
 # Social Media Configuration
 # For API setup instructions, see: docs/api-credentials.md
 # ########################################
 
-# Active social media service - options: linkedin, twitter, mastodon, bluesky
+# Active social media service - options: LinkedIn, twitter, mastodon, bluesky
 social_media_service: "linkedin"
 
 # LinkedIn
 linkedin:
-  access_token: ""
-  refresh_token: ""
-  client_id: ""
-  client_secret: ""
-  company_id: ""
+  # path to save yaml files to for posting on LinkedIn with comments
+  influent_path: ''
 
 # Twitter/X Configuration
 twitter:

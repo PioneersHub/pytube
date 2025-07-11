@@ -88,29 +88,32 @@ class TestCompleteWorkflow:
         env = setup_test_environment
 
         # Step 1: Fetch data from Pretalx
-        with patch("manager.handlers.records.conf", env["config"]), patch("manager.handlers.records.PretalxClient") as mock_client:
-                # Mock Pretalx API responses
-                mock_sessions = [
-                    create_sample_session("INT001", "Introduction to Python", track="Python Basics"),
-                    create_sample_session("DAT002", "Data Analysis with Pandas", track="Data Science"),
-                    create_sample_session("ADV003", "Advanced Async Programming", track="Advanced Topics"),
-                ]
+        with (
+            patch("manager.handlers.records.conf", env["config"]),
+            patch("manager.handlers.records.PretalxClient") as mock_client,
+        ):
+            # Mock Pretalx API responses
+            mock_sessions = [
+                create_sample_session("INT001", "Introduction to Python", track="Python Basics"),
+                create_sample_session("DAT002", "Data Analysis with Pandas", track="Data Science"),
+                create_sample_session("ADV003", "Advanced Async Programming", track="Advanced Topics"),
+            ]
 
-                mock_client_instance = MagicMock()
-                mock_client_instance.submissions.return_value = (3, mock_sessions)
-                mock_client_instance.speakers.return_value = (
-                    2,
-                    [
-                        Mock(code="SPKR001", name="Jane Developer", dict=lambda: {"code": "SPKR001"}),
-                        Mock(code="SPKR002", name="John Analyst", dict=lambda: {"code": "SPKR002"}),
-                    ],
-                )
-                mock_client.return_value = mock_client_instance
+            mock_client_instance = MagicMock()
+            mock_client_instance.submissions.return_value = (3, mock_sessions)
+            mock_client_instance.speakers.return_value = (
+                2,
+                [
+                    Mock(code="SPKR001", name="Jane Developer", dict=lambda: {"code": "SPKR001"}),
+                    Mock(code="SPKR002", name="John Analyst", dict=lambda: {"code": "SPKR002"}),
+                ],
+            )
+            mock_client.return_value = mock_client_instance
 
-                # Execute
-                records = Records()
-                records.load_all_confirmed_sessions()
-                records.load_all_speakers()
+            # Execute
+            records = Records()
+            records.load_all_confirmed_sessions()
+            records.load_all_speakers()
 
         # Verify Step 1
         assert len(list((env["event_dir"] / "pretalx").glob("*.json"))) == 3
@@ -362,27 +365,30 @@ class TestCompleteWorkflow:
             sessions.append(session)
 
         # Test batch processing
-        with patch("manager.handlers.records.conf", env["config"]), patch("manager.handlers.records.PretalxClient") as mock_client:
-                mock_client_instance = MagicMock()
-                mock_client_instance.submissions.return_value = (150, sessions)
-                mock_client.return_value = mock_client_instance
+        with (
+            patch("manager.handlers.records.conf", env["config"]),
+            patch("manager.handlers.records.PretalxClient") as mock_client,
+        ):
+            mock_client_instance = MagicMock()
+            mock_client_instance.submissions.return_value = (150, sessions)
+            mock_client.return_value = mock_client_instance
 
-                # Process in batches
-                records = Records()
+            # Process in batches
+            records = Records()
 
-                # Measure performance
-                import time
+            # Measure performance
+            import time
 
-                start_time = time.time()
+            start_time = time.time()
 
-                records.load_all_confirmed_sessions()
-                records.create_confirmed_sessions_map()
+            records.load_all_confirmed_sessions()
+            records.create_confirmed_sessions_map()
 
-                # Create records
-                stats = records.create_records()
+            # Create records
+            stats = records.create_records()
 
-                end_time = time.time()
-                processing_time = end_time - start_time
+            end_time = time.time()
+            processing_time = end_time - start_time
 
         # Verify results
         assert stats["total"] == 150
@@ -423,26 +429,29 @@ class TestErrorRecoveryScenarios:
         """Test recovery from API timeouts."""
         env = setup_test_environment
 
-        with patch("manager.handlers.records.conf", env["config"]), patch("manager.handlers.records.PretalxClient") as mock_client:
-                # Simulate timeout on first call, success on retry
-                mock_client_instance = MagicMock()
-                mock_client_instance.submissions.side_effect = [
-                    Exception("Connection timeout"),
-                    (1, [create_sample_session("TIMEOUT001")]),
-                ]
-                mock_client.return_value = mock_client_instance
+        with (
+            patch("manager.handlers.records.conf", env["config"]),
+            patch("manager.handlers.records.PretalxClient") as mock_client,
+        ):
+            # Simulate timeout on first call, success on retry
+            mock_client_instance = MagicMock()
+            mock_client_instance.submissions.side_effect = [
+                Exception("Connection timeout"),
+                (1, [create_sample_session("TIMEOUT001")]),
+            ]
+            mock_client.return_value = mock_client_instance
 
-                records = Records()
+            records = Records()
 
-                # First attempt fails
-                with pytest.raises(RuntimeError, match="Unable to connect"):
-                    records.load_all_confirmed_sessions()
-
-                # Retry succeeds
+            # First attempt fails
+            with pytest.raises(RuntimeError, match="Unable to connect"):
                 records.load_all_confirmed_sessions()
 
-                # Verify data was loaded
-                assert len(list((env["event_dir"] / "pretalx").glob("*.json"))) == 1
+            # Retry succeeds
+            records.load_all_confirmed_sessions()
+
+            # Verify data was loaded
+            assert len(list((env["event_dir"] / "pretalx").glob("*.json"))) == 1
 
     def test_partial_youtube_update_recovery(self, setup_test_environment):
         """Test recovering from partial YouTube update."""

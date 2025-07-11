@@ -15,9 +15,9 @@ license-files = [
 requires-python = ">=3.11"
 
 dependencies = [
-#    "pytanis>=0.9",
+    #    "pytanis>=0.9",
     # temp local update # TODO: remove once published
-    "pytanis @ file:///Users/hendorf/code/pioneershub/pytanis",
+    "pytanis>=0.9,<=1.0",
     "colorama>=0.4.6",
     "rich>=14.0.0",
     "structlog>=25.3.0",
@@ -31,6 +31,9 @@ dependencies = [
     "pandas>=2.0.0",
     "urllib3>=2.2.2",
     "protobuf>=6.31.1",
+    "google-auth-oauthlib>=1.2.2",
+    "pyyaml>=6.0.2",
+    "xlsxwriter>=3.2.5",
 ]
 
 [project.optional-dependencies]
@@ -101,33 +104,10 @@ vimeo = [
 
 # All optional dependencies
 all = [
-    "pytest>=8.4.1",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
-    "pytest-timeout>=2.2.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-xdist>=3.5.0",
-    "pytest-watch>=4.2.0",
-    "pytest-sugar>=0.9.7",
-    "pytest-benchmark>=4.0.0",
-    "httpx>=0.28.1",
-    "bump2version>=1.0.1",
-    "ruff>=0.1.0",
-    "mypy>=1.0",
-    "pre-commit>=3.0",
-    "mkdocs",
-    "mkdocs-glightbox>=0.4.0",
-    "mkdocs-material[imaging]>=9.6.12",
-    "mkdocs-open-in-new-tab>=1.0.8",
-    "pymdown-extensions>=10.15",
-    "numpy>=2.2.5",
-    "opencv-python>=4.11.0.86",
-    "pyyaml>=6.0.2",
-    "python-dotenv>=0.9.9",
-    "polars>=1.29.0",
-    "fastexcel>=0.14.0",
-    "xlsxwriter>=3.2.3",
-    "pyvimeo>=1.1.2",
+    "video_manager[test]",
+    "video_manager[dev]",
+    "video_manager[docs]",
+    "video_manager[video_processor]",
 ]
 
 

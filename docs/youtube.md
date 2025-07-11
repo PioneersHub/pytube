@@ -54,7 +54,7 @@ Uploading is easy: one can upload 15 videos at a time by drag and drop.
 After videos are uploaded to YouTube, we need to update the metadata.  
 To update the metadata, we need the YouTube video ids.  
 
-Metadata of unpublished videos is not available via the YouTube API but
+Metadata of **unpublished videos** (**NOT** 'private' or 'draft') is not available via the YouTube API but
 can be retrieved via an **unpublished playlist** (workaround).
 
 Add the playlist id in the `local_config.yaml` file:
@@ -165,8 +165,9 @@ To access the YouTube API V3 a Google Cloud project is required.
 4. In the library, navigate to YouTube Data API v3 under YouTube APIs.
 5. Enable the YouTube API V3.
 6. Create credentials:  
-    a. API key  
-    b. OAuth2.0 client ID
+   a. API key  
+   b. OAuth2.0 client ID
+   c. target group **external** in **test** mode, add test users.
 
 There are plenty of detailed tutorials available on the web.
 

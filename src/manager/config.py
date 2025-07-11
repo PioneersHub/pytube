@@ -138,9 +138,8 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
                         warnings.append(f"Work directory does not exist: {dir_path}")
                     elif not os.access(dir_path, os.W_OK):
                         errors.append(f"Work directory is not writable: {dir_path}")
-                elif dir_key == "video_dir":
-                    if not dir_path.exists():
-                        warnings.append(f"Video directory does not exist: {dir_path}")
+                elif dir_key == "video_dir" and not dir_path.exists():
+                    warnings.append(f"Video directory does not exist: {dir_path}")
 
     # Check Pretalx configuration
     if "pretalx" in config:
@@ -172,13 +171,11 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
             warnings.append("No YouTube API key or client secrets configured - YouTube operations will fail")
 
     # Check optional service configurations
-    if config.get("openai"):
-        if not config.openai.get("api_key"):
-            warnings.append("OpenAI configured but no API key provided")
+    if config.get("openai") and not config.openai.get("api_key"):
+        warnings.append("OpenAI configured but no API key provided")
 
-    if config.get("anthropic"):
-        if not config.anthropic.get("api_key"):
-            warnings.append("Anthropic configured but no API key provided")
+    if config.get("anthropic") and not config.anthropic.get("api_key"):
+        warnings.append("Anthropic configured but no API key provided")
 
     if config.get("linkedin"):
         if not config.linkedin.get("access_token"):
@@ -187,9 +184,8 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
             warnings.append("LinkedIn configured but no company_id provided")
 
     # Check event configuration
-    if config.get("event"):
-        if not config.event.get("program_url"):
-            warnings.append("No event program URL configured - session links will be incomplete")
+    if config.get("event") and not config.event.get("program_url"):
+        warnings.append("No event program URL configured - session links will be incomplete")
 
     # Raise if requested and errors found
     if raise_on_error and errors:
