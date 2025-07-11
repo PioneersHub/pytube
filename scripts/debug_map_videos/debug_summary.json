@@ -1,8 +1,8 @@
 {
-    "timestamp": "2025-07-11T22:09:51.689086+00:00",
+    "timestamp": "2025-07-11T22:58:20.724029+00:00",
     "config": {
         "event_slug": "pyconde-pydata-2025",
-        "auth_method": "API Key",
+        "auth_method": "OAuth",
         "filter_channel": null,
         "channels": [
             "pyconde",
@@ -12,24 +12,24 @@
     "results": {
         "channels": {
             "pyconde": {
-                "status": "success",
-                "count": 49,
-                "error": null
+                "status": "error",
+                "count": 0,
+                "error": "Unable to access playlist 'PLHd2BPBhxqRK4cSON6xH100Der5nc8yWq': [Errno 2] No such file or directory: './_secret/client_secrets.json'"
             },
             "pydata": {
-                "status": "success",
-                "count": 97,
-                "error": null
+                "status": "error",
+                "count": 0,
+                "error": "Unable to access playlist 'PLGVZCDnMOq0pUROSY87riTyk5sH8JIk3W': [Errno 2] No such file or directory: './_secret/client_secrets.json'"
             }
         },
-        "total_videos": 146,
+        "total_videos": 0,
         "mapped_videos": 146,
         "warnings": 0
     },
     "files": {
-        "mapping_file": "/Users/hendorf/code/pioneershub/py_tube/_tmp/pyconde-pydata-2025/videos/pretalx_yt_map.json",
         "mapping_exists": true,
-        "skipped_file": "/Users/hendorf/code/pioneershub/py_tube/_tmp/pyconde-pydata-2025/videos/skipped_videos_report.json",
-        "skipped_exists": false
+        "mapping_file": "/Users/hendorf/code/pioneershub/py_tube/_tmp/pyconde-pydata-2025/videos/pretalx_yt_map.json",
+        "skipped_exists": false,
+        "skipped_file": "/Users/hendorf/code/pioneershub/py_tube/_tmp/pyconde-pydata-2025/videos/skipped_videos_report.json"
     }
 }
