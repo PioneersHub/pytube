@@ -163,3 +163,20 @@ The script creates a `debug_map_videos/` directory with:
 4. **Test API directly**:
    Use the YouTube API Explorer to test your playlist IDs:
    https://developers.google.com/youtube/v3/docs/playlistItems/list
+
+## Python 3.11+ Features Used
+
+The modernized `map_videos_debug.py` showcases:
+
+- **Match statements** for cleaner conditional logic
+- **StrEnum** for type-safe status enums  
+- **Modern type hints** using `str | None` syntax
+- **Rich library integration** for beautiful console output:
+  - Tree views for hierarchical data
+  - Tables for structured data
+  - Progress bars with spinners
+  - Colored and styled text
+  - Panels for important information
+- **Structured logging** with RichHandler
+- **Better separation of concerns** with focused functions
+- **Path operations** using pathlib effectively
