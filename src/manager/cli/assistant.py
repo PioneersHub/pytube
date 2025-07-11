@@ -13,6 +13,7 @@ from rich.prompt import Confirm, Prompt
 from manager import conf, logger
 from manager.cli.menu import Menu, MenuAction, MenuItem, ProcessMenu
 from manager.cli.setup import SetupWizard
+from manager.cli.utils import interactive_command
 from manager.cli.workflow import WorkflowManager
 
 
@@ -459,61 +460,39 @@ class PyTubeAssistant:
                 step.error = error_msg
             return False
 
+    @interactive_command()
     def _handle_status(self) -> None:
         """Handle status check."""
-        try:
-            from manager.cli.status import status
+        from manager.cli.status import status
 
-            ctx = click.Context(click.Command("status"))
-            ctx.obj = {"console": self.console}
-            
-            status(ctx, detailed=True)
-            
-            # Add a pause so errors don't disappear
-            self.console.print("\n[dim]Press Enter to continue...[/dim]")
-            input()
-            
-        except Exception as e:
-            self.console.print(f"\n[red]Error checking status: {e}[/red]")
-            self.console.print("[yellow]This usually means the status command has configuration issues.[/yellow]")
-            self.console.print("\n[dim]Press Enter to continue...[/dim]")
-            input()
+        ctx = click.Context(click.Command("status"))
+        ctx.obj = {"console": self.console}
 
+        status(ctx, detailed=True)
+
+    @interactive_command()
     def _handle_validate(self) -> None:
         """Handle configuration validation."""
-        try:
-            self.console.print("\n[bold cyan]Configuration Validation[/bold cyan]\n")
+        self.console.print("\n[bold cyan]Configuration Validation[/bold cyan]\n")
 
-            results = self.setup_wizard.validate_all()
+        results = self.setup_wizard.validate_all()
 
-            # Group by validity
-            valid = [(k, v) for k, v in results.items() if v.get("valid", False)]
-            invalid = [(k, v) for k, v in results.items() if not v.get("valid", True)]
+        # Group by validity
+        valid = [(k, v) for k, v in results.items() if v.get("valid", False)]
+        invalid = [(k, v) for k, v in results.items() if not v.get("valid", True)]
 
-            if valid:
-                self.console.print("[bold green]✓ Working Services:[/bold green]\n")
-                for service, result in valid:
-                    self.console.print(f"  [green]✓[/green] {service.title()}: {result.get('message', 'OK')}")
-                    if result.get("details"):
-                        for key, value in result["details"].items():
-                            self.console.print(f"    • {key}: {value}")
+        if valid:
+            self.console.print("[bold green]✓ Working Services:[/bold green]\n")
+            for service, result in valid:
+                self.console.print(f"  [green]✓[/green] {service.title()}: {result.get('message', 'OK')}")
+                if result.get("details"):
+                    for key, value in result["details"].items():
+                        self.console.print(f"    • {key}: {value}")
 
-            if invalid:
-                self.console.print("\n[bold red]✗ Need Attention:[/bold red]\n")
-                for service, result in invalid:
-                    self.console.print(f"  [red]✗[/red] {service.title()}: {result.get('message', 'Error')}")
-                    
-            # Always pause
-            self.console.print("\n[dim]Press Enter to continue...[/dim]")
-            input()
-            
-        except Exception as e:
-            self.console.print(f"\n[red]Error during validation: {e}[/red]")
-            self.console.print("[yellow]This may indicate a problem with the setup wizard.[/yellow]")
-            import traceback
-            self.console.print(f"\n[dim]{traceback.format_exc()}[/dim]")
-            self.console.print("\n[dim]Press Enter to continue...[/dim]")
-            input()
+        if invalid:
+            self.console.print("\n[bold red]✗ Need Attention:[/bold red]\n")
+            for service, result in invalid:
+                self.console.print(f"  [red]✗[/red] {service.title()}: {result.get('message', 'Error')}")
 
     def _show_general_help(self) -> None:
         """Show general help."""

@@ -308,7 +308,7 @@ class WorkflowManager:
                         detected[step.name] = 1
                         self.console.print(f"  ✓ {step.name}: Channel mapping file exists", style="green")
                         break
-            
+
             # Check for videos in channel directories
             channel_dirs = ["pycon", "pydata", "do_not_release"]
             videos_found = 0
@@ -317,6 +317,7 @@ class WorkflowManager:
             # Load tracks map to get expected count
             if tracks_map.exists():
                 import json
+
                 with open(tracks_map) as f:
                     tracks_data = json.load(f)
                     expected_videos = len(tracks_data)
@@ -336,27 +337,31 @@ class WorkflowManager:
                     if step.name == "move_to_channel_dirs":
                         step.status = StepStatus.COMPLETED
                         detected[step.name] = videos_found
-                        
+
                         # Show the count with a warning if there's a mismatch
                         if expected_videos > 0 and videos_found != expected_videos:
                             self.console.print(
                                 f"  ✓ {step.name}: Found {videos_found} videos in channel directories "
-                                f"[yellow](expected {expected_videos} from mappings)[/yellow]", 
-                                style="green"
+                                f"[yellow](expected {expected_videos} from mappings)[/yellow]",
+                                style="green",
                             )
                             if videos_found > expected_videos:
                                 self.console.print(
                                     f"    ⚠️  {videos_found - expected_videos} extra videos found that don't match any session!",
-                                    style="yellow"
+                                    style="yellow",
                                 )
                         else:
-                            self.console.print(f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green")
+                            self.console.print(
+                                f"  ✓ {step.name}: Found {videos_found} videos in channel directories", style="green"
+                            )
                         break
             elif tracks_map.exists():
                 # Mapping exists but videos not moved yet
                 for step in workflow.steps:
                     if step.name == "move_to_channel_dirs":
-                        self.console.print(f"  ⚡ {step.name}: Channel mappings exist but videos not moved yet", style="yellow")
+                        self.console.print(
+                            f"  ⚡ {step.name}: Channel mappings exist but videos not moved yet", style="yellow"
+                        )
                         break
 
         # Check each step

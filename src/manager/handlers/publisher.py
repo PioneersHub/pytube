@@ -11,7 +11,6 @@ from pytanis.helpdesk import Mail, MailClient, Recipient
 from manager import conf, logger
 from manager.config import get_event_dir
 from manager.handlers import LinkedInPost
-from manager.handlers.social_media import post_to_social_media
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.sessions import SessionRecord
 from manager.models.video import YoutubeVideoResource
@@ -231,29 +230,6 @@ class Publisher:
         )
         (self.speaker_to_email / f"{record.pretalx_id}.json").write_text(email.model_dump_json(indent=4))
         logger.info(f"Email prepared for speakers of video {record.pretalx_id}.")
-
-    def post_on_linked_id(self):
-        """Post ONE LinkedIn update."""
-        to_post = self.linked_in_to_post.glob("*.json")
-        for post in to_post:
-            data = json.load(post.open())
-            try:
-                # Check if we should use the multi-provider system
-                if conf.get("social_media_service"):
-                    # Use new multi-provider system
-                    res = post_to_social_media(data["post"])
-                else:
-                    # Use legacy LinkedIn-only system
-                    res = self.linkedin.post(data)
-
-                if res is None:
-                    return
-                data["social_media_response"] = res
-                post.rename(self.linked_in_posted / post.name)
-                return
-            except Exception as e:
-                data["social_media_response"] = str(e)
-                logger.error(f"Failed to post: {e}")
 
     def post_on_x(self, record: SessionRecord):
         """Post on X."""

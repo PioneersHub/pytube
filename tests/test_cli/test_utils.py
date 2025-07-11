@@ -35,25 +35,15 @@ class TestSafeConfig:
     @pytest.fixture
     def mock_config_object(self):
         """Create a proper test configuration object using OmegaConf."""
-        from omegaconf import DictConfig, OmegaConf
-        
+        from omegaconf import OmegaConf
+
         config_dict = {
-            "youtube": {
-                "channels": {"main": "UC123", "secondary": "UC456"},
-                "api_key": "test-key"
-            },
-            "pretalx": {
-                "event_slug": "test-event"
-            },
-            "dirs": {
-                "work_dir": "/tmp/test"
-            },
-            "mixed": {
-                "dict_key": "dict_value",
-                "attr_key": "attr_value"
-            }
+            "youtube": {"channels": {"main": "UC123", "secondary": "UC456"}, "api_key": "test-key"},
+            "pretalx": {"event_slug": "test-event"},
+            "dirs": {"work_dir": "/tmp/test"},
+            "mixed": {"dict_key": "dict_value", "attr_key": "attr_value"},
         }
-        
+
         return OmegaConf.create(config_dict)
 
     def test_get_existing_path_returns_value(self, mock_config_object):
@@ -160,10 +150,7 @@ class TestSafeConfig:
                 raise RuntimeError("Unexpected error")
 
         # Use a regular dict config that allows arbitrary object assignment
-        dict_config = {
-            "youtube": {"api_key": "test"},
-            "bad_section": BadObject()
-        }
+        dict_config = {"youtube": {"api_key": "test"}, "bad_section": BadObject()}
         safe_config = SafeConfig(dict_config)
 
         # Act & Assert

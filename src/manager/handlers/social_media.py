@@ -8,11 +8,6 @@ This module provides a unified interface for posting to multiple social media pl
 - Bluesky
 
 Configuration in config.yaml/config_local.yaml:
-    social_media_service: "linkedin"  # Active service selection
-
-    linkedin:
-        access_token: "your-token"
-        company_id: "your-company-id"
 
     twitter:
         api_key: "your-key"
@@ -41,40 +36,6 @@ class SocialMediaProvider(ABC):
     def validate_config(self) -> bool:
         """Validate provider configuration."""
         pass
-
-
-class LinkedInProvider(SocialMediaProvider):
-    """LinkedIn posting provider."""
-
-    def __init__(self):
-        safe_conf = SafeConfig(conf)
-        self.safe_conf = safe_conf
-        self.access_token = safe_conf.get("linkedin.access_token")
-        self.company_id = safe_conf.get("linkedin.company_id")
-
-    def validate_config(self) -> bool:
-        """Validate LinkedIn configuration."""
-        if not self.access_token:
-            logger.error("LinkedIn access_token not configured")
-            return False
-        return True
-
-    def post(self, text: str, image_path: Path | None = None) -> dict[str, Any]:
-        """Post to LinkedIn."""
-        if not self.validate_config():
-            raise ValueError("LinkedIn configuration invalid")
-
-        # Import the existing LinkedIn handler
-        from manager.handlers import LinkedInPost
-
-        linkedin = LinkedInPost()
-
-        # Post with or without image
-        if image_path and image_path.exists():
-            # TODO: Implement image posting
-            return linkedin.post({"post": text})
-        else:
-            return linkedin.post({"post": text})
 
 
 class TwitterProvider(SocialMediaProvider):
@@ -239,7 +200,6 @@ def get_social_media_provider() -> SocialMediaProvider:
     service = safe_conf.get("social_media_service", "linkedin").lower()
 
     providers = {
-        "linkedin": LinkedInProvider,
         "twitter": TwitterProvider,
         "x": TwitterProvider,  # Alias
         "mastodon": MastodonProvider,

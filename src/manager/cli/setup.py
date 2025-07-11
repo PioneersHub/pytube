@@ -9,6 +9,7 @@ AI Usage Notes:
     - Configuration templates include metadata for AI understanding
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -648,10 +649,6 @@ class SetupWizard:
                 self.console.print("\n[bold]Existing LinkedIn configuration found[/bold]")
                 if existing_linkedin.get("company_id"):
                     self.console.print(f"  Company ID: [cyan]{existing_linkedin['company_id']}[/cyan]")
-                if existing_linkedin.get("access_token"):
-                    self.console.print(
-                        f"  Access token: [cyan]{self._mask_sensitive_value(existing_linkedin['access_token'])}[/cyan]"
-                    )
 
                 choice = Prompt.ask(
                     "\n[K]eep, [U]pdate, or [R]emove configuration?",
@@ -669,7 +666,6 @@ class SetupWizard:
                     result["success"] = True
                     self.console.print("[yellow]✓ LinkedIn configuration removed[/yellow]")
                     return result
-                # Otherwise fall through to update
 
             # New or update configuration
             if not Confirm.ask("\nDo you have LinkedIn API credentials?", default=bool(existing_linkedin)):
@@ -686,39 +682,9 @@ class SetupWizard:
                     data["client_id"] = client_id if action != "keep" else current_client
             else:
                 data["client_id"] = Prompt.ask("Client ID", console=self.console)
+                data["influent_path"] = Prompt.ask("Path to save LinkedIn posts to", console=self.console)
+                result["data"] = data
 
-            # Client secret
-            current_secret = existing_linkedin.get("client_secret")
-            if current_secret:
-                action, client_secret = self._prompt_with_existing(
-                    "Client secret", current_value=current_secret, default="", password=True
-                )
-                if action != "remove":
-                    data["client_secret"] = client_secret if action != "keep" else current_secret
-            else:
-                data["client_secret"] = Prompt.ask("Client secret", console=self.console, password=True)
-
-            # Access token
-            current_token = existing_linkedin.get("access_token")
-            if current_token:
-                action, access_token = self._prompt_with_existing(
-                    "Access token", current_value=current_token, default="", password=True
-                )
-                if action != "remove":
-                    data["access_token"] = access_token if action != "keep" else current_token
-            else:
-                data["access_token"] = Prompt.ask("Access token", console=self.console, password=True)
-
-            # Company ID
-            current_company = existing_linkedin.get("company_id")
-            if current_company:
-                action, company_id = self._prompt_with_existing("Company ID", current_value=current_company, default="")
-                if action != "remove":
-                    data["company_id"] = company_id if action != "keep" else current_company
-            else:
-                data["company_id"] = Prompt.ask("Company ID", console=self.console)
-
-            result["data"] = data
             result["success"] = True
 
         except Exception as e:
@@ -870,7 +836,8 @@ class SetupWizard:
 
         return result
 
-    def _validate_pretalx(self, config: DictConfig) -> dict[str, Any]:
+    @classmethod
+    def _validate_pretalx(cls, config: DictConfig) -> dict[str, Any]:
         """Validate Pretalx configuration and connection.
 
         Args:
@@ -903,13 +870,13 @@ class SetupWizard:
             result["details"]["tracks"] = list(pretalx_config["track_to_channel"].keys())
 
         # Check pytanis credentials
-        pytanis_creds = Path.home() / ".pytanis" / "credentials"
+        pytanis_creds = Path.home() / ".pytanis" / "config.toml"
         if not pytanis_creds.exists():
             result["message"] = f"Pretalx API credentials not configured for '{event_slug}'"
             result["details"]["credentials_path"] = str(pytanis_creds)
             result["fix_suggestions"] = [
                 "Set up pytanis credentials: Follow the pytanis documentation",
-                "Create ~/.pytanis/credentials file with your Pretalx API token",
+                "Create ~/.pytanis/config.toml credentials file with your Pretalx API token",
                 "Use 'pytanis init' command if available to setup credentials",
                 "Ensure your Pretalx instance API is accessible",
             ]
@@ -925,7 +892,8 @@ class SetupWizard:
         result["message"] = "; ".join(msg_parts)
         return result
 
-    def _validate_youtube(self, config: DictConfig) -> dict[str, Any]:
+    @classmethod
+    def _validate_youtube(cls, config: DictConfig) -> dict[str, Any]:
         """Validate YouTube configuration.
 
         Args:
@@ -996,7 +964,8 @@ class SetupWizard:
         result["message"] = "; ".join(msg_parts)
         return result
 
-    def _validate_directories(self, config: DictConfig) -> dict[str, Any]:
+    @classmethod
+    def _validate_directories(cls, config: DictConfig) -> dict[str, Any]:
         """Validate directory configuration.
 
         Args:
@@ -1036,7 +1005,8 @@ class SetupWizard:
 
         return result
 
-    def _validate_openai(self, config: DictConfig) -> dict[str, Any]:
+    @classmethod
+    def _validate_openai(cls, config: DictConfig) -> dict[str, Any]:
         """Validate OpenAI configuration.
 
         Args:
@@ -1059,7 +1029,8 @@ class SetupWizard:
 
         return result
 
-    def _validate_linkedin(self, config: DictConfig) -> dict[str, Any]:
+    @classmethod
+    def _validate_linkedin(cls, config: DictConfig) -> dict[str, Any]:
         """Validate LinkedIn configuration.
 
         Args:
@@ -1068,37 +1039,21 @@ class SetupWizard:
         Returns:
             Validation result
         """
-        result = {"valid": True, "message": "Optional service", "details": {}, "fix_suggestions": []}
-
-        linkedin = config.get("linkedin", {})
-        if linkedin.get("access_token"):
-            company_id = linkedin.get("company_id")
-            result["details"] = {
-                "has_access_token": True,
-                "has_refresh_token": bool(linkedin.get("refresh_token")),
-                "has_company_id": bool(company_id),
-                "company_id": company_id if company_id else "Not set",
-            }
-
-            if company_id:
-                result["message"] = f"Configured for company {company_id}"
-            else:
-                result["message"] = "Tokens present but no company ID"
-                result["valid"] = False
-                result["fix_suggestions"] = ["Add company_id to config"]
-        else:
-            result["valid"] = False
-            result["message"] = "No access token (optional - no social posts)"
-            result["details"]["configured"] = False
-            result["fix_suggestions"] = [
-                "Request LinkedIn API access",
-                "Use token generator",
-                "Or skip social media posting",
-            ]
-
+        result = {"valid": False, "message": "Optional service", "details": {}, "fix_suggestions": []}
+        influent_path = config.get("linkedin", {}).get("influent_path")
+        if not influent_path:
+            result["message"] = "influent_path not set (optional)"
+            result["fix_suggestions"] = "set the path to save the linkedin posts to."
+            return result
+        if not Path(influent_path).exists():
+            result["message"] = f"invalid path for LinkedIn posts: {influent_path}."
+            result["fix_suggestions"] = f"fix path: {influent_path}."
+            return result
+        result["valid"] = True
         return result
 
-    def _get_config_template(self) -> dict[str, Any]:
+    @classmethod
+    def _get_config_template(cls) -> dict[str, Any]:
         """Get configuration template with metadata.
 
         Returns:
@@ -1131,7 +1086,8 @@ class SetupWizard:
             },
         }
 
-    def _get_validation_rules(self) -> dict[str, Any]:
+    @classmethod
+    def _get_validation_rules(cls) -> dict[str, Any]:
         """Get validation rules for configuration fields.
 
         Returns:
@@ -1163,7 +1119,8 @@ class SetupWizard:
                 return None
         return None
 
-    def _mask_sensitive_value(self, value: str, visible_chars: int = 4) -> str:
+    @classmethod
+    def _mask_sensitive_value(cls, value: str, visible_chars: int = 4) -> str:
         """Mask sensitive values like API keys for display.
 
         Args:
@@ -1306,8 +1263,6 @@ def setup(ctx: click.Context, validate_only: bool, fix: bool, output_json: bool)
         results = wizard.validate_all()
 
         if output_json:
-            import json
-
             click.echo(json.dumps(results, indent=2))
         else:
             # Display validation results with details
@@ -1355,7 +1310,8 @@ def setup(ctx: click.Context, validate_only: bool, fix: bool, output_json: bool)
                 fix_results = wizard.fix_issues(failed)
 
                 if output_json:
-                    click.echo(json.dumps(fix_results, indent=2))
+                    out_ = json.dumps(fix_results, indent=2)
+                    click.echo(out_)
                 else:
                     for service, result in fix_results.items():
                         if result["success"]:
@@ -1369,8 +1325,6 @@ def setup(ctx: click.Context, validate_only: bool, fix: bool, output_json: bool)
         result = wizard.run()
 
         if output_json:
-            import json
-
             click.echo(json.dumps(result, indent=2))
         elif result["success"]:
             console.print("\n[green]✓ Setup completed successfully![/green]")

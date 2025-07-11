@@ -291,7 +291,7 @@ class VideoPresenterDetector:
         if not break_images_dir:
             logger.info("No break images directory provided")
             return []
-            
+
         break_images_path = Path(break_images_dir)
         if not break_images_path.is_dir():
             logger.info(f"Break images directory does not exist: {break_images_dir}")
@@ -824,14 +824,19 @@ class VideoPresenterDetector:
             logger.info(f"Extracting presentation {i + 1} video...")
             # FFmpeg command for video extraction without re-encoding
             video_cmd = [
-                "ffmpeg", "-i", plan["input_video"], 
-                "-ss", str(int(start)), 
-                "-t", str(int(duration)), 
-                "-c", "copy", 
-                output_video
+                "ffmpeg",
+                "-i",
+                plan["input_video"],
+                "-ss",
+                str(int(start)),
+                "-t",
+                str(int(duration)),
+                "-c",
+                "copy",
+                output_video,
             ]
             logger.info(f"Command: {' '.join(video_cmd)}")
-            result = subprocess.run(video_cmd, capture_output=True, text=True)
+            result = subprocess.run(video_cmd, capture_output=True, text=True, check=False)
             if result.returncode != 0:
                 logger.error(f"FFmpeg error: {result.stderr}")
             else:
@@ -840,14 +845,23 @@ class VideoPresenterDetector:
             # Extract audio if configured
             if self.cfg.output.extract_audio:
                 audio_cmd = [
-                    "ffmpeg", "-i", output_video, 
-                    "-vn", "-ar", "44100", "-ac", "2", 
-                    "-ab", "192k", "-f", "mp3", 
-                    output_audio
+                    "ffmpeg",
+                    "-i",
+                    output_video,
+                    "-vn",
+                    "-ar",
+                    "44100",
+                    "-ac",
+                    "2",
+                    "-ab",
+                    "192k",
+                    "-f",
+                    "mp3",
+                    output_audio,
                 ]
                 logger.info(f"Extracting audio for presentation {i + 1}...")
                 logger.info(f"Command: {' '.join(audio_cmd)}")
-                result = subprocess.run(audio_cmd, capture_output=True, text=True)
+                result = subprocess.run(audio_cmd, capture_output=True, text=True, check=False)
                 if result.returncode != 0:
                     logger.error(f"FFmpeg audio error: {result.stderr}")
                 else:

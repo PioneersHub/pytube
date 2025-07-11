@@ -36,7 +36,7 @@ def check(ctx: click.Context, auto_post: bool, channel: str | None, offline: boo
 
     This command will:
     - Check YouTube for newly published videos
-    - Create LinkedIn posts for published videos
+    - Create LinkedIn posts for published videos VIA influent
     - Queue speaker email notifications
     - Optionally send all notifications automatically
     """
@@ -69,28 +69,13 @@ def check(ctx: click.Context, auto_post: bool, channel: str | None, offline: boo
 
     # Check pending notifications
     email_queue = list((conf.dirs.work_dir / "speaker_to_email").glob("*.json"))
-    social_queue = list((conf.dirs.work_dir / "linked_in_to_post").glob("*.json"))
 
-    if email_queue or social_queue:
+    if email_queue:
         console.print("\n[bold]Pending Notifications:[/bold]")
-        if email_queue:
-            console.print(f"  Speaker emails: {len(email_queue)}")
-        if social_queue:
-            console.print(f"  LinkedIn posts: {len(social_queue)}")
+        console.print(f"  Speaker emails: {len(email_queue)}")
 
         if auto_post:
             console.print("\n[yellow]Auto-posting enabled - sending notifications...[/yellow]")
-
-            if social_queue:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("Posting to LinkedIn...", total=None)
-                    publisher.post_on_linked_id()
-                    progress.stop()
-                console.print("✓ LinkedIn posts sent", style="green")
 
             if email_queue:
                 with Progress(
@@ -175,48 +160,7 @@ def email(ctx: click.Context, dry_run: bool) -> None:
 @click.pass_context
 def social(ctx: click.Context, dry_run: bool) -> None:
     """Post pending social media updates."""
-    console = ctx.obj["console"]
-
-    social_queue = list((conf.dirs.work_dir / "linked_in_to_post").glob("*.json"))
-
-    if not social_queue:
-        console.print("[yellow]No pending social media posts[/yellow]")
-        return
-
-    console.print(f"Found {len(social_queue)} pending LinkedIn posts")
-
-    if dry_run:
-        console.print("\n[yellow]DRY RUN - Posts that would be sent:[/yellow]")
-
-        import json
-
-        for post_file in social_queue[:5]:
-            try:
-                data = json.loads(post_file.read_text())
-                session_id = post_file.stem
-                console.print(f"\n[bold]Session: {session_id}[/bold]")
-                console.print(f"Title: {data.get('title', 'N/A')}")
-                if "linkedin_post" in data:
-                    console.print(f"Post preview: {data['linkedin_post'][:200]}...")
-            except Exception:
-                console.print(f"\n[red]Error reading {post_file.stem}[/red]")
-
-        if len(social_queue) > 5:
-            console.print(f"\n[dim]... and {len(social_queue) - 5} more[/dim]")
-    else:
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task(f"Posting {len(social_queue)} updates to LinkedIn...", total=None)
-
-            publisher = Publisher(destination_channel=None, youtube_offline=True)
-            publisher.post_on_linked_id()
-
-            progress.stop()
-
-        console.print(f"✓ Posted {len(social_queue)} LinkedIn updates", style="green")
+    pass
 
 
 @notify.command()
@@ -239,10 +183,6 @@ def run(ctx: click.Context) -> None:
     # Process videos
     console.print("Processing recent video releases...")
     publisher.process_recent_video_releases()
-
-    # Send notifications
-    console.print("Posting to LinkedIn...")
-    publisher.post_on_linked_id()
 
     console.print("Sending speaker emails...")
     publisher.email_speakers()

@@ -8,6 +8,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from manager import conf
+from manager.cli.utils import ConfigChecker, SafeConfig
 
 
 @click.command()
@@ -34,14 +35,14 @@ def status(ctx: click.Context, detailed: bool) -> None:
     pipeline_table.add_column("Count", style="green", justify="right")
     pipeline_table.add_column("Location", style="dim")
 
+    # Create safe config wrapper
+    safe_config = SafeConfig(conf)
+
     # Determine if using event-based structure
-    event_slug = getattr(conf.pretalx, "event_slug", None)
+    event_slug = safe_config.get("pretalx.event_slug")
     use_event_structure = event_slug and event_slug != "pretalx-uri-slug"
-    
-    if use_event_structure:
-        event_dir = conf.dirs.work_dir / event_slug
-    else:
-        event_dir = conf.dirs.work_dir
+
+    event_dir = conf.dirs.work_dir / event_slug if use_event_structure else conf.dirs.work_dir
 
     # Check each stage
     stages = [
@@ -77,41 +78,9 @@ def status(ctx: click.Context, detailed: bool) -> None:
     config_table.add_column("Item", style="cyan")
     config_table.add_column("Status", style="green")
 
-    # Check essential config
-    config_checks = []
-
-    # Pretalx
-    if conf.pretalx.event_slug:
-        config_checks.append(("Pretalx Event", f"✓ {conf.pretalx.event_slug}"))
-    else:
-        config_checks.append(("Pretalx Event", "[red]✗ Not configured[/red]"))
-
-    # YouTube
-    try:
-        if hasattr(conf, 'youtube') and hasattr(conf.youtube, 'channels') and conf.youtube.channels:
-            channel_count = len(conf.youtube.channels)
-            config_checks.append(("YouTube Channels", f"✓ {channel_count} configured"))
-        else:
-            config_checks.append(("YouTube Channels", "[red]✗ Not configured[/red]"))
-    except Exception:
-        config_checks.append(("YouTube Channels", "[red]✗ Error checking config[/red]"))
-
-    # API Keys
-    try:
-        if hasattr(conf, 'openai') and conf.openai.get("api_key"):
-            config_checks.append(("OpenAI API", "✓ Configured"))
-        else:
-            config_checks.append(("OpenAI API", "[yellow]⚠ Not configured[/yellow]"))
-    except Exception:
-        config_checks.append(("OpenAI API", "[yellow]⚠ Error checking config[/yellow]"))
-
-    try:
-        if hasattr(conf, 'linkedin') and conf.linkedin.get("access_token"):
-            config_checks.append(("LinkedIn API", "✓ Configured"))
-        else:
-            config_checks.append(("LinkedIn API", "[yellow]⚠ Not configured[/yellow]"))
-    except Exception:
-        config_checks.append(("LinkedIn API", "[yellow]⚠ Error checking config[/yellow]"))
+    # Use our elegant config checker
+    config_checker = ConfigChecker(safe_config)
+    config_checks = config_checker.check_all()
 
     for item, status in config_checks:
         config_table.add_row(item, status)
@@ -125,7 +94,7 @@ def status(ctx: click.Context, detailed: bool) -> None:
         if not published_dir.exists():
             # Try legacy location
             published_dir = conf.dirs.work_dir / "video_published"
-            
+
         if published_dir.exists():
             recent_files = sorted(published_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)[:5]
 
@@ -146,15 +115,13 @@ def status(ctx: click.Context, detailed: bool) -> None:
     ]
 
     if use_event_structure:
-        event_slug = getattr(conf.pretalx, "event_slug", "unknown")
         summary_items.append(f"[bold]Event:[/bold] {event_slug}")
 
-    try:
-        if hasattr(conf, 'dirs') and hasattr(conf.dirs, 'video_dir') and conf.dirs.video_dir.exists():
-            video_count = len(list(conf.dirs.video_dir.glob("*.mp4"))) + len(list(conf.dirs.video_dir.glob("*.mov")))
-            summary_items.append(f"[bold]Video Files:[/bold] {video_count}")
-    except Exception:
-        pass  # Skip if video directory is not accessible
+    # Video files count
+    video_dir = safe_config.get("dirs.video_dir")
+    if video_dir and video_dir.exists():
+        video_count = len(list(video_dir.glob("*.mp4"))) + len(list(video_dir.glob("*.mov")))
+        summary_items.append(f"[bold]Video Files:[/bold] {video_count}")
 
     # Display everything
     console.print(
