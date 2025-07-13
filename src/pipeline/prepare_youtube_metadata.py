@@ -29,6 +29,7 @@ def prepare_video_metadata(
     youtube_id: str,
     template: Any,  # noqa: ARG001
     event_name: str = "PyCon DE & PyData 2025",
+    channel_assignment: str | None = None,
 ) -> dict[str, Any]:
     """Prepare metadata for a single video.
 
@@ -55,11 +56,15 @@ def prepare_video_metadata(
             pass
 
     # Prepare channel assignment
-    channel = "pycon"  # Default
-    if "track" in pretalx_record and pretalx_record["track"]:
-        track_name = pretalx_record["track"].get("name", {}).get("en", "")
-        if "PyData" in track_name:
-            channel = "pydata"
+    if channel_assignment:
+        channel = channel_assignment
+    else:
+        # Fallback to track-based assignment
+        channel = "pycon"  # Default
+        if "track" in pretalx_record and pretalx_record["track"]:
+            track_name = pretalx_record["track"].get("name", {}).get("en", "")
+            if "PyData" in track_name:
+                channel = "pydata"
 
     # Prepare metadata structure
     metadata = {
@@ -109,8 +114,16 @@ def prepare_youtube_metadata():
 
     logger.info("Starting YouTube metadata preparation")
 
+    # Load channel assignments if available
+    tracks_map_file = paths.get_path("tracks_map.json")
+    channel_assignments = {}
+    if tracks_map_file.exists():
+        with open(tracks_map_file) as f:
+            channel_assignments = json.load(f)
+        logger.info(f"Loaded channel assignments for {len(channel_assignments)} videos")
+
     # Load YouTube ID mapping
-    mapping_file = Path("_tmp/pyconde-pydata-2025/videos/pretalx_yt_map.json")
+    mapping_file = paths.get_path("pretalx_yt_map.json")
     if not mapping_file.exists():
         logger.error(f"YouTube ID mapping file not found: {mapping_file}")
         return
@@ -118,9 +131,9 @@ def prepare_youtube_metadata():
     youtube_mapping = load_youtube_mapping(mapping_file)
     logger.info(f"Loaded {len(youtube_mapping)} YouTube ID mappings")
 
-    # Load template
-    template_dir = Path("src/manager/templates")
-    template_name = "youtube_2025.txt"
+    # Load template - use root directory from paths
+    template_dir = paths.root / "src" / "manager" / "templates"
+    template_name = config.get("youtube_template", "youtube_2025.txt")
     template = load_template(template_dir, template_name)
 
     # Create output directory
@@ -132,17 +145,21 @@ def prepare_youtube_metadata():
 
     for pretalx_id, youtube_id in youtube_mapping.items():
         # Load Pretalx record
-        record_file = paths.get_path("pretalx_records", f"{pretalx_id}.yaml")
+        record_file = paths.get_path("pretalx_records", f"{pretalx_id}.json")
         if not record_file.exists():
             logger.warning(f"Pretalx record not found for {pretalx_id}, skipping")
             skipped += 1
             continue
 
         try:
-            record = paths.load_yaml("pretalx_records", f"{pretalx_id}.yaml")
+            record = paths.load_json("pretalx_records", f"{pretalx_id}.json")
 
             # Prepare metadata
-            metadata = prepare_video_metadata(record, youtube_id, template, event_name="PyCon DE & PyData 2025")
+            event_name = config.get("event_name", "PyCon DE & PyData 2025")
+            channel = channel_assignments.get(pretalx_id)
+            metadata = prepare_video_metadata(
+                record, youtube_id, template, event_name=event_name, channel_assignment=channel
+            )
 
             # Generate filename
             title_slug = record["title"][:50].replace(" ", "-").replace("/", "-")
