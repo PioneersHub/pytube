@@ -21,18 +21,15 @@ def load_config(config_path: Path | str | None = None) -> DictConfig:
 
     config_path = Path(config_path)
 
-    # Load base config first
-    base_config_path = config_path.parent / "config.yaml"
-    base_config = OmegaConf.load(base_config_path) if base_config_path.exists() else OmegaConf.create({})
-
-    # Load and merge local config
-    if config_path.exists():
+    try:
+        base_config_path = config_path.parent / "config.yaml"
+        base_config = OmegaConf.load(base_config_path)
         local_config = OmegaConf.load(config_path)
         config = OmegaConf.merge(base_config, local_config)
-    else:
-        raise FileNotFoundError(
-            f"Configuration file not found: {config_path}\nPlease create config_local.yaml from config.yaml template."
-        )
+    except Exception as e:
+        raise Exception(
+            f"Configuration file not found or broken: {config_path}\nPlease create config_local.yaml from config.yaml template."
+        ) from e
 
     # Resolve any interpolations
     OmegaConf.resolve(config)
