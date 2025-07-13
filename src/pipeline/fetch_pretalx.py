@@ -1,10 +1,21 @@
 """Fetch session and speaker data from Pretalx."""
 
+from config import load_config
+from logger import setup_logging
+from paths import WorkPaths
 from pytanis import PretalxClient
 
-from .config import load_config
-from .logging import setup_logging
-from .paths import WorkPaths
+
+def unescape_string(text: str | None) -> str:
+    """Convert literal \\n and \\r to actual newlines.
+
+    The Pretalx API returns strings with literal backslash-n sequences
+    instead of actual newline characters. This function converts them
+    to proper newlines so our YAML dumper can format them correctly.
+    """
+    if not text:
+        return ""
+    return text.replace("\\n", "\n").replace("\\r", "")
 
 
 def fetch_pretalx_data():
@@ -50,8 +61,8 @@ def fetch_pretalx_data():
         record = {
             "code": session.code,
             "title": session.title,
-            "abstract": session.abstract,
-            "description": session.description,
+            "abstract": unescape_string(session.abstract),
+            "description": unescape_string(session.description),
             "track": session.track.model_dump() if session.track else None,
             "submission_type": session.submission_type.model_dump() if session.submission_type else None,
             "state": session.state.value if hasattr(session.state, "value") else str(session.state),

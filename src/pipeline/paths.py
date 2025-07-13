@@ -14,8 +14,8 @@ def str_presenter(dumper, data):
         if "\n" in data or "\r" in data:
             # Normalize Windows line endings to Unix
             data = data.replace("\r\n", "\n").replace("\r", "\n")
-            # Use literal style for multiline strings
-            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+            # Use literal strip style for multiline strings (|- removes trailing newline)
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|-")
         # For single line strings, let YAML decide the style
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
