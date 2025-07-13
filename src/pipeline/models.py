@@ -42,7 +42,7 @@ class SpeakerInfo(SubmissionSpeaker):
     # noinspection PyNestedDecorators
     @field_validator("linkedin", mode="before")
     @classmethod
-    def moderate_linkedin_url(cls, v: str) -> Self:
+    def moderate_linkedin_url(cls, v: str) -> str:
         """Normalize the urls"""
         if v and not str(v).startswith("http"):
             if "linkedin." in v:
@@ -53,7 +53,7 @@ class SpeakerInfo(SubmissionSpeaker):
     # noinspection PyNestedDecorators
     @field_validator("github", mode="before")
     @classmethod
-    def moderate_github_url(cls, v: str) -> Self:
+    def moderate_github_url(cls, v: str) -> str:
         """Normalize the urls"""
         if v and not str(v).startswith("http"):
             if "github." in v:

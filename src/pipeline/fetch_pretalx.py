@@ -9,7 +9,7 @@ from pipeline.models import Organization, SessionRecord, SpeakerInfo
 from pipeline.utils import get_answer_via_id, markdown_to_text
 
 
-def collect_speakers(config, session, speaker_map, speakers):
+def collect_speakers(config, session, speaker_map):
     speakers = []
     for s in session.speakers:
         speaker = SpeakerInfo(
@@ -71,7 +71,7 @@ def fetch_pretalx_data():
         code = session.code
         logger.info(f"Processing session {code}: {session.title}")
 
-        speakers = collect_speakers(config, session, speaker_map, speakers)
+        speakers = collect_speakers(config, session, speaker_map)
 
         record = SessionRecord(
             code=session.code,

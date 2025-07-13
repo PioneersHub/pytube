@@ -3,7 +3,6 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from config import load_config
 from logger import setup_logging
@@ -15,6 +14,8 @@ from youtube_models import (
     YouTubeMetadataConfig,
 )
 
+from models import SessionRecord
+
 
 def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
     """Load the Pretalx ID to YouTube ID mapping."""
@@ -23,7 +24,7 @@ def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
 
 
 def prepare_video_metadata(
-    pretalx_record: dict[str, Any],
+    pretalx_record: SessionRecord,
     youtube_id: str,
     event_name: str,
     channel_assignment: str | None = None,
@@ -34,22 +35,17 @@ def prepare_video_metadata(
     This function prepares the structure and basic metadata.
     """
     # Extract speakers info
-    speakers = []
-    if "speakers" in pretalx_record:
-        for speaker in pretalx_record["speakers"]:
-            speakers.append(speaker.get("name", "Unknown"))
+    speakers = [speaker.name for speaker in pretalx_record.speakers]
 
     # Get recording date if available
-    recorded_date = ""
-    if "slot" in pretalx_record and pretalx_record["slot"] and "start" in pretalx_record["slot"]:
+    recorded_date = None
+    if pretalx_record.slot and pretalx_record.slot.start:
         # Parse and format date
         try:
-            date_str = pretalx_record["slot"]["start"]
-            # Handle different date formats
-            if "T" in date_str:  # ISO format
-                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-                recorded_date = dt.strftime("%B %d, %Y")
-        except Exception:
+            dt = pretalx_record.slot.start
+            recorded_date = dt.strftime("%B %d, %Y")
+        except (ValueError, TypeError, AttributeError):
+            # Keep recorded_date as None if parsing fails
             pass
 
     # Prepare channel assignment
@@ -58,16 +54,14 @@ def prepare_video_metadata(
     else:
         # Fallback to track-based assignment
         channel = "pycon"  # Default
-        if "track" in pretalx_record and pretalx_record["track"]:
-            track_name = pretalx_record["track"].get("name", {}).get("en", "")
-            if "PyData" in track_name:
-                channel = "pydata"
+        if pretalx_record.track and "PyData" in pretalx_record.track:
+            channel = "pydata"
 
     # Create Pydantic model instances
     description_placeholder = DescriptionPlaceholder(
-        abstract=pretalx_record.get("abstract", ""),
-        description=pretalx_record.get("description", ""),
-        speakers_info=pretalx_record.get("speakers", []),
+        abstract=pretalx_record.abstract,
+        description=pretalx_record.description,
+        speakers_info=[speaker.model_dump() for speaker in pretalx_record.speakers],
     )
 
     # YouTube metadata config with defaults
@@ -75,12 +69,12 @@ def prepare_video_metadata(
 
     # Create and return PreparedVideoMetadata
     return PreparedVideoMetadata(
-        pretalx_id=pretalx_record["code"],
+        pretalx_id=pretalx_record.code,
         youtube_id=youtube_id,
         channel=channel,
-        title=pretalx_record.get("title", ""),
+        title=pretalx_record.title,
         speakers=speakers,
-        recorded_date=recorded_date,
+        recorded_date=recorded_date or "",
         event_name=event_name,
         description_placeholder=description_placeholder,
         youtube_metadata=youtube_config,
@@ -130,7 +124,8 @@ def prepare_youtube_metadata():
             continue
 
         try:
-            record = paths.load_json("pretalx_records", f"{pretalx_id}.json")
+            record_dict = paths.load_json("pretalx_records", f"{pretalx_id}.json")
+            record = SessionRecord.model_validate(record_dict)
 
             # Prepare metadata
             event_name = config.event.name
@@ -147,8 +142,8 @@ def prepare_youtube_metadata():
         except ValidationError as e:
             logger.error(f"Validation error for {pretalx_id}: {e}")
             skipped += 1
-        except Exception as e:
-            logger.error(f"Error processing {pretalx_id}: {e}")
+        except (KeyError, json.JSONDecodeError, OSError) as e:
+            logger.error(f"Error processing {pretalx_id}: {type(e).__name__}: {e}")
             skipped += 1
 
     # Save all metadata to a single JSON file
