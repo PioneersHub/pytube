@@ -1,6 +1,6 @@
 """Path management for the pipeline.
 
-Manages the .work/{event_slug}/ directory structure for intermediate results.
+Manages the work directory structure based on configuration.
 """
 
 from pathlib import Path
@@ -10,29 +10,35 @@ from typing import Any
 class WorkPaths:
     """Manages paths for pipeline work directories."""
     
-    def __init__(self, work_dir: Path | str, event_slug: str):
-        """Initialize work paths.
+    def __init__(self, config):
+        """Initialize work paths from configuration.
         
         Args:
-            work_dir: Base work directory (e.g., ".work")
-            event_slug: Event slug (e.g., "pyconde-pydata-2024")
+            config: Config instance with dirs configuration
         """
-        self.work_dir = Path(work_dir)
-        self.event_slug = event_slug
-        self.event_dir = self.work_dir / event_slug
+        self.config = config
+        self.work_dir = Path(config.get("dirs.work_dir", ".work"))
+        self.event_slug = config.event_slug
+        self.event_dir = self.work_dir / self.event_slug
         
-        # Define subdirectories for each pipeline step
+        # Get subdirectory names from config or use defaults
+        self._dirs = {}
+        
+        # Load directory configuration
+        dirs_config = config.get("dirs.pipeline", {})
+        
+        # Use configured names or sensible defaults
         self._dirs = {
-            "pretalx_records": self.event_dir / "pretalx_records",
-            "channel_assignments": self.event_dir / "channel_assignments",
-            "youtube_videos": self.event_dir / "youtube_videos",
-            "id_mapping": self.event_dir / "id_mapping",
-            "youtube_metadata": self.event_dir / "youtube_metadata",
-            "update_status": self.event_dir / "update_status",
-            "release_schedule": self.event_dir / "release_schedule",
-            "social_media_posts": self.event_dir / "social_media_posts",
-            "published": self.event_dir / "published",
-            "transcripts": self.event_dir / "transcripts",
+            "pretalx_records": self.event_dir / dirs_config.get("pretalx_records", "pretalx_records"),
+            "channel_assignments": self.event_dir / dirs_config.get("channel_assignments", "channel_assignments"),
+            "youtube_videos": self.event_dir / dirs_config.get("youtube_videos", "youtube_videos"),
+            "id_mapping": self.event_dir / dirs_config.get("id_mapping", "id_mapping"),
+            "youtube_metadata": self.event_dir / dirs_config.get("youtube_metadata", "youtube_metadata"),
+            "update_status": self.event_dir / dirs_config.get("update_status", "update_status"),
+            "release_schedule": self.event_dir / dirs_config.get("release_schedule", "release_schedule"),
+            "social_media_posts": self.event_dir / dirs_config.get("social_media_posts", "social_media_posts"),
+            "published": self.event_dir / dirs_config.get("published", "published"),
+            "transcripts": self.event_dir / dirs_config.get("transcripts", "transcripts"),
         }
     
     def ensure_directories(self) -> None:
