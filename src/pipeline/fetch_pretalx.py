@@ -4,18 +4,41 @@ from config import load_config
 from logger import setup_logging
 from paths import WorkPaths
 from pytanis import PretalxClient
+from strip_markdown import strip_markdown
 
 
-def unescape_string(text: str | None) -> str:
-    """Convert literal \\n and \\r to actual newlines.
+def markdown_to_text(text: str | None) -> str:
+    """Convert markdown to plain text while preserving line breaks.
 
-    The Pretalx API returns strings with literal backslash-n sequences
-    instead of actual newline characters. This function converts them
-    to proper newlines so our YAML dumper can format them correctly.
+    The Pretalx API returns markdown-formatted text in abstract and
+    description fields. This function converts markdown to plain text
+    while preserving all line breaks for proper YAML formatting.
     """
     if not text:
         return ""
-    return text.replace("\\n", "\n").replace("\\r", "")
+
+    # Strip markdown formatting while preserving structure
+    plain_text = strip_markdown(text)
+
+    # Ensure consistent line endings
+    plain_text = plain_text.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Remove excessive blank lines (more than 2 consecutive)
+    max_consecutive_blanks = 2
+    lines = plain_text.split("\n")
+    result_lines = []
+    blank_count = 0
+
+    for line in lines:
+        if line.strip():
+            blank_count = 0
+            result_lines.append(line)
+        else:
+            blank_count += 1
+            if blank_count <= max_consecutive_blanks:
+                result_lines.append(line)
+
+    return "\n".join(result_lines).strip()
 
 
 def fetch_pretalx_data():
@@ -57,12 +80,27 @@ def fetch_pretalx_data():
         code = session.code
         logger.info(f"Processing session {code}: {session.title}")
 
+        """
+        record = SessionRecord(
+            pretalx_session=p_session,
+            pretalx_id=p_session.pretalx_id,
+            title=p_session.title,
+            abstract=data["abstract"],
+            description=data["description"],
+            speakers=speakers,
+            as_tweet="",
+            sm_teaser_text="",
+            sm_short_text="",
+            sm_long_text="",
+        )
+        """
         # Create complete record
+
         record = {
             "code": session.code,
             "title": session.title,
-            "abstract": unescape_string(session.abstract),
-            "description": unescape_string(session.description),
+            "abstract": markdown_to_text(session.abstract),
+            "description": markdown_to_text(session.description),
             "track": session.track.model_dump() if session.track else None,
             "submission_type": session.submission_type.model_dump() if session.submission_type else None,
             "state": session.state.value if hasattr(session.state, "value") else str(session.state),
