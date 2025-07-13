@@ -24,6 +24,7 @@ def str_presenter(dumper, data):
 # Create custom dumper class
 class CustomDumper(yaml.SafeDumper):
     """Custom YAML dumper that handles multiline strings with pipe notation."""
+
     pass
 
 
@@ -54,8 +55,9 @@ class WorkPaths:
         """Save data as YAML."""
         file_path = self.get_path(*path_parts)
         with open(file_path, "w") as f:
-            yaml.dump(data, f, Dumper=CustomDumper, default_flow_style=False, 
-                     allow_unicode=True, width=100, sort_keys=False)
+            yaml.dump(
+                data, f, Dumper=CustomDumper, default_flow_style=False, allow_unicode=True, width=100, sort_keys=False
+            )
         return file_path
 
     def load_yaml(self, *path_parts: str) -> Any:
