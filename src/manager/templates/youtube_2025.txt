@@ -1,4 +1,4 @@
-🔊 Recorded at PyCon DE & PyData Berlin 2024, {{date}}
+🔊 Recorded at PyCon DE & PyData 2025, {{date}}
 {{session_link}}
 
 🎓 {{teaser_text}}
@@ -9,13 +9,12 @@ Speakers:
 Description:
 {{ description }}
 
-⭐️ About PyCon DE & PyData Berlin:
-The PyCon DE & PyData conference unite the Python, AI, and data science communities, offering a unique platform for collaboration and innovation. The PyCon DE & PyData Berlin 2024 conference, hosted in partnership with the local Berlin PyData chapter, provided an exceptional experience, fostering deeper connections within the Python community while showcasing advancements in AI and data science. Attendees enjoyed a diverse and engaging program, solidifying the event as a highlight for Python and AI enthusiasts nationwide.
+⭐️ About PyCon DE & PyData:
+The PyCon DE & PyData conference unite the Python, AI, and data science communities, offering a unique platform for collaboration and innovation. The PyCon DE & PyData 2025 conference, provided an exceptional experience, fostering deeper connections within the Python community while showcasing advancements in AI and data science. Attendees enjoyed a diverse and engaging program, solidifying the event as a highlight for Python and AI enthusiasts nationwide.
 
 Follow us:
    •  LinkedIn: https://www.linkedin.com/company/28908640/
    •  X: https://www.x.com/pyconde
-   •  X: https://www.x.com/pydataberlin
 
 Links:
    • Conference website: http://pycon.de
