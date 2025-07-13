@@ -7,6 +7,30 @@ from typing import Any
 import yaml
 
 
+def str_presenter(dumper, data):
+    """Present strings with proper formatting."""
+    if isinstance(data, str):
+        # Check if string contains line breaks
+        if "\n" in data or "\r" in data:
+            # Normalize Windows line endings to Unix
+            data = data.replace("\r\n", "\n").replace("\r", "\n")
+            # Use literal style for multiline strings
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        # For single line strings, let YAML decide the style
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+
+# Create custom dumper class
+class CustomDumper(yaml.SafeDumper):
+    """Custom YAML dumper that handles multiline strings with pipe notation."""
+    pass
+
+
+# Add the custom presenter to our custom dumper
+CustomDumper.add_representer(str, str_presenter)
+
+
 class WorkPaths:
     def __init__(self, config):
         self.config = config
@@ -30,7 +54,8 @@ class WorkPaths:
         """Save data as YAML."""
         file_path = self.get_path(*path_parts)
         with open(file_path, "w") as f:
-            yaml.safe_dump(data, f, default_flow_style=False, allow_unicode=True)
+            yaml.dump(data, f, Dumper=CustomDumper, default_flow_style=False, 
+                     allow_unicode=True, width=100, sort_keys=False)
         return file_path
 
     def load_yaml(self, *path_parts: str) -> Any:
