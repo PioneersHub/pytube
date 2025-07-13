@@ -13,6 +13,11 @@ vimeo:
 dirs:
   work_dir: "._tmp"
   video_dir: "./_tmp/videos"
+  # Optional: Override pipeline subdirectory names
+  # pipeline:
+  #   pretalx_records: "pretalx_records"
+  #   youtube_metadata: "youtube_metadata"
+  #   # ... etc
 # ########################################
 # # GOOGLE SHEETS
 # ########################################
