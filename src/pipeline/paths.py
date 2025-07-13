@@ -1,9 +1,10 @@
 """Path management for the pipeline."""
 
 import json
-import yaml
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 
 class WorkPaths:
