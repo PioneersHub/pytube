@@ -92,15 +92,11 @@ def prepare_video_metadata(
         },
     }
 
-    # Add track-specific tags
-    if "track" in pretalx_record and pretalx_record["track"]:
-        track_name = pretalx_record["track"].get("name", {}).get("en", "")
-        if "MLOps" in track_name:
-            metadata["youtube_metadata"]["tags"].extend(["MLOps", "Machine Learning", "DevOps"])
-        elif "Data" in track_name:
-            metadata["youtube_metadata"]["tags"].extend(["Data Science", "Analytics"])
-        elif "Web" in track_name:
-            metadata["youtube_metadata"]["tags"].extend(["Web Development", "FastAPI", "Django"])
+    # TODO: Use external service/LLM to generate appropriate tags based on:
+    # - Session title, abstract, and description
+    # - Track information
+    # - Speaker expertise
+    # For now, we'll use the basic tags and let the external service enhance them
 
     return metadata
 
