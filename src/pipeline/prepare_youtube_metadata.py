@@ -25,7 +25,7 @@ def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
 def prepare_video_metadata(
     pretalx_record: dict[str, Any],
     youtube_id: str,
-    event_name: str = "PyCon DE & PyData 2025",
+    event_name: str,
     channel_assignment: str | None = None,
 ) -> PreparedVideoMetadata:
     """Prepare metadata for a single video using Pydantic models.
@@ -40,7 +40,7 @@ def prepare_video_metadata(
             speakers.append(speaker.get("name", "Unknown"))
 
     # Get recording date if available
-    recorded_date = "April 2025"  # Default
+    recorded_date = ""
     if "slot" in pretalx_record and pretalx_record["slot"] and "start" in pretalx_record["slot"]:
         # Parse and format date
         try:
@@ -133,7 +133,7 @@ def prepare_youtube_metadata():
             record = paths.load_json("pretalx_records", f"{pretalx_id}.json")
 
             # Prepare metadata
-            event_name = config.get("event_name", "PyCon DE & PyData 2025")
+            event_name = config.event.name
             channel = channel_assignments.get(pretalx_id)
             metadata = prepare_video_metadata(record, youtube_id, event_name=event_name, channel_assignment=channel)
 
