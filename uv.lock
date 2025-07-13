@@ -165,6 +165,19 @@ wheels = [
 ]
 
 [[package]]
+name = "beautifulsoup4"
+version = "4.13.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "soupsieve" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d8/e4/0c4c39e18fd76d6a628d4dd8da40543d136ce2d1752bd6eeeab0791f4d6b/beautifulsoup4-4.13.4.tar.gz", hash = "sha256:dbb3c4e1ceae6aefebdaf2423247260cd062430a410e38c66f2baa50a8437195", size = 621067, upload-time = "2025-04-15T17:05:13.836Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/cd/30110dc0ffcf3b131156077b90e9f60ed75711223f306da4db08eff8403b/beautifulsoup4-4.13.4-py3-none-any.whl", hash = "sha256:9bbbb14bfde9d79f38b8cd5f8c7c85f4b8f2523190ebed90e950a8dea4cb1c4b", size = 187285, upload-time = "2025-04-15T17:05:12.221Z" },
+]
+
+[[package]]
 name = "bump2version"
 version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1759,8 +1772,7 @@ wheels = [
 
 [[package]]
 name = "pytanis"
-version = "0.9.0"
-source = { registry = "https://pypi.org/simple" }
+source = { directory = "../pytanis" }
 dependencies = [
     { name = "httpx" },
     { name = "httpx-auth" },
@@ -1772,10 +1784,43 @@ dependencies = [
     { name = "tomli" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/0e/ebfa8faadc7bb03d0a3baca5627a75583a3a4b7f894a20d09f63f42ab594/pytanis-0.9.0.tar.gz", hash = "sha256:dc91c80716f227592eef0e4102265ab65cdccad02175b96de878323c1213e3fb", size = 51064, upload-time = "2025-06-27T19:12:08.412Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/d5/6dd43f361b8c7c2adde82cc944fd0ba1a7de721ed612435b9c7c6f1f810b/pytanis-0.9.0-py3-none-any.whl", hash = "sha256:cdd09976a32f2ab1129c47b539adc4b482a4f70fea0b4095a7547b516b6d73f1", size = 58030, upload-time = "2025-06-27T19:12:07.157Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "gspread", marker = "extra == 'all'", specifier = "<6.0" },
+    { name = "gspread", marker = "extra == 'google'", specifier = "<6.0" },
+    { name = "gspread-dataframe", marker = "extra == 'all'" },
+    { name = "gspread-dataframe", marker = "extra == 'google'" },
+    { name = "gspread-formatting", marker = "extra == 'all'" },
+    { name = "gspread-formatting", marker = "extra == 'google'" },
+    { name = "highspy", marker = "extra == 'all'" },
+    { name = "highspy", marker = "extra == 'optimization'" },
+    { name = "httpx" },
+    { name = "httpx-auth" },
+    { name = "ipywidgets", marker = "extra == 'all'" },
+    { name = "ipywidgets", marker = "extra == 'jupyter'" },
+    { name = "jupyter", marker = "extra == 'all'", specifier = ">=1.1.1" },
+    { name = "jupyter", marker = "extra == 'jupyter'", specifier = ">=1.1.1" },
+    { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pandas", specifier = ">=2" },
+    { name = "pandas-stubs", specifier = "==2.2.3.250527" },
+    { name = "pillow", marker = "extra == 'all'" },
+    { name = "pydantic", specifier = ">=2.5" },
+    { name = "pyomo", marker = "extra == 'all'", specifier = ">=6.9.1" },
+    { name = "pyomo", marker = "extra == 'optimization'", specifier = ">=6.9.1" },
+    { name = "pyomo", extras = ["optional"], marker = "extra == 'all'" },
+    { name = "pyomo", extras = ["optional"], marker = "extra == 'optimization'" },
+    { name = "requests", marker = "extra == 'all'" },
+    { name = "requests", marker = "extra == 'mailgun'" },
+    { name = "seaborn", marker = "extra == 'all'", specifier = ">=0.13.2" },
+    { name = "seaborn", marker = "extra == 'jupyter'", specifier = ">=0.13.2" },
+    { name = "structlog" },
+    { name = "tomli" },
+    { name = "tqdm" },
+    { name = "webcolors", marker = "extra == 'all'" },
+    { name = "webcolors", marker = "extra == 'google'" },
 ]
+provides-extras = ["all", "google", "helpdesk", "jupyter", "mailgun", "optimization"]
 
 [[package]]
 name = "pytest"
@@ -2079,6 +2124,15 @@ wheels = [
 ]
 
 [[package]]
+name = "soupsieve"
+version = "2.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/f4/4a80cd6ef364b2e8b65b15816a843c0980f7a5a2b4dc701fc574952aa19f/soupsieve-2.7.tar.gz", hash = "sha256:ad282f9b6926286d2ead4750552c8a6142bc4c783fd66b0293547c8fe6ae126a", size = 103418, upload-time = "2025-04-20T18:50:08.518Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/9c/0e6afc12c269578be5c0c1c9f4b49a8d32770a080260c333ac04cc1c832d/soupsieve-2.7-py3-none-any.whl", hash = "sha256:6e60cc5c1ffaf1cebcc12e8188320b72071e922c2e897f737cadce79ad5d30c4", size = 36677, upload-time = "2025-04-20T18:50:07.196Z" },
+]
+
+[[package]]
 name = "structlog"
 version = "25.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2244,12 +2298,14 @@ name = "video-manager"
 version = "3.1.6"
 source = { editable = "." }
 dependencies = [
+    { name = "beautifulsoup4" },
     { name = "click" },
     { name = "colorama" },
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
     { name = "gspread" },
     { name = "jinja2" },
+    { name = "markdown" },
     { name = "oauth2client" },
     { name = "omegaconf" },
     { name = "openai" },
@@ -2342,6 +2398,7 @@ vimeo = [
 
 [package.metadata]
 requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.13.4" },
     { name = "bump2version", marker = "extra == 'dev'", specifier = ">=1.0.1" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "colorama", specifier = ">=0.4.6" },
@@ -2352,6 +2409,7 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.28.1" },
     { name = "httpx", marker = "extra == 'test-all'", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.4" },
+    { name = "markdown", specifier = ">=3.8.2" },
     { name = "mkdocs", marker = "extra == 'docs'" },
     { name = "mkdocs-glightbox", marker = "extra == 'docs'", specifier = ">=0.4.0" },
     { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'", specifier = ">=9.6.12" },
@@ -2367,7 +2425,7 @@ requires-dist = [
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "protobuf", specifier = ">=6.31.1" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.15" },
-    { name = "pytanis", specifier = ">=0.9,<=1.0" },
+    { name = "pytanis", directory = "../pytanis" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.1" },
     { name = "pytest", marker = "extra == 'test-all'", specifier = ">=8.4.1" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
