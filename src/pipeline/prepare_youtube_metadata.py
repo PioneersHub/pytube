@@ -5,11 +5,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from config import load_config
 from jinja2 import Environment, FileSystemLoader
-
-from .config import load_config
-from .logging import setup_logging
-from .paths import WorkPaths
+from logger import setup_logging
+from paths import WorkPaths
 
 
 def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
