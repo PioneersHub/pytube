@@ -18,7 +18,7 @@ Follow us:
 
 Links:
    • Conference website: http://pycon.de
-   • Related sessions: http://2024.pycon.de/program/categories/{{ tag }}
+   • Other sessions: https://2025.pycon.de/talks/
 
 The conference is organized by
    • Python Softwareverband e.V.: http://pysv.org

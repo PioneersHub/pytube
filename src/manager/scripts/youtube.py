@@ -44,12 +44,12 @@ if __name__ == "__main__":
     yt = YT()
 
     # get the channel id if not know via logging in
-    yt.get_channel_id()
+    # yt.get_channel_id()
 
     # is a required mapping file for further processing
-    yt.get_youtube_ids_for_uploads("pycon")
+    # yt.get_youtube_ids_for_uploads("pyconde")
 
     # Match the pretalx id with the YouTube video id
     yt.map_pretalx_id_youtube_id()
 
-    prepare_metadata("youtube_2024.txt", "PyCon DE & PyData Berlin 2024")
+    prepare_metadata("youtube_2025.txt", "PyCon DE & PyData 2025")

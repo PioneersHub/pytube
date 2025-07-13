@@ -2264,6 +2264,30 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "bump2version" },
+    { name = "fastexcel" },
+    { name = "httpx" },
+    { name = "mkdocs" },
+    { name = "mkdocs-glightbox" },
+    { name = "mkdocs-material", extra = ["imaging"] },
+    { name = "mkdocs-open-in-new-tab" },
+    { name = "mypy" },
+    { name = "numpy" },
+    { name = "opencv-python" },
+    { name = "polars" },
+    { name = "pre-commit" },
+    { name = "pymdown-extensions" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-mock" },
+    { name = "pytest-timeout" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "ruff" },
+    { name = "xlsxwriter" },
+]
 dev = [
     { name = "bump2version" },
     { name = "mypy" },
@@ -2370,6 +2394,10 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "structlog", specifier = ">=25.3.0" },
     { name = "urllib3", specifier = ">=2.2.2" },
+    { name = "video-manager", extras = ["dev"], marker = "extra == 'all'" },
+    { name = "video-manager", extras = ["docs"], marker = "extra == 'all'" },
+    { name = "video-manager", extras = ["test"], marker = "extra == 'all'" },
+    { name = "video-manager", extras = ["video-processor"], marker = "extra == 'all'" },
     { name = "xlsxwriter", specifier = ">=3.2.5" },
     { name = "xlsxwriter", marker = "extra == 'video-processor'", specifier = ">=3.2.3" },
 ]
