@@ -1,7 +1,6 @@
 """Configuration management using OmegaConf."""
 
 from pathlib import Path
-from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -24,10 +23,7 @@ def load_config(config_path: Path | str | None = None) -> DictConfig:
 
     # Load base config first
     base_config_path = config_path.parent / "config.yaml"
-    if base_config_path.exists():
-        base_config = OmegaConf.load(base_config_path)
-    else:
-        base_config = OmegaConf.create({})
+    base_config = OmegaConf.load(base_config_path) if base_config_path.exists() else OmegaConf.create({})
 
     # Load and merge local config
     if config_path.exists():
