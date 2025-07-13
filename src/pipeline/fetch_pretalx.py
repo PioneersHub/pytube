@@ -1,7 +1,6 @@
 """Fetch session and speaker data from Pretalx."""
 
 from pytanis import PretalxClient
-from pytanis.pretalx.models import Submission, Speaker
 
 from .config import load_config
 from .logging import setup_logging
@@ -23,7 +22,7 @@ def fetch_pretalx_data():
     logger.info("Starting Pretalx data fetch", event_slug=event_slug)
 
     # Create output directory
-    records_dir = paths.get_path("pretalx_records")
+    paths.get_path("pretalx_records")
 
     # Fetch confirmed sessions
     logger.info("Fetching confirmed sessions...")
@@ -55,7 +54,7 @@ def fetch_pretalx_data():
             "description": session.description,
             "track": session.track.model_dump() if session.track else None,
             "submission_type": session.submission_type.model_dump() if session.submission_type else None,
-            "state": session.state.value if hasattr(session.state, 'value') else str(session.state),
+            "state": session.state.value if hasattr(session.state, "value") else str(session.state),
             "do_not_record": session.do_not_record,
             "duration": session.duration,
             "slot": session.slot.model_dump() if session.slot else None,
