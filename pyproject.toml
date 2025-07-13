@@ -15,9 +15,9 @@ license-files = [
 requires-python = ">=3.11"
 
 dependencies = [
-    #    "pytanis>=0.9",
+    # "pytanis>=0.9",
     # temp local update # TODO: remove once published
-    "pytanis>=0.9,<=1.0",
+    "pytanis", #
     "colorama>=0.4.6",
     "rich>=14.0.0",
     "structlog>=25.3.0",
@@ -34,7 +34,8 @@ dependencies = [
     "google-auth-oauthlib>=1.2.2",
     "pyyaml>=6.0.2",
     "xlsxwriter>=3.2.5",
-    "strip-markdown>=1.3",
+    "markdown>=3.8.2",
+    "beautifulsoup4>=4.13.4",
 ]
 
 [project.optional-dependencies]
@@ -235,3 +236,6 @@ pytube = "manager.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+pytanis = { path = "../pytanis" }

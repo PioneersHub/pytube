@@ -3,42 +3,33 @@
 from config import load_config
 from logger import setup_logging
 from paths import WorkPaths
-from pytanis import PretalxClient
-from strip_markdown import strip_markdown
+from pytanis.pretalx import PretalxClient
+
+from pipeline.models import Organization, SessionRecord, SpeakerInfo
+from pipeline.utils import get_answer_via_id, markdown_to_text
 
 
-def markdown_to_text(text: str | None) -> str:
-    """Convert markdown to plain text while preserving line breaks.
-
-    The Pretalx API returns markdown-formatted text in abstract and
-    description fields. This function converts markdown to plain text
-    while preserving all line breaks for proper YAML formatting.
-    """
-    if not text:
-        return ""
-
-    # Strip markdown formatting while preserving structure
-    plain_text = strip_markdown(text)
-
-    # Ensure consistent line endings
-    plain_text = plain_text.replace("\r\n", "\n").replace("\r", "\n")
-
-    # Remove excessive blank lines (more than 2 consecutive)
-    max_consecutive_blanks = 2
-    lines = plain_text.split("\n")
-    result_lines = []
-    blank_count = 0
-
-    for line in lines:
-        if line.strip():
-            blank_count = 0
-            result_lines.append(line)
-        else:
-            blank_count += 1
-            if blank_count <= max_consecutive_blanks:
-                result_lines.append(line)
-
-    return "\n".join(result_lines).strip()
+def collect_speakers(config, session, speaker_map, speakers):
+    speakers = []
+    for s in session.speakers:
+        speaker = SpeakerInfo(
+            code=s.code,
+            name=s.name,
+            biography=s.biography,
+            avatar=s.avatar,
+            email=s.email,
+            linkedin=get_answer_via_id(speaker_map[s.code]["answers"], config.pretalx.questions_map.linkedin),
+            github=get_answer_via_id(speaker_map[s.code]["answers"], config.pretalx.questions_map.github),
+            x_handle=get_answer_via_id(speaker_map[s.code]["answers"], config.pretalx.questions_map.x_handle),
+            job=get_answer_via_id(speaker_map[s.code]["answers"], config.pretalx.questions_map.job),
+            company=Organization(
+                name=get_answer_via_id(speaker_map[s.code]["answers"], config.pretalx.questions_map.company)
+                # TODO: adding info about the organisation would be nice,
+                #  especially SPONSORS for mentions in SM posts
+            ),
+        )
+        speakers.append(speaker)
+    return speakers
 
 
 def fetch_pretalx_data():
@@ -80,48 +71,27 @@ def fetch_pretalx_data():
         code = session.code
         logger.info(f"Processing session {code}: {session.title}")
 
-        """
+        speakers = collect_speakers(config, session, speaker_map, speakers)
+
         record = SessionRecord(
-            pretalx_session=p_session,
-            pretalx_id=p_session.pretalx_id,
-            title=p_session.title,
-            abstract=data["abstract"],
-            description=data["description"],
+            code=session.code,
+            title=session.title,
+            abstract=markdown_to_text(session.abstract),
+            description=markdown_to_text(session.description),
+            track=session.track.model_dump().get("name", {}).get("en"),
+            submission_type=session.submission_type.en.casefold(),
+            do_not_record=session.do_not_record,
+            slot=session.slot,
             speakers=speakers,
-            as_tweet="",
-            sm_teaser_text="",
-            sm_short_text="",
-            sm_long_text="",
+            python_expertise=get_answer_via_id(session.answers, config.pretalx.questions_map.python_expertise),
+            domain_expertise=get_answer_via_id(session.answers, config.pretalx.questions_map.domain_expertise),
+            resources=session.resources,
         )
-        """
-        # Create complete record
 
-        record = {
-            "code": session.code,
-            "title": session.title,
-            "abstract": markdown_to_text(session.abstract),
-            "description": markdown_to_text(session.description),
-            "track": session.track.model_dump() if session.track else None,
-            "submission_type": session.submission_type.model_dump() if session.submission_type else None,
-            "state": session.state.value if hasattr(session.state, "value") else str(session.state),
-            "do_not_record": session.do_not_record,
-            "duration": session.duration,
-            "slot": session.slot.model_dump() if session.slot else None,
-            "speakers": [],
-        }
-
-        # Add speaker details
-        for speaker_ref in session.speakers:
-            speaker_code = speaker_ref.code
-            if speaker_code in speaker_map:
-                speaker_data = speaker_map[speaker_code]
-                record["speakers"].append(speaker_data)
-            else:
-                logger.warning(f"Speaker {speaker_code} not found in speaker map")
-
-        # Save as YAML
-        filename = f"{code}.yaml"
-        paths.save_yaml(record, "pretalx_records", filename)
+        # Save as JSON
+        record_json = record.model_dump_json(indent=2)
+        filename = f"{code}.json"
+        paths.save_data(record_json, "pretalx_records", filename)
         processed += 1
 
         if processed % 10 == 0:

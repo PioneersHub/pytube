@@ -35,8 +35,8 @@ CustomDumper.add_representer(str, str_presenter)
 class WorkPaths:
     def __init__(self, config):
         self.config = config
-        # Use .work as specified in CLAUDE.local.md
-        self.work_dir = Path(".work")
+        self.root = Path(__file__).resolve().parents[2]
+        self.work_dir = self.root / ".work"
         self.event_slug = config.pretalx.event_slug
         self.event_dir = self.work_dir / self.event_slug
 
@@ -55,9 +55,7 @@ class WorkPaths:
         """Save data as YAML."""
         file_path = self.get_path(*path_parts)
         with open(file_path, "w") as f:
-            yaml.dump(
-                data, f, Dumper=CustomDumper, default_flow_style=False, allow_unicode=True, width=100, sort_keys=False
-            )
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True, width=100, sort_keys=False)
         return file_path
 
     def load_yaml(self, *path_parts: str) -> Any:
@@ -71,6 +69,13 @@ class WorkPaths:
         file_path = self.get_path(*path_parts)
         with open(file_path, "w") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        return file_path
+
+    def save_data(self, data: str, *path_parts: str) -> Path:
+        """Save data e.g. as JSON (directly via pydantic dump)."""
+        file_path = self.get_path(*path_parts)
+        with open(file_path, "w") as f:
+            f.write(data)
         return file_path
 
     def load_json(self, *path_parts: str) -> Any:
