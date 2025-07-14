@@ -14,7 +14,7 @@ from youtube_models import (
     YouTubeMetadataConfig,
 )
 
-from models import SessionRecord
+from pipeline.models import SessionRecord
 
 
 def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
@@ -48,15 +48,6 @@ def prepare_video_metadata(
             # Keep recorded_date as None if parsing fails
             pass
 
-    # Prepare channel assignment
-    if channel_assignment:
-        channel = channel_assignment
-    else:
-        # Fallback to track-based assignment
-        channel = "pycon"  # Default
-        if pretalx_record.track and "PyData" in pretalx_record.track:
-            channel = "pydata"
-
     # Create Pydantic model instances
     description_placeholder = DescriptionPlaceholder(
         abstract=pretalx_record.abstract,
@@ -71,7 +62,7 @@ def prepare_video_metadata(
     return PreparedVideoMetadata(
         pretalx_id=pretalx_record.code,
         youtube_id=youtube_id,
-        channel=channel,
+        channel=channel_assignment,
         title=pretalx_record.title,
         speakers=speakers,
         recorded_date=recorded_date or "",
@@ -107,9 +98,6 @@ def prepare_youtube_metadata():
     youtube_mapping = load_youtube_mapping(mapping_file)
     logger.info(f"Loaded {len(youtube_mapping)} YouTube ID mappings")
 
-    # Create output directory
-    output_dir = paths.get_path("youtube_metadata")
-
     # Process each mapped video and collect metadata
     all_metadata = []
     processed = 0
@@ -142,22 +130,22 @@ def prepare_youtube_metadata():
         except ValidationError as e:
             logger.error(f"Validation error for {pretalx_id}: {e}")
             skipped += 1
+            continue
         except (KeyError, json.JSONDecodeError, OSError) as e:
             logger.error(f"Error processing {pretalx_id}: {type(e).__name__}: {e}")
             skipped += 1
+            continue
 
-    # Save all metadata to a single JSON file
-    output_file = output_dir / "prepared_metadata.json"
-    with open(output_file, "w") as f:
-        json.dump(all_metadata, f, indent=2)
+        output_file = f"{pretalx_id}.json"
+        paths.save_data(metadata.model_dump_json(indent=2), "youtube_metadata", output_file)
 
-    logger.info(
-        "YouTube metadata preparation complete",
-        processed=processed,
-        skipped=skipped,
-        total=len(youtube_mapping),
-        output_file=str(output_file),
-    )
+        logger.info(
+            "YouTube metadata preparation complete",
+            processed=processed,
+            skipped=skipped,
+            total=len(youtube_mapping),
+            output_file=str(output_file),
+        )
 
     # Save summary as JSON
     summary = {
@@ -165,11 +153,9 @@ def prepare_youtube_metadata():
         "total_mappings": len(youtube_mapping),
         "processed": processed,
         "skipped": skipped,
-        "output_file": str(output_file),
     }
-    summary_file = output_dir / "_summary.json"
-    with open(summary_file, "w") as f:
-        json.dump(summary, f, indent=2)
+    summary_file = "youtube_metadata_summary.json"
+    paths.save_json(summary, summary_file)
 
 
 if __name__ == "__main__":
