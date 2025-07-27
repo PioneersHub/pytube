@@ -1,0 +1,101 @@
+{
+  "name": "PyTube Test Workflow - No AI",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/talks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "*"
+            },
+            {
+              "name": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "test-supabase",
+      "name": "Test Supabase Connection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 🎉 Supabase Connection Test\n\nThis workflow tests your Supabase connection.\n\n### Results:\n- **Status**: {{ $json.statusCode === 200 ? '✅ Success' : '❌ Failed' }}\n- **Records Found**: {{ $json.data ? $json.data.length : 0 }}\n\n### Next Steps:\n1. If successful, import the full workflow\n2. Add OpenAI credentials when ready\n3. Test with real data",
+        "height": 300,
+        "width": 400
+      },
+      "id": "show-results",
+      "name": "Show Results",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [650, 200]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Supabase Connection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Supabase Connection": {
+      "main": [
+        [
+          {
+            "node": "Show Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "pytube-test"
+  },
+  "pinData": {},
+  "versionId": "1.0",
+  "triggerCount": 0,
+  "tags": []
+}

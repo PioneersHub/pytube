@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Ready for Review</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2563eb;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .talk-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #2563eb;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .platform-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+        .youtube { background-color: #ff0000; color: white; }
+        .linkedin { background-color: #0077b5; color: white; }
+        .twitter { background-color: #1da1f2; color: white; }
+        .facebook { background-color: #1877f2; color: white; }
+        .instagram { background-color: #e4405f; color: white; }
+        .content-preview {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .cta-button:hover {
+            background-color: #1d4ed8;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Content Ready for Review</h1>
+        
+        <p>Hello {{RECIPIENT_NAME}},</p>
+        
+        <p>New content has been generated for your conference talk and is ready for your review:</p>
+        
+        <div class="talk-info">
+            <strong>Talk Title:</strong> {{TALK_TITLE}}<br>
+            <strong>Talk ID:</strong> {{TALK_ID}}<br>
+            <strong>Conference:</strong> PyCon DE & PyData 2025<br>
+            <strong>Date:</strong> {{TALK_DATE}}
+        </div>
+        
+        <h2>Generated Content:</h2>
+        
+        <p>The following content has been automatically generated:</p>
+        
+        {{PLATFORM_CONTENT}}
+        
+        <div style="text-align: center;">
+            <a href="{{REVIEW_URL}}" class="cta-button">Review & Edit Content</a>
+        </div>
+        
+        <p><strong>Next Steps:</strong></p>
+        <ol>
+            <li>Click the button above to review the generated content</li>
+            <li>Make any necessary edits or improvements</li>
+            <li>Approve the content for publishing</li>
+        </ol>
+        
+        <div class="footer">
+            <p>This is an automated message from the PyTube Content Pipeline. Please do not reply directly to this email.</p>
+            <p>If you have questions or need assistance, please contact: {{SUPPORT_EMAIL}}</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,453 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "7060bf88-db40-42bc-8d23-4e1672f441c3",
+      "name": "Daily Trigger1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        384
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "talks",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "processing_status",
+              "condition": "eq",
+              "keyValue": "new"
+            }
+          ]
+        }
+      },
+      "id": "2bddbb39-2574-44b9-addc-90cd6053e77c",
+      "name": "Get New Talks1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        848,
+        480
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $input.all().length }}",
+              "operation": "larger"
+            }
+          ]
+        }
+      },
+      "id": "84d35306-e607-4729-9a9d-89fa7d283757",
+      "name": "Any New Talks?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/Users/REDACTED/Documents/development/ki-garage-hackathon/pytube_data/pyconde-pydata-2025/pretalx_records/*",
+        "options": {}
+      },
+      "id": "7fc5fe01-e955-40f2-909b-219e6d7d874d",
+      "name": "Read Talk Metadata1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        384
+      ],
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "fileSelector": "/Users/REDACTED/Documents/development/ki-garage-hackathon/pytube_data/pyconde-pydata-2025/transcriptions/*",
+        "options": {}
+      },
+      "id": "224adde2-8b5c-4755-afcb-2fbd77810dd2",
+      "name": "List Transcript Folders1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process each talk from Get New Talks\nfor (const item of $('Get New Talks1').all()) {\n  const talkId = item.json.talk_id;\n  \n  // Get all transcript folders\n  const allFolders = $('List Transcript Folders1').all();\n  \n  // Find folder containing the talk ID\n  const transcriptFolder = allFolders.find(folder => {\n    return folder.json.fileName.includes(`[${talkId}]`);\n  });\n  \n  if (!transcriptFolder) {\n    throw new Error(`No transcript folder found for talk ${talkId}`);\n  }\n  \n  // Construct the transcript file path\n  const transcriptPath = `${transcriptFolder.json.path}/transcript.txt`;\n  \n  return {\n    ...item.json,\n    transcriptPath: transcriptPath\n  };\n}"
+      },
+      "id": "f7223cc9-5980-4161-bc82-33c03252cb72",
+      "name": "Find Transcript Path1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "={{ $json.transcriptPath }}",
+        "options": {}
+      },
+      "id": "aee5fc08-40b0-49c8-8c26-19cf2707ba05",
+      "name": "Read Transcript1",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1840,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get data from previous nodes\nconst talkData = $('Find Transcript Path1').item.json;\nconst transcriptContent = $('Read Transcript1').item.json.fileContent || '';\n\n// Try to read metadata file if it exists\nlet metadata = {};\nconst metadataFiles = $('Read Talk Metadata1').all();\nconst metadataFile = metadataFiles.find(file => \n  file.json.fileName.includes(talkData.talk_id)\n);\n\nif (metadataFile && metadataFile.json.fileContent) {\n  try {\n    metadata = JSON.parse(metadataFile.json.fileContent);\n  } catch (e) {\n    console.log('Could not parse metadata');\n  }\n}\n\n// Prepare data for AI\nreturn {\n  talk_id: talkData.talk_id,\n  title: talkData.title || metadata.title || 'Untitled Talk',\n  talk_date: talkData.talk_date,\n  youtube_url: talkData.youtube_url,\n  speakers: metadata.speakers || [],\n  abstract: metadata.abstract || metadata.description || '',\n  track: metadata.track || 'Python',\n  transcript: transcriptContent.substring(0, 3000)\n};"
+      },
+      "id": "3ce496c1-f9fb-4e9a-9ec8-2d9288eb4849",
+      "name": "Prepare AI Data1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 1000,
+          "temperature": 0.7
+        }
+      },
+      "id": "2f5dd205-c664-473e-9297-ccaf1dd7b486",
+      "name": "Generate YouTube Description1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        288
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "mB4jRiOKFtbHKqCQ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxOutputTokens": 800,
+          "temperature": 0.7
+        }
+      },
+      "id": "8dd30d3a-5b88-4a39-9d17-aa627b535046",
+      "name": "Generate LinkedIn Post1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "mB4jRiOKFtbHKqCQ",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "social_content"
+      },
+      "id": "9888b2db-829c-4789-9a26-ed0cc7575c27",
+      "name": "Store YouTube Content1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2448,
+        288
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "social_content"
+      },
+      "id": "ca1545aa-9cf2-4414-a824-d0965be614b7",
+      "name": "Store LinkedIn Content1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2448,
+        480
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "notification_queue"
+      },
+      "id": "bde9ec22-89ba-4486-8b58-9d3d7058e7fb",
+      "name": "Queue Notification1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2656,
+        384
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "talks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "talk_id",
+              "keyValue": "={{ $('Find Transcript Path1').item.json.talk_id }}"
+            }
+          ]
+        }
+      },
+      "id": "abbfe0e0-12d2-4247-a716-245bda36580c",
+      "name": "Update Talk Status1",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2848,
+        384
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 📋 Workflow Setup\n\n### Required Credentials:\n1. **Supabase API** - Already configured\n2. **Google Gemini API** - Add in Credentials\n\n### Variables (Set in Workflow Settings):\n- `LOCAL_FILE_BASE_PATH`\n- `SOCIAL_MEDIA_OWNER_EMAIL`\n\n### How it works:\n1. Fetches talks with status \"new\"\n2. Reads metadata JSON and transcript TXT\n3. Generates content with Gemini\n4. Stores in Supabase\n5. Updates talk status",
+        "height": 280,
+        "width": 350
+      },
+      "id": "53520418-8628-4e23-8c74-0c2f51d8f742",
+      "name": "Setup Instructions1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        592,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚠️ Before Running\n\n1. Add Google Gemini credential:\n   - Go to Credentials\n   - Add \"Google Gemini API\"\n   - API Key: REDACTED\n\n2. Check file paths exist\n\n3. Ensure talks have status \"new\"",
+        "height": 200,
+        "width": 300,
+        "color": 5
+      },
+      "id": "cb274dec-5623-4e33-83e0-e453d2fbee4c",
+      "name": "Important1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        992,
+        128
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        608,
+        672
+      ],
+      "id": "e411bd5e-8e01-4c4d-881f-dd7b57a18cb3",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Get New Talks1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Talks1": {
+      "main": [
+        [
+          {
+            "node": "Any New Talks?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any New Talks?1": {
+      "main": [
+        [
+          {
+            "node": "Read Talk Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Talk Metadata1": {
+      "main": [
+        [
+          {
+            "node": "List Transcript Folders1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Transcript Folders1": {
+      "main": [
+        [
+          {
+            "node": "Find Transcript Path1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Transcript Path1": {
+      "main": [
+        [
+          {
+            "node": "Read Transcript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Transcript1": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI Data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store YouTube Content1": {
+      "main": [
+        [
+          {
+            "node": "Queue Notification1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store LinkedIn Content1": {
+      "main": [
+        [
+          {
+            "node": "Queue Notification1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Queue Notification1": {
+      "main": [
+        [
+          {
+            "node": "Update Talk Status1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get New Talks1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "31c0210d-f20f-4355-a7fd-84d4c6f85244",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "92dc32b9c68d819841e40281c518f3af52a042bd38e680f4aeebc61df49329a2"
+  },
+  "id": "2AJU4hOtU1bzDCul",
+  "tags": []
+}

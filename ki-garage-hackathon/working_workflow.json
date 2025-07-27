@@ -1,0 +1,69 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "29087947-9ecc-413e-834d-d52d70293652",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "talks",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "0304949b-0741-4bab-adf7-a9bb0730dbaf"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        112
+      ],
+      "id": "1c936661-b40e-49f2-99e8-ed592565af81",
+      "name": "Get a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "O8wamqinRSjhSdl0",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2f3c7e40-b52a-43eb-bc52-4d28c29b9552",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "92dc32b9c68d819841e40281c518f3af52a042bd38e680f4aeebc61df49329a2"
+  },
+  "id": "zIWa7qLSMcOKdpYW",
+  "tags": []
+}

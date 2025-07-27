@@ -1,0 +1,547 @@
+{
+  "name": "PyTube Content Generation Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "a8c8d8f5-1234-4567-8901-234567890123",
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "list",
+        "folderPath": "={{$env.LOCAL_FILE_BASE_PATH}}/pyconde-pydata-2025/pretalx_records",
+        "options": {
+          "recursive": false,
+          "onlyFiles": true,
+          "fileExtensions": "json"
+        }
+      },
+      "id": "b8c8d8f5-1234-4567-8901-234567890124",
+      "name": "List Metadata Files",
+      "type": "n8n-nodes-base.localFileTrigger",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "filePath": "={{$json.path}}",
+        "options": {
+          "encoding": "utf8",
+          "format": "json"
+        }
+      },
+      "id": "c8c8d8f5-1234-4567-8901-234567890125",
+      "name": "Read Metadata JSON",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "talks",
+        "returnAll": false,
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "column": "talk_id",
+              "condition": "eq",
+              "value": "={{$json.code}}"
+            }
+          ]
+        }
+      },
+      "id": "d8c8d8f5-1234-4567-8901-234567890126",
+      "name": "Check Existing Talk",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.data.length}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "e8c8d8f5-1234-4567-8901-234567890127",
+      "name": "New Talk?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "talks",
+        "columns": [
+          {
+            "column": "talk_id",
+            "value": "={{$node['Read Metadata JSON'].json.code}}"
+          },
+          {
+            "column": "title",
+            "value": "={{$node['Read Metadata JSON'].json.title}}"
+          },
+          {
+            "column": "talk_date",
+            "value": "={{$node['Read Metadata JSON'].json.slot.start}}"
+          },
+          {
+            "column": "processing_status",
+            "value": "new"
+          }
+        ]
+      },
+      "id": "f8c8d8f5-1234-4567-8901-234567890128",
+      "name": "Insert Talk",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "filePath": "={{$env.LOCAL_FILE_BASE_PATH}}/pyconde-pydata-2025/transcriptions/*{{$node['Read Metadata JSON'].json.code}}*/transcript.txt",
+        "options": {
+          "encoding": "utf8"
+        }
+      },
+      "id": "g8c8d8f5-1234-4567-8901-234567890129",
+      "name": "Read Transcript",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "resource": "chatCompletion",
+        "operation": "create",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a professional content creator for tech conferences. Generate engaging YouTube descriptions from talk metadata and transcripts."
+            },
+            {
+              "role": "user",
+              "content": "Generate a YouTube description for this talk:\n\nTitle: {{$node['Read Metadata JSON'].json.title}}\nSpeaker(s): {{$node['Read Metadata JSON'].json.speakers.map(s => s.name).join(', ')}}\nTrack: {{$node['Read Metadata JSON'].json.track}}\n\nAbstract: {{$node['Read Metadata JSON'].json.abstract}}\n\nTranscript excerpt:\n{{$json.data.substring(0, 2000)}}\n\nUse this template:\nTitle: [TALK_TITLE]\nSpeaker(s): [SPEAKER_NAMES]\n\nDescription:\n[AI_GENERATED_SUMMARY]\n\nKey Topics:\n[AI_GENERATED_BULLET_POINTS]\n\nAbout the Speaker(s):\n[SPEAKER_BIOS]\n\nTimestamps:\n[AI_GENERATED_TIMESTAMPS]\n\nConference: PyCon DE & PyData 2025\nTrack: [TRACK_NAME]"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "h8c8d8f5-1234-4567-8901-234567890130",
+      "name": "Generate YouTube Description",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "social_content",
+        "columns": [
+          {
+            "column": "talk_id",
+            "value": "={{$node['Read Metadata JSON'].json.code}}"
+          },
+          {
+            "column": "platform",
+            "value": "youtube"
+          },
+          {
+            "column": "content_type",
+            "value": "description"
+          },
+          {
+            "column": "generated_content",
+            "value": "={{$json.choices[0].message.content}}"
+          },
+          {
+            "column": "status",
+            "value": "generated"
+          },
+          {
+            "column": "owner_email",
+            "value": "={{$env.SOCIAL_MEDIA_OWNER_EMAIL}}"
+          }
+        ]
+      },
+      "id": "i8c8d8f5-1234-4567-8901-234567890131",
+      "name": "Store YouTube Content",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1850, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "chatCompletion",
+        "operation": "create",
+        "model": "gpt-4",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a professional content creator for tech conferences. Generate engaging LinkedIn posts from talk metadata and transcripts. Keep it professional but engaging, under 3000 characters."
+            },
+            {
+              "role": "user",
+              "content": "Generate a LinkedIn post for this talk:\n\nTitle: {{$node['Read Metadata JSON'].json.title}}\nSpeaker(s): {{$node['Read Metadata JSON'].json.speakers.map(s => s.name).join(', ')}}\n\nAbstract: {{$node['Read Metadata JSON'].json.abstract}}\n\nUse this template:\n🎯 [AI_GENERATED_HOOK]\n\n[AI_GENERATED_KEY_INSIGHT]\n\nIn this talk, [SPEAKER_NAME] explores [AI_GENERATED_TOPIC_SUMMARY]\n\nKey takeaways:\n[AI_GENERATED_TAKEAWAYS]\n\nWatch the full talk: [YOUTUBE_URL]\n\n#python #pycon2025 #[RELEVANT_HASHTAGS]"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 800
+        }
+      },
+      "id": "j8c8d8f5-1234-4567-8901-234567890132",
+      "name": "Generate LinkedIn Post",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1650, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "2",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "social_content",
+        "columns": [
+          {
+            "column": "talk_id",
+            "value": "={{$node['Read Metadata JSON'].json.code}}"
+          },
+          {
+            "column": "platform",
+            "value": "linkedin"
+          },
+          {
+            "column": "content_type",
+            "value": "post"
+          },
+          {
+            "column": "generated_content",
+            "value": "={{$json.choices[0].message.content}}"
+          },
+          {
+            "column": "status",
+            "value": "generated"
+          },
+          {
+            "column": "owner_email",
+            "value": "={{$env.SOCIAL_MEDIA_OWNER_EMAIL}}"
+          }
+        ]
+      },
+      "id": "k8c8d8f5-1234-4567-8901-234567890133",
+      "name": "Store LinkedIn Content",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1850, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$node['Read Metadata JSON'].json.speakers[0].email}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "l8c8d8f5-1234-4567-8901-234567890134",
+      "name": "Has Speaker Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "notification_queue",
+        "columns": [
+          {
+            "column": "talk_id",
+            "value": "={{$node['Read Metadata JSON'].json.code}}"
+          },
+          {
+            "column": "recipient_type",
+            "value": "speaker"
+          },
+          {
+            "column": "recipient_email",
+            "value": "={{$node['Read Metadata JSON'].json.speakers[0].email}}"
+          },
+          {
+            "column": "notification_type",
+            "value": "content_ready_for_review"
+          }
+        ]
+      },
+      "id": "m8c8d8f5-1234-4567-8901-234567890135",
+      "name": "Queue Speaker Notification",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2250, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "notification_queue",
+        "columns": [
+          {
+            "column": "talk_id",
+            "value": "={{$node['Read Metadata JSON'].json.code}}"
+          },
+          {
+            "column": "recipient_type",
+            "value": "social_media_owner"
+          },
+          {
+            "column": "recipient_email",
+            "value": "={{$env.SOCIAL_MEDIA_OWNER_EMAIL}}"
+          },
+          {
+            "column": "notification_type",
+            "value": "content_ready_for_review"
+          }
+        ]
+      },
+      "id": "n8c8d8f5-1234-4567-8901-234567890136",
+      "name": "Queue Social Media Owner Notification",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2250, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "List Metadata Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List Metadata Files": {
+      "main": [
+        [
+          {
+            "node": "Read Metadata JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Metadata JSON": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Talk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Talk": {
+      "main": [
+        [
+          {
+            "node": "New Talk?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New Talk?": {
+      "main": [
+        [
+          {
+            "node": "Insert Talk",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Insert Talk": {
+      "main": [
+        [
+          {
+            "node": "Read Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Transcript": {
+      "main": [
+        [
+          {
+            "node": "Generate YouTube Description",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate LinkedIn Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate YouTube Description": {
+      "main": [
+        [
+          {
+            "node": "Store YouTube Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate LinkedIn Post": {
+      "main": [
+        [
+          {
+            "node": "Store LinkedIn Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store YouTube Content": {
+      "main": [
+        [
+          {
+            "node": "Has Speaker Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store LinkedIn Content": {
+      "main": [
+        [
+          {
+            "node": "Queue Social Media Owner Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Speaker Email?": {
+      "main": [
+        [
+          {
+            "node": "Queue Speaker Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Queue Social Media Owner Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "pytube-content-pipeline"
+  },
+  "pinData": {},
+  "versionId": "1.0",
+  "triggerCount": 0,
+  "tags": []
+}
