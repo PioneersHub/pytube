@@ -12,7 +12,7 @@ readme = "README.md"
 license-files = [
     "LICENSE",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
     # "pytanis>=0.9",

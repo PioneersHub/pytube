@@ -74,10 +74,11 @@ class VideoPresenterDetector:
     def __init__(self, cfg: DictConfig):
         """Initialize with configuration"""
         self.cfg = cfg
+        self.base_dir = Path(cfg.base_dir)
         self.break_references = []
         self.mapping_data = None
         self._load_mapping_data()
-        self.video_output_folder = Path(self.cfg.output.folder).resolve()
+        self.video_output_folder = (self.base_dir / self.cfg.output.subfolder).resolve()
         self.processing_plan_path = self.video_output_folder / "processing_plan.json"
         self.processing_plan = []
 
@@ -139,7 +140,7 @@ class VideoPresenterDetector:
                 return []
 
             # Get list of video files
-            input_folder = Path(self.cfg.input.folder)
+            input_folder = self.base_dir / self.cfg.input.subfolder
             video_files = self.get_video_files(input_folder, self.cfg.input.extensions)
             if not video_files:
                 logger.info("No video files found")
@@ -150,23 +151,37 @@ class VideoPresenterDetector:
             for video_path in video_files:
                 video_name = video_path.name
 
+                # Parse video filename to get Day, TimePeriod, Room
+                video_info = self.parse_video_filename(video_name)
+                if not video_info:
+                    logger.warning(f"Could not parse video filename: {video_name}")
+                    continue
+
                 # Get output folder from mapping
                 output_folder = self.get_output_folder(video_path)
                 if not output_folder:
                     logger.info(f"No output folder found for {video_name}")
                     continue
 
+                # Get all presentations for this Day/TimePeriod/Room combination
                 presentations = (
-                    self.mapping_data.filter(pl.col("Recording") == Path(video_path).name)
+                    self.mapping_data.filter(
+                        (pl.col("Day") == video_info['day']) &
+                        (pl.col("TimePeriod") == video_info['time_period']) &
+                        (pl.col("Room") == video_info['room'])
+                    )
                     .sort("Start (time)")
                     .to_dicts()
                 )
+
+                logger.info(f"Found {len(presentations)} presentations for {video_name}")
 
                 # Create plan entry
                 plan_entry = {
                     "input_video": str(video_path),
                     "output_folder": str(output_folder),
                     "presentations": presentations,
+                    "video_info": video_info,  # Include parsed info for debugging
                 }
                 processing_plan.append(plan_entry)
 
@@ -265,7 +280,6 @@ class VideoPresenterDetector:
 
         except Exception as e:
             logger.info(f"Error processing video {plan.get('input_video')}: {str(e)}")
-            import traceback
 
             traceback.print_exc()
             return False
@@ -420,7 +434,7 @@ class VideoPresenterDetector:
             )
 
         # Save the top break screens for verification
-        detected_dir = Path(self.cfg.break_detection.detected_screens_dir)
+        detected_dir = self.base_dir / self.cfg.break_detection.detected_screens_subfolder
         detected_dir.mkdir(parents=True, exist_ok=True)
         for i, screen in enumerate(top_break_screens):
             cv2.imwrite(str(detected_dir / f"break_screen_{i + 1}.jpg"), screen)
@@ -716,8 +730,8 @@ class VideoPresenterDetector:
             return []
 
         # Try to load provided break images first
-        break_images_dir = self.cfg.break_detection.images_dir
-        self.break_references = self.load_break_images(break_images_dir)
+        break_images_dir = self.base_dir / self.cfg.break_detection.images_subfolder
+        self.break_references = self.load_break_images(str(break_images_dir))
 
         # If no break images provided or found, and auto-detect is enabled, detect them automatically
         if not self.break_references and self.cfg.break_detection.auto_detect:
@@ -833,7 +847,7 @@ class VideoPresenterDetector:
                 str(int(duration)),
                 "-c",
                 "copy",
-                output_video,
+                str(output_video),
             ]
             logger.info(f"Command: {' '.join(video_cmd)}")
             result = subprocess.run(video_cmd, capture_output=True, text=True, check=False)
@@ -847,7 +861,7 @@ class VideoPresenterDetector:
                 audio_cmd = [
                     "ffmpeg",
                     "-i",
-                    output_video,
+                    str(output_video),
                     "-vn",
                     "-ar",
                     "44100",
@@ -857,7 +871,7 @@ class VideoPresenterDetector:
                     "192k",
                     "-f",
                     "mp3",
-                    output_audio,
+                    str(output_audio),
                 ]
                 logger.info(f"Extracting audio for presentation {i + 1}...")
                 logger.info(f"Command: {' '.join(audio_cmd)}")
@@ -870,29 +884,105 @@ class VideoPresenterDetector:
     def _load_mapping_data(self):
         """Load mapping data from file"""
         try:
-            import polars as pl
-
             # Read the mapping file from config
-            mapping_file = self.cfg.input.mapping_file
-            self.mapping_data = pl.read_parquet(mapping_file)
+            mapping_file = self.base_dir / self.cfg.input.mapping_file
+            self.mapping_data = pl.read_parquet(str(mapping_file))
             logger.info(f"Loaded mapping data from {mapping_file}")
 
         except Exception as e:
             logger.info(f"Warning: Could not load mapping file: {e}")
             self.mapping_data = None
 
+    def parse_video_filename(self, filename: str) -> dict | None:
+        """
+        Parse video filename to extract Day, TimePeriod, and Room
+        
+        Example inputs:
+        - 'pyconde_&_pydata_2025_-_zeiss_plenary_(spectrum)_-_wednesday_morning (1080p).mp4'
+        - 'PyCon DE & PyData 2025 - Ferrum - Thursday Afternoon.mp4'
+        
+        Returns:
+            dict with 'day', 'time_period', 'room' keys or None if parsing fails
+        """
+        import re
+        
+        # Remove file extension and quality indicators
+        name = Path(filename).stem
+        name = re.sub(r'\s*\(\d+p\)\s*$', '', name)  # Remove (1080p), (720p), etc.
+        
+        # Try different patterns
+        patterns = [
+            # Pattern 1: conference_-_room_-_day_timeperiod (with underscores)
+            r'pyconde_&_pydata_\d+_-_(.+?)_-_(\w+day)_(\w+)',
+            # Pattern 2: Conference - Room - Day TimePeroid (with spaces/dashes)
+            r'PyCon.*?DE.*?PyData.*?\d+\s*[-]\s*(.+?)\s*[-]\s*(\w+day)\s+(\w+)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, name, re.IGNORECASE)
+            if match:
+                room_raw = match.group(1).strip()
+                day_raw = match.group(2).strip()
+                time_raw = match.group(3).strip()
+                
+                # Normalize room name
+                room = room_raw.replace('_', ' ').title()
+                # Special cases for room names
+                if 'zeiss' in room.lower() and 'plenary' in room.lower():
+                    room = 'Zeiss Plenary (Spectrum)'
+                elif 'ferrum' in room.lower():
+                    room = 'Ferrum'
+                elif 'dynamicum' in room.lower():
+                    room = 'Dynamicum'
+                
+                # Normalize day (capitalize first letter)
+                day = day_raw.capitalize()
+                
+                # Normalize time period
+                time_period = time_raw.capitalize()
+                if time_period.lower() in ['morning', 'am']:
+                    time_period = 'Morning'
+                elif time_period.lower() in ['afternoon', 'pm']:
+                    time_period = 'Afternoon'
+                
+                result = {
+                    'day': day,
+                    'time_period': time_period,
+                    'room': room
+                }
+                logger.info(f"Parsed '{filename}' -> Day: {day}, TimePeriod: {time_period}, Room: {room}")
+                return result
+        
+        logger.warning(f"Could not parse video filename: {filename}")
+        return None
+
     def get_output_folder(self, video_path: Path) -> str | None:
-        """Get the output folder for a given video path from the Excel mapping"""
+        """Get the output folder for a video by matching Day, TimePeriod, and Room"""
         if self.mapping_data is None:
             return None
 
         try:
-            # Get output folder from mapping data
-            output_folder = self.mapping_data.filter(pl.col("Recording") == Path(video_path).name)
-            if output_folder is not None and len(output_folder) > 0:
-                # Get the Output_Folder column value
-                return output_folder.select("Output_Folder").unique().item()
-            return None
+            # Parse video filename to get Day, TimePeriod, Room
+            video_info = self.parse_video_filename(video_path.name)
+            if not video_info:
+                logger.warning(f"Could not parse video filename to extract Day/TimePeriod/Room: {video_path.name}")
+                return None
+            
+            # Filter mapping data by Day, TimePeriod, Room
+            matches = self.mapping_data.filter(
+                (pl.col("Day") == video_info['day']) &
+                (pl.col("TimePeriod") == video_info['time_period']) &
+                (pl.col("Room") == video_info['room'])
+            )
+            
+            if len(matches) > 0:
+                # Get the unique Output_Folder for these sessions
+                output_folder = matches.select("Output_Folder").unique().item()
+                logger.info(f"Matched {len(matches)} sessions for {video_path.name} -> {output_folder}")
+                return output_folder
+            else:
+                logger.warning(f"No sessions found for Day={video_info['day']}, TimePeriod={video_info['time_period']}, Room={video_info['room']}")
+                return None
 
         except Exception as e:
             logger.info(f"Warning: Could not get output folder: {e}")
@@ -922,7 +1012,6 @@ class VideoPresenterDetector:
         logger.info(f"Saved presentation metadata to {metadata_file}")
 
     def make_processing_plan(self):
-        # Generate processing plan
         logger.info("Generating processing plan...")
         processing_plan = self.generate_processing_plan()
         if not processing_plan:
@@ -942,7 +1031,7 @@ class VideoPresenterDetector:
         # logger.info summary
         logger.info(f"BATCH PROCESSING COMPLETE - {len(processing_plan)} videos")
 
-        success_count = sum(1 for _, success in results if success)
+        success_count = sum(1 for plan in results if plan.get("success", False))
         fail_count = len(results) - success_count
 
         logger.info(f"Successfully processed: {success_count}")
@@ -950,9 +1039,9 @@ class VideoPresenterDetector:
 
         if fail_count > 0:
             logger.info("Failed videos:")
-            for video_path, success in results:
-                if not success:
-                    logger.info(f"  - {video_path}")
+            for plan in results:
+                if not plan.get("success", False):
+                    logger.info(f"  - {plan['input_video']}")
 
 
 def main():
@@ -993,14 +1082,19 @@ def main():
         logger.info("Creating default config file...")
         default_cfg = OmegaConf.create(
             {
-                "input": {"video_path": "", "folder": "", "extensions": "mp4,mkv,avi,mov,webm"},
+                "base_dir": "/path/to/videos",
+                "input": {
+                    "subfolder": "input",
+                    "extensions": "mp4,mkv,avi,mov,webm",
+                    "mapping_file": "sessions.parquet",
+                },
                 "video": {"enable_resize": False, "processing_size": [320, 180]},
                 "break_detection": {
-                    "images_dir": "",
+                    "images_subfolder": "break_slides",
                     "threshold": 0.92,
                     "comparison_method": "template",
                     "auto_detect": True,
-                    "detected_screens_dir": "detected_break_screens",
+                    "detected_screens_subfolder": "break_screens_detected",
                 },
                 "presentation_detection": {
                     "min_interval": 5,
@@ -1010,7 +1104,8 @@ def main():
                     "cluster_threshold": 0.90,
                 },
                 "output": {
-                    "folder": "extracted_presentations",
+                    "subfolder": "output",
+                    "make_processing_plan": True,
                     "extract_presentations": False,
                     "extract_audio": True,
                     "save_metadata": True,
@@ -1027,15 +1122,15 @@ def main():
 
     # Override with command line arguments if provided
     if args.output:
-        cfg.output.folder = args.output
+        cfg.output.subfolder = args.output
     if args.break_images:
-        cfg.break_detection.images_dir = args.break_images
+        cfg.break_detection.images_subfolder = args.break_images
     if args.extract:
         cfg.output.extract_presentations = True
     if args.audio:
         cfg.output.extract_audio = True
     if args.input_folder:
-        cfg.input.folder = args.input_folder
+        cfg.input.subfolder = args.input_folder
 
     # Initialize detector
     detector = VideoPresenterDetector(cfg)

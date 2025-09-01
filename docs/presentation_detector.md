@@ -32,7 +32,7 @@ source .venv/bin/activate
 
 ```bash
 # Install with video processing dependencies
-uv pip install ".[video_processor]"
+uv pip install -e ".[video_processor]"
 ```
 
 3. **Install FFmpeg**: 
@@ -67,18 +67,21 @@ uv pip install ".[video_processor]"
 
 ## Configuration
 
-Configuration is stored in `config.yaml`. If not present, a default one will be created automatically.
+Configuration is stored in `src/video_processor/config.yaml`. If not present, a default one will be created automatically.
 
 Key configuration options:
 
 ```yaml
+# Base directory for all video processing
+base_dir: "/path/to/videos"
+
 input:
-  # Single video file path (leave empty to use folder)
-  video_path: ""
-  # Folder containing videos to batch process
-  folder: "input_videos"
+  # Subfolder under base_dir for input videos (relative path)
+  subfolder: "input"
   # File extensions to process from input folder
   extensions: "mp4,mkv,avi,mov,webm"
+  # Mapping file name (will be in base_dir)
+  mapping_file: "pyconde-pydata-2025_sessions.parquet"
 
 video:
   # Whether to resize frames for processing (speeds up detection but reduces accuracy)
@@ -87,61 +90,93 @@ video:
   processing_size: [320, 180]
 
 break_detection:
-  # Directory for break screen images (leave empty for auto-detection)
-  images_dir: ""
+  # Subfolder for break screen images (relative to base_dir)
+  images_subfolder: "break_slides"
   # Similarity threshold for break screen detection (0-1)
-  threshold: 0.92
+  threshold: 0.95
+  # Comparison method: "template" or "histogram"
+  comparison_method: "template"
   # Whether to auto-detect break screens if none provided
   auto_detect: true
+  # Subfolder to save detected break screens (relative to base_dir)
+  detected_screens_subfolder: "break_screens_detected"
+
+presentation_detection:
+  # Minimum precision interval in seconds for binary search
+  min_interval: 2
+  # Size of initial search chunks in seconds
+  chunk_size: 300
+  # Sampling interval for break screen detection in seconds
+  sampling_interval: 30
+  # Maximum number of samples to take
+  max_samples: 200
+  # Clustering threshold for break screen detection (0-1)
+  cluster_threshold: 0.90
 
 output:
-  # Base output folder for extracted presentations
-  folder: "extracted_presentations"
+  # Subfolder for extracted presentations (relative to base_dir)
+  subfolder: "output"
+  # Whether to make a processing plan: detect presentations and save to JSON
+  make_processing_plan: true
   # Whether to extract detected presentations as separate files
-  extract_presentations: true
+  extract_presentations: false
   # Whether to extract audio from presentations as MP3
   extract_audio: true
   # Whether to save presentation metadata as JSON
   save_metadata: true
+
+event:
+  # 24-hour format. Sessions before will be mapped to Morning, after to Afternoon
+  lunch_break_cut: 13
 ```
 
 ## Usage
 
+### Prerequisites
+
+1. **Prepare the mapping file (optional):**
+   If you're processing conference videos, you can create a mapping file that associates video files with session metadata:
+   ```bash
+   python -m src.video_processor.json_to_parquet path/to/sessions.json
+   ```
+   This creates a Parquet file with session information that helps organize the output.
+
+2. **Set up your base directory:**
+   Edit `src/video_processor/config.yaml` and set your `base_dir` to point to your video processing directory.
+
 ### Basic Usage
-
-#### Single Video Processing
-
-```bash
-python -m video_manager.presentation_detector path/to/video.mp4 --extract --audio
-```
-
-This will:
-- Process the specified video
-- Extract individual presentations as separate video files
-- Extract audio from each presentation
 
 #### Batch Processing
 
 ```bash
-python -m video_manager.presentation_detector --input-folder path/to/videos --extract --audio
+python -m src.video_processor.presentation_detector --config src/video_processor/config.yaml
+```
+
+This will:
+- Load videos from the configured input subfolder
+- Generate a processing plan with detected presentations
+- Save the plan to the output folder
+
+To also extract presentations and audio:
+
+```bash
+python -m src.video_processor.presentation_detector --config src/video_processor/config.yaml --extract --audio
 ```
 
 ### Advanced Options
 
 ```
-usage: python -m video_manager.presentation_detector [-h] [--config CONFIG] [--output OUTPUT]
-                                                    [--break-images BREAK_IMAGES] [--extract]
-                                                    [--audio] [--input-folder INPUT_FOLDER]
-                                                    [video_path]
+usage: python -m src.video_processor.presentation_detector [-h] [--config CONFIG] [--output OUTPUT]
+                                                          [--break-images BREAK_IMAGES] [--extract]
+                                                          [--audio] [--input-folder INPUT_FOLDER]
 
-arguments:
-  video_path                    Path to the video file to process
-  --config, -c CONFIG           Path to custom config file
-  --output, -o OUTPUT           Custom output folder for extracted presentations
-  --break-images, -b IMAGES     Directory containing break screen images
-  --extract, -e                 Extract presentations as separate files
-  --audio, -a                   Extract audio from presentations as MP3
-  --input-folder, -i FOLDER     Process all videos in specified folder
+options:
+  --config CONFIG               Path to configuration file (default: config.yaml)
+  --output OUTPUT               Output subfolder for extracted presentations (overrides config)
+  --break-images BREAK_IMAGES  Subfolder containing break screen images (overrides config)
+  --extract                     Extract presentations as separate files (overrides config)
+  --audio, -a                   Extract audio from presentations as MP3 (overrides config)
+  --input-folder, -i            Process all videos in the specified subfolder
   -h, --help                    Show help message
 ```
 
@@ -149,18 +184,41 @@ arguments:
 
 **Using custom break screen detection:**
 ```bash
-python -m video_manager.presentation_detector video.mp4 --break-images path/to/break/images
+python -m src.video_processor.presentation_detector --break-images break_slides_custom --extract
 ```
 
 **Using custom output location:**
 ```bash
-python -m video_manager.presentation_detector video.mp4 --output path/to/output/folder
+python -m src.video_processor.presentation_detector --output custom_output --extract
 ```
 
 **Using a custom config file:**
 ```bash
-python -m video_manager.presentation_detector --config path/to/custom/config.yaml
+python -m src.video_processor.presentation_detector --config path/to/custom/config.yaml
 ```
+
+**Processing videos from a specific input folder:**
+```bash
+python -m src.video_processor.presentation_detector --input-folder conference_recordings --extract --audio
+```
+
+## Features in Detail
+
+### Session Mapping
+
+When a mapping file is present, the tool can:
+- Match video files to conference sessions using Pretalx IDs
+- Organize output by Day/Time/Room structure
+- Generate sequential filenames with session titles and IDs
+- Track which sessions have been processed
+
+### Processing Plan Generation
+
+Before extraction, the tool creates a processing plan that:
+- Identifies all presentation segments in each video
+- Calculates exact start/end timestamps
+- Determines output paths based on mapping data
+- Can be reviewed and modified before extraction
 
 ## How It Works in Detail
 
@@ -202,21 +260,36 @@ For each detected presentation segment:
 
 ## Output Structure
 
-For each processed video, a subdirectory is created in the output folder:
+The tool uses a base directory structure with organized subfolders:
 
 ```
-output_folder/
-├── video1_name/
-│   ├── presentations.txt       # Text file with presentation times
-│   ├── video1_name_metadata.json   # JSON with detailed metadata
-│   ├── video1_name_presentation_1.mp4  # First presentation video
-│   ├── video1_name_presentation_1.mp3  # First presentation audio
-│   ├── video1_name_presentation_2.mp4  # Second presentation video
-│   └── video1_name_presentation_2.mp3  # Second presentation audio
-├── video2_name/
-│   └── ...
-└── ...
+base_dir/
+├── input/                    # Input videos to process
+│   ├── recording1.mp4
+│   └── recording2.mp4
+├── break_slides/            # Reference break screen images
+│   └── break_screen.png
+├── output/                  # Processing results
+│   ├── processing_plan.json # Generated processing plan
+│   ├── Day-TimePeriod-Room/ # Organized by session (if mapping file used)
+│   │   ├── 001_-_Talk_Title_[CODE].mp4
+│   │   ├── 001_-_Talk_Title_[CODE].mp3
+│   │   └── 001_-_Talk_Title_[CODE]_metadata.json
+│   └── video_name/          # Or by video name (if no mapping)
+│       ├── presentations.txt
+│       ├── video_name_presentation_1.mp4
+│       └── video_name_presentation_1.mp3
+└── sessions.parquet         # Optional mapping file
 ```
+
+### Processing Plan
+
+The tool generates a `processing_plan.json` that contains:
+- Detected presentation segments with timestamps
+- Output paths for each segment
+- Video metadata and duration information
+
+You can review this plan before running extraction to verify detection accuracy.
 
 ## Best Practices
 
