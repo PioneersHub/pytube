@@ -93,25 +93,6 @@ wheels = [
 ]
 
 [[package]]
-name = "anthropic"
-version = "0.69.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "anyio" },
-    { name = "distro" },
-    { name = "docstring-parser" },
-    { name = "httpx" },
-    { name = "jiter" },
-    { name = "pydantic" },
-    { name = "sniffio" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c8/9d/9ad1778b95f15c5b04e7d328c1b5f558f1e893857b7c33cd288c19c0057a/anthropic-0.69.0.tar.gz", hash = "sha256:c604d287f4d73640f40bd2c0f3265a2eb6ce034217ead0608f6b07a8bc5ae5f2", size = 480622, upload-time = "2025-09-29T16:53:45.282Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/38/75129688de5637eb5b383e5f2b1570a5cc3aecafa4de422da8eea4b90a6c/anthropic-0.69.0-py3-none-any.whl", hash = "sha256:1f73193040f33f11e27c2cd6ec25f24fe7c3f193dc1c5cde6b7a08b18a16bcc5", size = 337265, upload-time = "2025-09-29T16:53:43.686Z" },
-]
-
-[[package]]
 name = "antlr4-python3-runtime"
 version = "4.9.3"
 source = { registry = "https://pypi.org/simple" }
@@ -416,15 +397,6 @@ name = "docopt"
 version = "0.6.2"
 source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz", hash = "sha256:49b3a825280bd66b3aa83585ef59c4a8c82f2c8a522dbe754a8bc8d08c85c491", size = 25901, upload-time = "2014-06-16T11:18:57.406Z" }
-
-[[package]]
-name = "docstring-parser"
-version = "0.17.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b2/9d/c3b43da9515bd270df0f80548d9944e389870713cc1fe2b8fb35fe2bcefd/docstring_parser-0.17.0.tar.gz", hash = "sha256:583de4a309722b3315439bb31d64ba3eebada841f2e2cee23b99df001434c912", size = 27442, upload-time = "2025-07-21T07:35:01.868Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/e2/2537ebcff11c1ee1ff17d8d0b6f4db75873e3b0fb32c2d4a2ee31ecb310a/docstring_parser-0.17.0-py3-none-any.whl", hash = "sha256:cf2569abd23dce8099b300f9b4fa8191e9582dda731fd533daf54c4551658708", size = 36896, upload-time = "2025-07-21T07:35:00.684Z" },
-]
 
 [[package]]
 name = "et-xmlfile"
@@ -1592,7 +1564,8 @@ wheels = [
 
 [[package]]
 name = "pytanis"
-source = { directory = "../pytanis" }
+version = "0.9.6"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "httpx-auth" },
@@ -1604,39 +1577,10 @@ dependencies = [
     { name = "tomli" },
     { name = "tqdm" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "gspread", marker = "extra == 'all'", specifier = "<6.0" },
-    { name = "gspread", marker = "extra == 'google'", specifier = "<6.0" },
-    { name = "gspread-dataframe", marker = "extra == 'all'" },
-    { name = "gspread-dataframe", marker = "extra == 'google'" },
-    { name = "gspread-formatting", marker = "extra == 'all'" },
-    { name = "gspread-formatting", marker = "extra == 'google'" },
-    { name = "highspy", marker = "extra == 'all'" },
-    { name = "highspy", marker = "extra == 'optimization'" },
-    { name = "httpx" },
-    { name = "httpx-auth" },
-    { name = "ipywidgets", marker = "extra == 'all'" },
-    { name = "ipywidgets", marker = "extra == 'jupyter'" },
-    { name = "jupyter", marker = "extra == 'all'", specifier = ">=1.1.1" },
-    { name = "jupyter", marker = "extra == 'jupyter'", specifier = ">=1.1.1" },
-    { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "pandas", specifier = ">=2,<3" },
-    { name = "pandas-stubs", specifier = ">=2,<3" },
-    { name = "pillow", marker = "extra == 'all'" },
-    { name = "pydantic", specifier = ">=2.5" },
-    { name = "pyomo", marker = "extra == 'all'", specifier = ">=6.9.1" },
-    { name = "pyomo", marker = "extra == 'optimization'", specifier = ">=6.9.1" },
-    { name = "seaborn", marker = "extra == 'all'", specifier = ">=0.13.2" },
-    { name = "seaborn", marker = "extra == 'jupyter'", specifier = ">=0.13.2" },
-    { name = "structlog" },
-    { name = "tomli" },
-    { name = "tqdm" },
-    { name = "webcolors", marker = "extra == 'all'" },
-    { name = "webcolors", marker = "extra == 'google'" },
+sdist = { url = "https://files.pythonhosted.org/packages/67/6e/989949790c2219e41244bafaa7adfdadda07f272e1243b3016329e6bcbe9/pytanis-0.9.6.tar.gz", hash = "sha256:0624a15637c4d787734c8ebf9acd16ef26715269622cd663778066d54f12c7cf", size = 51034, upload-time = "2025-08-11T07:26:37.155Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/c2/4cf60ee703731662ad2fae43b181b8308ea921aac3360feace6808ef7f91/pytanis-0.9.6-py3-none-any.whl", hash = "sha256:444da0c59da89beecb55a1f2ee65d9ec42991cdf9551fef29fc5518d049b5a1a", size = 57884, upload-time = "2025-08-11T07:26:35.681Z" },
 ]
-provides-extras = ["all", "google", "jupyter", "optimization"]
 
 [[package]]
 name = "pytest"
@@ -2107,11 +2051,8 @@ dependencies = [
     { name = "omegaconf" },
     { name = "openai" },
     { name = "pandas" },
-    { name = "pillow" },
     { name = "protobuf" },
-    { name = "pydantic" },
     { name = "pytanis" },
-    { name = "pyvimeo" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "structlog" },
@@ -2121,30 +2062,19 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "anthropic" },
-    { name = "beautifulsoup4" },
     { name = "bump2version" },
     { name = "fastexcel" },
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-    { name = "google-auth-oauthlib" },
     { name = "httpx" },
-    { name = "jinja2" },
-    { name = "markdown" },
     { name = "mkdocs" },
     { name = "mkdocs-glightbox" },
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-open-in-new-tab" },
     { name = "mypy" },
     { name = "numpy" },
-    { name = "oauth2client" },
-    { name = "omegaconf" },
     { name = "opencv-python" },
     { name = "polars" },
     { name = "pre-commit" },
-    { name = "pydantic" },
     { name = "pymdown-extensions" },
-    { name = "pytanis" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -2153,7 +2083,6 @@ all = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "ruff" },
-    { name = "structlog" },
     { name = "xlsxwriter" },
 ]
 dev = [
@@ -2168,21 +2097,6 @@ docs = [
     { name = "mkdocs-material", extra = ["imaging"] },
     { name = "mkdocs-open-in-new-tab" },
     { name = "pymdown-extensions" },
-]
-pipeline = [
-    { name = "anthropic" },
-    { name = "beautifulsoup4" },
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-    { name = "google-auth-oauthlib" },
-    { name = "jinja2" },
-    { name = "markdown" },
-    { name = "oauth2client" },
-    { name = "omegaconf" },
-    { name = "pydantic" },
-    { name = "pytanis" },
-    { name = "pyyaml" },
-    { name = "structlog" },
 ]
 test = [
     { name = "httpx" },
@@ -2210,16 +2124,6 @@ test-runners = [
     { name = "pytest-watch" },
     { name = "pytest-xdist" },
 ]
-text-generation = [
-    { name = "anthropic" },
-    { name = "beautifulsoup4" },
-    { name = "markdown" },
-    { name = "omegaconf" },
-    { name = "pydantic" },
-    { name = "pytanis" },
-    { name = "pyyaml" },
-    { name = "structlog" },
-]
 video-processor = [
     { name = "fastexcel" },
     { name = "numpy" },
@@ -2232,44 +2136,21 @@ video-processor = [
 vimeo = [
     { name = "pyvimeo" },
 ]
-youtube = [
-    { name = "beautifulsoup4" },
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-    { name = "google-auth-oauthlib" },
-    { name = "jinja2" },
-    { name = "markdown" },
-    { name = "oauth2client" },
-    { name = "omegaconf" },
-    { name = "pydantic" },
-    { name = "pytanis" },
-    { name = "pyyaml" },
-    { name = "structlog" },
-]
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'text-generation'", specifier = ">=0.39.0" },
     { name = "beautifulsoup4", specifier = ">=4.13.4" },
-    { name = "beautifulsoup4", marker = "extra == 'text-generation'", specifier = ">=4.13.4" },
-    { name = "beautifulsoup4", marker = "extra == 'youtube'", specifier = ">=4.13.4" },
     { name = "bump2version", marker = "extra == 'dev'", specifier = ">=1.0.1" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "fastexcel", marker = "extra == 'video-processor'", specifier = ">=0.14.0" },
     { name = "google-api-python-client", specifier = ">=2.169.0" },
-    { name = "google-api-python-client", marker = "extra == 'youtube'", specifier = ">=2.169.0" },
-    { name = "google-auth", marker = "extra == 'youtube'", specifier = ">=2.36.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.2.2" },
-    { name = "google-auth-oauthlib", marker = "extra == 'youtube'", specifier = ">=1.2.2" },
     { name = "gspread", specifier = ">=5.12.0,<6.0" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.28.1" },
     { name = "httpx", marker = "extra == 'test-all'", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.4" },
-    { name = "jinja2", marker = "extra == 'youtube'", specifier = ">=3.1.4" },
     { name = "markdown", specifier = ">=3.8.2" },
-    { name = "markdown", marker = "extra == 'text-generation'", specifier = ">=3.8.2" },
-    { name = "markdown", marker = "extra == 'youtube'", specifier = ">=3.8.2" },
     { name = "mkdocs", marker = "extra == 'docs'" },
     { name = "mkdocs-glightbox", marker = "extra == 'docs'", specifier = ">=0.4.0" },
     { name = "mkdocs-material", extras = ["imaging"], marker = "extra == 'docs'", specifier = ">=9.6.12" },
@@ -2277,24 +2158,15 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "numpy", marker = "extra == 'video-processor'", specifier = ">=2.2.5" },
     { name = "oauth2client", specifier = ">=4.1.3" },
-    { name = "oauth2client", marker = "extra == 'youtube'", specifier = ">=4.1.3" },
     { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "omegaconf", marker = "extra == 'text-generation'", specifier = ">=2.3.0" },
-    { name = "omegaconf", marker = "extra == 'youtube'", specifier = ">=2.3.0" },
     { name = "openai", specifier = ">=1.78.0" },
     { name = "opencv-python", marker = "extra == 'video-processor'", specifier = ">=4.11.0.86" },
     { name = "pandas", specifier = ">=2.0.0" },
-    { name = "pillow", specifier = ">=10.4.0" },
     { name = "polars", marker = "extra == 'video-processor'", specifier = ">=1.29.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0" },
     { name = "protobuf", specifier = ">=6.31.1" },
-    { name = "pydantic", specifier = ">=2.11.7" },
-    { name = "pydantic", marker = "extra == 'text-generation'", specifier = ">=2.11.7" },
-    { name = "pydantic", marker = "extra == 'youtube'", specifier = ">=2.11.7" },
     { name = "pymdown-extensions", marker = "extra == 'docs'", specifier = ">=10.15" },
-    { name = "pytanis", directory = "../pytanis" },
-    { name = "pytanis", marker = "extra == 'text-generation'", directory = "../pytanis" },
-    { name = "pytanis", marker = "extra == 'youtube'", directory = "../pytanis" },
+    { name = "pytanis" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.1" },
     { name = "pytest", marker = "extra == 'test-all'", specifier = ">=8.4.1" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.21.0" },
@@ -2314,29 +2186,21 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'test-all'", specifier = ">=3.5.0" },
     { name = "pytest-xdist", marker = "extra == 'test-runners'", specifier = ">=3.5.0" },
     { name = "python-dotenv", marker = "extra == 'video-processor'", specifier = ">=0.9.9" },
-    { name = "pyvimeo", specifier = ">=1.1.2" },
     { name = "pyvimeo", marker = "extra == 'vimeo'", specifier = ">=1.1.2" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "pyyaml", marker = "extra == 'text-generation'", specifier = ">=6.0.2" },
     { name = "pyyaml", marker = "extra == 'video-processor'", specifier = ">=6.0.2" },
-    { name = "pyyaml", marker = "extra == 'youtube'", specifier = ">=6.0.2" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "structlog", specifier = ">=25.3.0" },
-    { name = "structlog", marker = "extra == 'text-generation'", specifier = ">=25.3.0" },
-    { name = "structlog", marker = "extra == 'youtube'", specifier = ">=25.3.0" },
     { name = "urllib3", specifier = ">=2.2.2" },
     { name = "video-manager", extras = ["dev"], marker = "extra == 'all'" },
     { name = "video-manager", extras = ["docs"], marker = "extra == 'all'" },
-    { name = "video-manager", extras = ["pipeline"], marker = "extra == 'all'" },
     { name = "video-manager", extras = ["test"], marker = "extra == 'all'" },
-    { name = "video-manager", extras = ["text-generation"], marker = "extra == 'pipeline'" },
     { name = "video-manager", extras = ["video-processor"], marker = "extra == 'all'" },
-    { name = "video-manager", extras = ["youtube"], marker = "extra == 'pipeline'" },
     { name = "xlsxwriter", specifier = ">=3.2.5" },
     { name = "xlsxwriter", marker = "extra == 'video-processor'", specifier = ">=3.2.3" },
 ]
-provides-extras = ["text-generation", "youtube", "pipeline", "test", "test-runners", "test-all", "dev", "docs", "video-processor", "vimeo", "all"]
+provides-extras = ["test", "test-runners", "test-all", "dev", "docs", "video-processor", "vimeo", "all"]
 
 [[package]]
 name = "virtualenv"

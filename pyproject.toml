@@ -282,5 +282,5 @@ docstring-code-format = true
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.uv.sources]
-pytanis = { path = "../pytanis" }
+# [tool.uv.sources]
+# pytanis = { path = "../pytanis" }

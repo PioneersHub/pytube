@@ -1,10 +1,10 @@
 # Base directory for all video processing
-base_dir: "/Users/hendorf/Downloads/videos"
+base_dir: "/Users/macmini/Downloads/videos/"
 
 # Input settings
 input:
   # Video extensions to process (comma-separated)
-  extensions: "mp4,mkv,avi,mov,webm"
+  extensions: ".mp4"
   # Subfolder under base_dir for input videos (relative path)
   subfolder: "input"
   # Mapping file name (will be in base_dir)

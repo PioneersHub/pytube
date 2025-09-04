@@ -914,31 +914,61 @@ class VideoPresenterDetector:
         patterns = [
             # Pattern 1: conference_-_room_-_day_timeperiod (with underscores)
             r'pyconde_&_pydata_\d+_-_(.+?)_-_(\w+day)_(\w+)',
-            # Pattern 2: Conference - Room - Day TimePeroid (with spaces/dashes)
+            # Pattern 2: pydata_berlin_2025_roomcode_day_N_timeperiod format
+            r'pydata_berlin_\d+_([^_]+)_day_(\d+)_(\w+)',
+            # Pattern 3: Conference - Room - Day TimePeroid (with spaces/dashes)
             r'PyCon.*?DE.*?PyData.*?\d+\s*[-]\s*(.+?)\s*[-]\s*(\w+day)\s+(\w+)',
         ]
         
-        for pattern in patterns:
+        for i, pattern in enumerate(patterns):
             match = re.search(pattern, name, re.IGNORECASE)
             if match:
-                room_raw = match.group(1).strip()
-                day_raw = match.group(2).strip()
-                time_raw = match.group(3).strip()
+                # Pattern 2 has different capture groups (room_code, day_number, timeperiod)
+                if i == 1:  # Pattern 2: pydata_berlin format
+                    room_raw = match.group(1).strip()
+                    day_number = match.group(2).strip()
+                    time_raw = match.group(3).strip()
+                    
+                    # Map room codes to room names, or capitalize room names
+                    room_map = {
+                        'b05-b06': 'B05-B06',
+                        'b07-b08': 'B07-B08', 
+                        'b09': 'B09',
+                        'kuppelsaal': 'Kuppelsaal',
+                        'ferrum': 'Ferrum',
+                        'dynamicum': 'Dynamicum'
+                    }
+                    room = room_map.get(room_raw.lower(), room_raw.title())
+                    
+                    # Convert day number to day name
+                    day_map = {
+                        '1': 'Monday',
+                        '2': 'Tuesday',
+                        '3': 'Wednesday',
+                        '4': 'Thursday',
+                        '5': 'Friday'
+                    }
+                    day = day_map.get(day_number, f'Day{day_number}')
+                else:
+                    # Patterns 1 and 3: original format
+                    room_raw = match.group(1).strip()
+                    day_raw = match.group(2).strip()
+                    time_raw = match.group(3).strip()
+                    
+                    # Normalize room name
+                    room = room_raw.replace('_', ' ').title()
+                    # Special cases for room names
+                    if 'zeiss' in room.lower() and 'plenary' in room.lower():
+                        room = 'Zeiss Plenary (Spectrum)'
+                    elif 'ferrum' in room.lower():
+                        room = 'Ferrum'
+                    elif 'dynamicum' in room.lower():
+                        room = 'Dynamicum'
+                    
+                    # Normalize day (capitalize first letter)
+                    day = day_raw.capitalize()
                 
-                # Normalize room name
-                room = room_raw.replace('_', ' ').title()
-                # Special cases for room names
-                if 'zeiss' in room.lower() and 'plenary' in room.lower():
-                    room = 'Zeiss Plenary (Spectrum)'
-                elif 'ferrum' in room.lower():
-                    room = 'Ferrum'
-                elif 'dynamicum' in room.lower():
-                    room = 'Dynamicum'
-                
-                # Normalize day (capitalize first letter)
-                day = day_raw.capitalize()
-                
-                # Normalize time period
+                # Normalize time period (common for all patterns)
                 time_period = time_raw.capitalize()
                 if time_period.lower() in ['morning', 'am']:
                     time_period = 'Morning'
