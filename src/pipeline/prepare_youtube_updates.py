@@ -146,7 +146,7 @@ def render_description(template_env: Environment, record: dict, channel: str) ->
 
 
 def create_youtube_update_metadata(record: dict, channel: str, description: str) -> dict:
-    """Create YouTube update metadata structure.
+    """Create YouTube API-compatible update request body.
 
     Args:
         record: Release record data
@@ -154,7 +154,7 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
         description: Rendered description text
 
     Returns:
-        YouTube metadata update structure
+        YouTube API request body (ready to send to videos.update)
     """
     ai_summaries = record.get("ai_summaries", {})
     pretalx_data = record.get("pretalx_data", {})
@@ -165,7 +165,6 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
     # Get title and YouTube ID
     title = pretalx_data.get("title", "")
     youtube_id = youtube_data.get("youtube_id", "")
-    pretalx_id = pretalx_data.get("code", "")
 
     # Get tags - prefer AI summary tags, fallback to keywords
     tags = ai_summaries.get("tags", [])
@@ -178,11 +177,10 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
     category_id = youtube_metadata.get("category_id", 28)
     privacy_status = youtube_metadata.get("privacy_status", "unlisted")
 
-    # Build update structure matching YouTubeVideoMetadata model
-    update_data = {
-        "video_id": youtube_id,
-        "pretalx_id": pretalx_id,
-        "channel": channel,
+    # Build YouTube API-compatible request body
+    # Structure matches YouTube Data API v3 videos.update format
+    api_body = {
+        "id": youtube_id,  # YouTube requires 'id', not 'video_id'
         "snippet": {
             "title": title,
             "description": description,
@@ -198,7 +196,7 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
         },
     }
 
-    return update_data
+    return api_body
 
 
 def main():
@@ -257,12 +255,12 @@ def main():
             skipped += 1
             continue
 
-        # Create metadata update
-        update_metadata = create_youtube_update_metadata(record, channel, description)
+        # Create YouTube API request body
+        api_body = create_youtube_update_metadata(record, channel, description)
 
         # Save to file
         output_file = output_dir / f"{pretalx_id}.json"
-        paths.save_json(update_metadata, "youtube_records", "update", f"{pretalx_id}.json")
+        paths.save_json(api_body, "youtube_records", "update", f"{pretalx_id}.json")
 
         logger.info(
             "generated_update_file",
