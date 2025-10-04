@@ -1,7 +1,7 @@
 """Generate AI-powered summaries for video sessions using Claude API.
 
 Combines Pretalx data, transcripts, and speaker information to create
-professional summaries suitable for YouTube descriptions and social media.
+professional summaries in multiple lengths suitable for YouTube descriptions and social media.
 """
 
 import json
@@ -16,6 +16,10 @@ from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+
+
+# Claude 3.5 Sonnet model
+CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
 
 
 def load_transcript(transcript_dir: Path) -> str | None:
@@ -36,138 +40,405 @@ def extract_pretalx_id_from_dirname(dirname: str) -> str | None:
     return match.group(1) if match else None
 
 
-def prepare_claude_prompt(session: SessionRecord, transcript: str | None) -> str:
-    """Build prompt for Claude API to generate professional summary."""
-
-    # Prepare speaker information
+def prepare_speaker_info(session: SessionRecord) -> str:
+    """Format speaker information for prompts."""
     speaker_info = []
     for speaker in session.speakers:
         info = f"- {speaker.name}"
         if speaker.biography:
             info += f": {speaker.biography}"
         speaker_info.append(info)
-    speakers_text = "\n".join(speaker_info) if speaker_info else "Not available"
+    return "\n".join(speaker_info) if speaker_info else "Not available"
 
-    # Build prompt
-    prompt = f"""You are a professional technical writer creating a summary for a conference talk video.
 
-INPUT DATA:
+def prepare_long_summary_prompt(session: SessionRecord, transcript: str) -> str:
+    """Build prompt for 400-word comprehensive summary."""
+    speakers_text = prepare_speaker_info(session)
+
+    return f"""You are writing a formal program note for a conference talk video. Write in a professional,
+descriptive style - similar to academic conference abstracts but accessible to practitioners.
+
+PRESENTATION DETAILS:
 Title: {session.title}
+Speakers:
+{speakers_text}
+Track: {session.track}
+Type: {session.submission_type}
 
-Abstract: {session.abstract}
+FULL TRANSCRIPT:
+{transcript}
 
-Description: {session.description}
+NOTE ON TRANSCRIPT SPEAKERS:
+The transcript contains multiple speakers:
+- Session chair/MC: Introduces the speaker(s), handles logistics
+- Main presenter(s): Delivers the actual talk content
+- Audience members: Ask questions during Q&A
+Focus your summary on what the MAIN PRESENTER(S) discuss, not the introduction or Q&A.
 
+TASK:
+Write a comprehensive 400-word description in formal program notes style.
+
+REQUIREMENTS:
+1. Use third-person, PRESENT TENSE ("The speaker demonstrates...", "They discuss...", "The presentation covers...")
+2. Extract comprehensive keywords including:
+   - Technical tools/frameworks (FastAPI, Docker, Streamlit, etc.)
+   - Methodologies (RAG, MLOps, microservices, agile, etc.)
+   - Domain areas (generative AI, data engineering, machine learning, etc.)
+   - Use cases (prototype scaling, production deployment, API integration, etc.)
+   - Key concepts (vector databases, infrastructure-as-code, async programming, etc.)
+3. Describe the talk structure and progression
+4. Include specific examples, metrics, or anecdotes shared
+5. Mention key lessons or takeaways
+6. If there was audience Q&A, briefly note interesting technical questions (optional)
+7. Technical but accessible language
+8. NO marketing language, hype, or exclamation marks
+9. NO stereotypes or generalizations about groups, nationalities, cultures, or demographics
+10. Formal, informative, respectful tone
+11. Focus on WHAT IS PRESENTED, not on what viewers will learn
+
+OUTPUT FORMAT:
+Return a JSON object with:
+{{
+  "summary": "400-word description text",
+  "teaser": "One compelling sentence (15-25 words) capturing the talk's essence in present tense",
+  "keywords": ["keyword1", "keyword2", ...] // 10-15 diverse keywords from all categories above
+}}
+
+Plain text summary, ~400 words. Start with a clear opening sentence about what is presented.
+Teaser should be standalone, engaging, and suitable for YouTube description headers."""
+
+
+def prepare_short_summary_prompt(session: SessionRecord, transcript: str) -> str:
+    """Build prompt for 200-word concise summary."""
+    speakers_text = prepare_speaker_info(session)
+
+    return f"""You are writing a formal program note for a conference talk video.
+
+PRESENTATION DETAILS:
+Title: {session.title}
+Speakers:
+{speakers_text}
+Track: {session.track}
+
+FULL TRANSCRIPT:
+{transcript}
+
+NOTE: Focus on the main presenter(s) content, not session chair or audience.
+
+TASK:
+Write a concise 200-word description in formal program notes style.
+
+REQUIREMENTS:
+1. Third-person, PRESENT TENSE
+2. Focus on main points and key topics
+3. Extract diverse keywords (technologies, methodologies, domains, use cases, concepts)
+4. Highlight main takeaway
+5. Formal, informative tone
+6. NO marketing language
+7. NO stereotypes or generalizations about groups/cultures
+
+OUTPUT FORMAT:
+Return a JSON object with:
+{{
+  "summary": "200-word description text",
+  "keywords": ["keyword1", "keyword2", ...] // 8-12 keywords including tech, methodologies, domains
+}}"""
+
+
+def prepare_social_summary_prompt(session: SessionRecord, transcript: str) -> str:
+    """Build prompt for 200-character social media snippet."""
+
+    # Extract first 2000 chars of transcript for context
+    transcript_preview = transcript[:2000]
+
+    return f"""Create a concise social media teaser for a conference talk.
+
+PRESENTATION:
+Title: {session.title}
+Track: {session.track}
+
+TRANSCRIPT PREVIEW:
+{transcript_preview}
+
+TASK:
+Create a factual 200-character social media teaser in present tense.
+
+REQUIREMENTS:
+1. State what the talk covers (no promotional language like "discover", "revolutionizing", "learn how")
+2. Include 2-3 key technologies mentioned
+3. Use present tense, third person
+4. Professional, informative tone (like a program abstract)
+5. Can include 1-2 relevant technical hashtags
+6. STRICT LIMIT: Must be UNDER 200 characters (count carefully!)
+7. NO marketing language, hype words, or exclamation marks
+8. NO stereotypes
+9. Focus on technical content, not selling the value
+
+EXAMPLES OF GOOD STYLE:
+- "Presenter demonstrates FastAPI migration from Django, covering authentication, async patterns, deployment. #Python #WebDev"
+- "Talk examines LLM prompt engineering techniques using LangChain, vector DBs, RAG patterns in production. #AI #Python"
+
+EXAMPLES TO AVOID:
+- "🔥 Discover how...", "Learn the secrets...", "Revolutionary approach..."
+- Any language that sounds like advertising
+
+OUTPUT FORMAT:
+Return plain text only, strictly under 200 characters."""
+
+
+def prepare_quote_extraction_prompt(session: SessionRecord, transcript: str) -> str:
+    """Build prompt for extracting 3 most impactful quotes."""
+    speakers_text = prepare_speaker_info(session)
+
+    # Extract speaker names for attribution
+    speaker_names = [speaker.name for speaker in session.speakers]
+    speaker_names_list = ", ".join(speaker_names)
+
+    return f"""Extract the most impactful quotes from a conference talk transcript.
+
+PRESENTATION:
+Title: {session.title}
 Speakers:
 {speakers_text}
 
-Submission Type: {session.submission_type}
-Track: {session.track}
-"""
+SPEAKER NAMES FOR ATTRIBUTION: {speaker_names_list}
 
-    if transcript:
-        # Truncate transcript if too long (keep first ~8000 chars for context)
-        transcript_preview = transcript[:8000] + "..." if len(transcript) > 8000 else transcript
-        prompt += f"""
-Transcript:
-{transcript_preview}
-"""
+FULL TRANSCRIPT:
+{transcript}
 
-    prompt += """
 TASK:
-Create a concise, professional summary (150-250 words) for a tech-savvy audience that will be used in YouTube descriptions and social media posts.
+Extract the 3 MOST IMPACTFUL AND IMPORTANT quotes from the main presenter(s).
 
-REQUIREMENTS:
-1. Correct any technical term misspellings found in the transcript
-2. Highlight the key takeaways and main topics covered
-3. Make it engaging and informative
-4. Use present tense and active voice
-5. Include relevant technical keywords naturally
-6. Start with a hook that captures attention
-7. End with what viewers will learn or gain
-8. Write in a professional but accessible tone
+INSTRUCTIONS:
+1. Identify the main presenter(s) - NOT the session chair or audience members
+   - Session chairs typically introduce speakers, say "please welcome", handle logistics
+   - Main presenters deliver content, use "I/we/our", explain technical concepts
+   - Audience members ask questions during Q&A
+
+2. Select quotes that are:
+   - Particularly insightful or memorable
+   - CONCISE (max 2-3 sentences, preferably 1 sentence)
+   - Capture key technical insights or lessons learned
+   - Demonstrate the speaker's expertise or perspective
+   - Include technical depth or practical wisdom
+   - Represent authentic experiences from the project/work
+
+3. MUST AVOID:
+   - Long rambling quotes (keep them short and punchy!)
+   - Introduction/logistics from session chair
+   - Generic statements
+   - Questions from audience
+   - Filler words or incomplete thoughts
+   - **STEREOTYPES or generalizations about groups, nationalities, cultures, or demographics**
+   - **Cultural or national characterizations (even if made by the speaker)**
+   - **Any content that could perpetuate bias**
+
+4. If a speaker makes a joke or comment involving stereotypes, skip it and find another quote
+
+5. Speaker attribution:
+   - Use FULL NAME (e.g., "Dennis Weyland") or FIRST NAME ONLY (e.g., "Dennis")
+   - DO NOT use only family name (e.g., NOT "Weyland")
+   - Match to one of the speakers from the list: {speaker_names_list}
+   - If multiple presenters, identify which one said each quote
+
+6. Keep quotes SHORT - maximum 2-3 sentences, ideally 1 sentence
+
+7. Provide brief context for each quote
 
 OUTPUT FORMAT:
-Return ONLY the summary text. No additional commentary, no formatting markers, just the clean summary text.
-"""
+Return a JSON array:
+[
+  {{
+    "text": "short, punchy quote (max 2-3 sentences)",
+    "speaker": "Full Name or First Name from speaker list",
+    "context": "brief context (one sentence)"
+  }},
+  ...
+]
 
-    return prompt
+Return exactly 3 quotes, or fewer if insufficient appropriate quotes exist."""
 
 
-def generate_summary_with_claude(
-    session: SessionRecord, transcript: str | None, client: Anthropic, model: str, logger
-) -> dict:
-    """Generate AI summary using Claude API.
-
-    Returns dict with:
-        - summary: Generated summary text
-        - metadata: Generation metadata (timestamp, model, etc.)
-    """
-
-    prompt = prepare_claude_prompt(session, transcript)
-
+def call_claude_api(client: Anthropic, prompt: str, max_tokens: int, logger) -> str:
+    """Make API call to Claude and return response text."""
     try:
-        logger.info(
-            "Generating summary with Claude",
-            session_code=session.code,
-            has_transcript=transcript is not None,
-            transcript_length=len(transcript) if transcript else 0,
-        )
-
         response = client.messages.create(
-            model=model, max_tokens=500, temperature=0.7, messages=[{"role": "user", "content": prompt}]
+            model=CLAUDE_MODEL, max_tokens=max_tokens, temperature=0.7, messages=[{"role": "user", "content": prompt}]
         )
 
-        summary_text = response.content[0].text.strip()
-        word_count = len(summary_text.split())
-
-        metadata = {
-            "generated_at": datetime.now(UTC).isoformat(),
-            "model": model,
-            "has_transcript": transcript is not None,
-            "word_count": word_count,
-            "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens,
-        }
-
-        logger.info(
-            "Summary generated successfully",
-            session_code=session.code,
-            word_count=word_count,
-            tokens_used=response.usage.input_tokens + response.usage.output_tokens,
-        )
-
-        return {"summary": summary_text, "metadata": metadata}
+        return response.content[0].text.strip(), response.usage
 
     except Exception as e:
-        logger.error("Failed to generate summary", session_code=session.code, error=str(e))
+        logger.error(f"Claude API call failed: {e}")
         raise
+
+
+def generate_summaries_with_claude(session: SessionRecord, transcript: str, client: Anthropic, logger) -> dict:
+    """Generate all three summary types using Claude API.
+
+    Returns dict with long, short, and social summaries plus metadata.
+    """
+
+    logger.info("Generating summaries with Claude", session_code=session.code, transcript_length=len(transcript))
+
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    # 1. Generate long summary (400 words)
+    logger.debug("Generating long summary...")
+    long_prompt = prepare_long_summary_prompt(session, transcript)
+    long_response, long_usage = call_claude_api(client, long_prompt, 1500, logger)
+    total_input_tokens += long_usage.input_tokens
+    total_output_tokens += long_usage.output_tokens
+
+    try:
+        long_data = json.loads(long_response)
+        long_summary = long_data["summary"]
+        teaser_text = long_data.get("teaser", "")
+        long_keywords = long_data.get("keywords", long_data.get("technologies", []))  # Support both field names
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse long summary JSON, using raw text")
+        long_summary = long_response
+        teaser_text = ""
+        long_keywords = []
+
+    time.sleep(1.5)  # Rate limiting
+
+    # 2. Generate short summary (200 words)
+    logger.debug("Generating short summary...")
+    short_prompt = prepare_short_summary_prompt(session, transcript)
+    short_response, short_usage = call_claude_api(client, short_prompt, 800, logger)
+    total_input_tokens += short_usage.input_tokens
+    total_output_tokens += short_usage.output_tokens
+
+    try:
+        short_data = json.loads(short_response)
+        short_summary = short_data["summary"]
+        short_keywords = short_data.get("keywords", short_data.get("technologies", []))  # Support both field names
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse short summary JSON, using raw text")
+        short_summary = short_response
+        short_keywords = []
+
+    time.sleep(1.5)  # Rate limiting
+
+    # 3. Generate social media snippet (200 chars)
+    logger.debug("Generating social media snippet...")
+    social_prompt = prepare_social_summary_prompt(session, transcript)
+    social_text, social_usage = call_claude_api(client, social_prompt, 200, logger)
+    total_input_tokens += social_usage.input_tokens
+    total_output_tokens += social_usage.output_tokens
+
+    time.sleep(1.5)  # Rate limiting
+
+    # 4. Extract quotes
+    logger.debug("Extracting quotes...")
+    quotes_prompt = prepare_quote_extraction_prompt(session, transcript)
+    quotes_response, quotes_usage = call_claude_api(client, quotes_prompt, 1000, logger)
+    total_input_tokens += quotes_usage.input_tokens
+    total_output_tokens += quotes_usage.output_tokens
+
+    try:
+        quotes = json.loads(quotes_response)
+        if not isinstance(quotes, list):
+            quotes = []
+    except json.JSONDecodeError:
+        logger.warning("Failed to parse quotes JSON")
+        quotes = []
+
+    # Extract speaker names from session
+    speakers_list = [speaker.name for speaker in session.speakers]
+
+    # Combine all keywords and deduplicate - these become our tags
+    all_keywords = list(set(long_keywords + short_keywords))
+    tags = all_keywords  # Use keywords as tags
+
+    result = {
+        "ai_summaries": {
+            "speakers": speakers_list,
+            "teaser_text": teaser_text,
+            "long": {
+                "text": long_summary,
+                "word_count": len(long_summary.split()),
+                "keywords": long_keywords,
+            },
+            "short": {
+                "text": short_summary,
+                "word_count": len(short_summary.split()),
+                "keywords": short_keywords,
+            },
+            "social": {"text": social_text, "char_count": len(social_text)},
+            "tags": tags,
+        },
+        "quotes": quotes,
+        "summary_metadata": {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "model": CLAUDE_MODEL,
+            "has_transcript": True,
+            "transcript_length": len(transcript),
+            "tokens_used": {
+                "input": total_input_tokens,
+                "output": total_output_tokens,
+                "total": total_input_tokens + total_output_tokens,
+            },
+            "all_keywords_mentioned": all_keywords,
+        },
+    }
+
+    logger.info(
+        "Summaries generated successfully",
+        session_code=session.code,
+        long_words=result["ai_summaries"]["long"]["word_count"],
+        short_words=result["ai_summaries"]["short"]["word_count"],
+        social_chars=result["ai_summaries"]["social"]["char_count"],
+        quotes_count=len(quotes),
+        tags_count=len(tags),
+        has_teaser=bool(teaser_text),
+        total_tokens=total_input_tokens + total_output_tokens,
+    )
+
+    return result
 
 
 def create_fallback_summary(session: SessionRecord) -> dict:
     """Create fallback summary when no transcript is available."""
 
-    # Use abstract and first part of description
-    summary_parts = [session.abstract]
+    # Use abstract and description
+    summary_text = session.abstract
 
-    if session.description and session.description != session.abstract:
-        # Add first 500 chars of description
-        desc_preview = session.description[:500]
-        if len(session.description) > 500:
-            desc_preview += "..."
-        summary_parts.append(desc_preview)
+    # Extract speaker names
+    speakers_list = [speaker.name for speaker in session.speakers]
 
-    summary_text = "\n\n".join(summary_parts)
+    # Create teaser from first sentence of abstract
+    teaser_text = summary_text.split(".")[0] + "." if "." in summary_text else summary_text[:150]
 
     metadata = {
         "generated_at": datetime.now(UTC).isoformat(),
         "model": "fallback",
         "has_transcript": False,
         "word_count": len(summary_text.split()),
-        "source": "pretalx_abstract_and_description",
+        "source": "pretalx_abstract",
     }
 
-    return {"summary": summary_text, "metadata": metadata}
+    return {
+        "ai_summaries": {
+            "speakers": speakers_list,
+            "teaser_text": teaser_text,
+            "long": {"text": summary_text, "word_count": len(summary_text.split()), "keywords": []},
+            "short": {
+                "text": summary_text[:500],
+                "word_count": len(summary_text[:500].split()),
+                "keywords": [],
+            },
+            "social": {
+                "text": f"{session.title[:150]}... #Python #{session.track.split(':')[0].strip().replace(' ', '')}",
+                "char_count": len(f"{session.title[:150]}..."),
+            },
+            "tags": [],
+        },
+        "quotes": [],
+        "summary_metadata": metadata,
+    }
 
 
 def prepare_summaries():
@@ -179,13 +450,12 @@ def prepare_summaries():
     paths = WorkPaths(config)
     paths.ensure_directories()
 
-    # Initialize Claude client
+    # Initialize Claude client with 3.5 Sonnet
     anthropic_api_key = config.anthropic.api_key
-    model = config.anthropic.model
     claude_client = Anthropic(api_key=anthropic_api_key)
 
     event_slug = config.pretalx.event_slug
-    logger.info("Starting summary generation", event_slug=event_slug, model=model)
+    logger.info("Starting summary generation", event_slug=event_slug, model=CLAUDE_MODEL)
 
     # Load tracks_map and filter out "no_publishing"
     logger.info("Loading tracks map...")
@@ -259,8 +529,10 @@ def prepare_summaries():
         "with_ai_summary": 0,
         "with_fallback": 0,
         "with_transcript": 0,
+        "with_quotes": 0,
         "failed": 0,
         "by_channel": {},
+        "total_tokens": 0,
     }
 
     for idx, (pretalx_id, channel) in enumerate(filtered_map.items(), 1):
@@ -284,15 +556,17 @@ def prepare_summaries():
             if transcript:
                 stats["with_transcript"] += 1
 
-        # Generate summary
+        # Generate summaries
         try:
             if transcript:
-                # Generate AI summary with Claude
-                summary_result = generate_summary_with_claude(session, transcript, claude_client, model, logger)
+                # Generate AI summaries with Claude 3.5 Sonnet
+                summary_result = generate_summaries_with_claude(session, transcript, claude_client, logger)
                 stats["with_ai_summary"] += 1
+                stats["total_tokens"] += summary_result["summary_metadata"]["tokens_used"]["total"]
 
-                # Rate limiting to avoid quota issues
-                time.sleep(1)
+                if summary_result["quotes"]:
+                    stats["with_quotes"] += 1
+
             else:
                 # Use fallback summary
                 logger.warning("No transcript available, using fallback summary", pretalx_id=pretalx_id)
@@ -310,8 +584,7 @@ def prepare_summaries():
                     },
                     "transcript": transcript,
                 },
-                "ai_summary": summary_result["summary"],
-                "summary_metadata": summary_result["metadata"],
+                **summary_result,  # Unpack ai_summaries, quotes, and summary_metadata
             }
 
             # Save release record
@@ -322,7 +595,7 @@ def prepare_summaries():
                 logger.info(f"Progress: {stats['processed']}/{stats['total']} sessions processed")
 
         except Exception as e:
-            logger.error(f"Failed to process session {pretalx_id}", error=str(e))
+            logger.error(f"Failed to process session {pretalx_id}", error=str(e), error_type=type(e).__name__)
             stats["failed"] += 1
             continue
 
@@ -338,10 +611,13 @@ def prepare_summaries():
         "summaries_from_transcript": stats["with_ai_summary"],
         "summaries_fallback": stats["with_fallback"],
         "transcripts_available": stats["with_transcript"],
+        "sessions_with_quotes": stats["with_quotes"],
         "failed": stats["failed"],
         "by_channel": stats["by_channel"],
         "processing_date": datetime.now(UTC).isoformat(),
-        "model_used": model,
+        "model_used": CLAUDE_MODEL,
+        "total_tokens_used": stats["total_tokens"],
+        "estimated_cost_usd": round(stats["total_tokens"] * 0.000003, 2),  # Approximate cost
     }
 
     paths.save_yaml(summary_report, "release_records", "_summary.yaml")
@@ -351,7 +627,10 @@ def prepare_summaries():
         total_processed=stats["processed"],
         ai_summaries=stats["with_ai_summary"],
         fallback_summaries=stats["with_fallback"],
+        sessions_with_quotes=stats["with_quotes"],
         failed=stats["failed"],
+        total_tokens=stats["total_tokens"],
+        estimated_cost=summary_report["estimated_cost_usd"],
     )
 
     return stats
