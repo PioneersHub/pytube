@@ -90,9 +90,11 @@ Legacy script that matches conference sessions from Excel export to video record
 - Exports mapping as Parquet file for further processing
 
 #### Usage
-```python
-python -m src.video_processor.process_talk_list
+
+```shell
+python - m  src.video_processor.process_talk_list
 ```
+
 
 **Note**: For new projects, use `json_to_parquet.py` with JSON exports instead.
 

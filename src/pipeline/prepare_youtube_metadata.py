@@ -11,9 +11,9 @@ from pydantic import ValidationError
 from youtube_models import (
     DescriptionPlaceholder,
     PreparedVideoMetadata,
-    YouTubeMetadataConfig,
 )
 
+from models.youtube_metadata import YouTubeMetadataDefaults
 from pipeline.models import SessionRecord
 
 
@@ -56,7 +56,7 @@ def prepare_video_metadata(
     )
 
     # YouTube metadata config with defaults
-    youtube_config = YouTubeMetadataConfig()
+    youtube_config = YouTubeMetadataDefaults()
 
     # Create and return PreparedVideoMetadata
     return PreparedVideoMetadata(

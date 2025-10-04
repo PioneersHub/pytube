@@ -9,71 +9,82 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+# Hard limits set by YouTube
+TITLE_MAX_LENGTH = 100
+DESCRIPTION_MAX_LENGTH = 5000
+TAGS_MAX_NUMBER = 500
+DEFAULT_CATEGORY_ID = 28
+DEFAULT_CATEGORY = "Science & Technology"
+DEFAULT_LANGUAGE_TEXT = "en"
+DEFAULT_LANGUAGE_AUDIO = "en"
+DEFAULT_PRIVACY_STATUS = "unlisted"
+DEFAULT_EMBEDDABLE = True
+DEFAULT_VIDEO_LICENSE = "youtube"
+DEFAULT_FOR_KIDS = False
 
-class YouTubeSnippet(BaseModel):
+
+class YouTubeMetadataDefaults(BaseModel):
+    """Default values for conference videos."""
+
+    category_id: str = Field(
+        default=f"{DEFAULT_CATEGORY_ID}",
+        description=f"Default category ({DEFAULT_CATEGORY_ID} = {DEFAULT_CATEGORY})",
+    )
+    default_language: str = Field(default="en", description="Default language")
+    privacy_status: Literal["private", "unlisted", "public"] = Field(
+        default="unlisted", description="Default privacy setting"
+    )
+    embeddable: bool = Field(default=True, description="Default embedding permission")
+    license: Literal["youtube", "creativeCommon"] = Field(default="youtube", description="Default license")
+    tags: list[str] = Field(
+        default_factory=lambda: ["Python", "PyConDE", "PyData", "Conference", "Programming", "Tech Talk"],
+        max_items=TAGS_MAX_NUMBER,
+        description="Video tags, up to {TAGS_MAX_NUMBER} items.",
+    )
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, v: list[str]) -> list[str]:
+        """Ensure clean, unique tags."""
+        cleaned_tags = set()
+        for raw_tag in v:
+            cleaned_tag = raw_tag.strip()
+            cleaned_tags.add(cleaned_tag)
+        return list(cleaned_tags)
+
+
+class YouTubeBasic(BaseModel):
+    title: str = Field(..., max_length=TITLE_MAX_LENGTH, description=f"Video title, up to {TITLE_MAX_LENGTH} chars.")
+    description: str = Field(
+        ..., max_length=DESCRIPTION_MAX_LENGTH, description=f"Video description, up to {DESCRIPTION_MAX_LENGTH} chars."
+    )
+    published_at: datetime | str | None = Field(default=None)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        """Ensure title is not empty and within length limits."""
+        if not v.strip():
+            raise ValueError("Title is required.")
+        if len(v) > TITLE_MAX_LENGTH:
+            raise ValueError(f"Title is too long: {len(v)}, can be up to {TITLE_MAX_LENGTH}) chars.")
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def validate_description(cls, v: str) -> str:
+        """Ensure description is within length limits."""
+        if len(v) > DESCRIPTION_MAX_LENGTH:
+            raise ValueError(f"Description too long: {len(v)} chars (max {DESCRIPTION_MAX_LENGTH})")
+        return v
+
+
+class YouTubeSnippet(YouTubeMetadataDefaults, YouTubeBasic):
     """YouTube video snippet information.
 
     Contains the main metadata fields that can be updated via the API.
     All fields are optional in updates - only provided fields will be updated.
     """
-
-    title: str | None = Field(
-        None,
-        max_length=100,
-        description="Video title (max 100 chars)"
-    )
-    description: str | None = Field(
-        None,
-        max_length=5000,
-        description="Video description (max 5000 chars)"
-    )
-    tags: list[str] | None = Field(
-        None,
-        max_items=500,
-        description="Video tags for discovery"
-    )
-    category_id: str | None = Field(
-        None,
-        description="YouTube category ID (28 = Science & Technology)"
-    )
-    default_language: str | None = Field(
-        None,
-        description="Default language code (e.g., 'en')"
-    )
-
-    @field_validator("title")
-    @classmethod
-    def validate_title(cls, v: str | None) -> str | None:
-        """Remove restricted characters from title."""
-        if v is None:
-            return v
-        # YouTube doesn't allow < or > in titles
-        return v.replace("<", "").replace(">", "")
-
-    @field_validator("description")
-    @classmethod
-    def validate_description(cls, v: str | None) -> str | None:
-        """Remove restricted characters from description."""
-        if v is None:
-            return v
-        # YouTube doesn't allow < or > in descriptions
-        return v.replace("<", "").replace(">", "")
-
-    @field_validator("tags")
-    @classmethod
-    def validate_tags(cls, v: list[str] | None) -> list[str] | None:
-        """Ensure tags are unique and properly formatted."""
-        if v is None:
-            return v
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_tags = []
-        for tag in v:
-            tag_lower = tag.lower().strip()
-            if tag_lower and tag_lower not in seen:
-                seen.add(tag_lower)
-                unique_tags.append(tag.strip())
-        return unique_tags
 
     def to_api_dict(self) -> dict[str, Any]:
         """Convert to YouTube API format, excluding None values."""
@@ -97,29 +108,17 @@ class YouTubeStatus(BaseModel):
     Controls privacy, publishing, and embedding settings.
     """
 
-    privacy_status: Literal["private", "unlisted", "public"] | None = Field(
-        None,
-        description="Video privacy setting"
+    privacy_status: Literal["private", "unlisted", "public"] = Field(
+        default=f"{DEFAULT_PRIVACY_STATUS}", description=f"Video privacy status: {DEFAULT_PRIVACY_STATUS}"
     )
-    publish_at: datetime | None = Field(
-        None,
-        description="Scheduled publish time (requires privacy_status='private')"
+    publish_at: datetime | None = Field(default=None, description="Scheduled publishing time (UTC)")
+    embeddable: bool = Field(default=DEFAULT_EMBEDDABLE, description=f"Allow embedding: {DEFAULT_EMBEDDABLE}")
+    license: Literal["youtube", "creativeCommon"] = Field(
+        default=f"{DEFAULT_VIDEO_LICENSE}", description=f"Default video license: {DEFAULT_VIDEO_LICENSE}"
     )
-    embeddable: bool | None = Field(
-        None,
-        description="Whether the video can be embedded"
-    )
-    license: Literal["youtube", "creativeCommon"] | None = Field(
-        None,
-        description="Video license type"
-    )
-    public_stats_viewable: bool | None = Field(
-        None,
-        description="Whether video statistics are publicly visible"
-    )
-    self_declared_made_for_kids: bool | None = Field(
-        None,
-        description="Whether the video is made for kids"
+    public_stats_viewable: bool | None = Field(None, description="Whether video statistics are publicly visible")
+    self_declared_made_for_kids: bool = Field(
+        default=DEFAULT_FOR_KIDS, description=f"Made for kids flag: {DEFAULT_FOR_KIDS}"
     )
 
     @model_validator(mode="after")
@@ -163,10 +162,8 @@ class YouTubeStatus(BaseModel):
 class YouTubeRecordingDetails(BaseModel):
     """YouTube video recording details."""
 
-    recording_date: datetime | str | None = Field(
-        None,
-        description="Date when the video was recorded"
-    )
+    recording_date: datetime | str | None = Field(None, description="Date when the video was recorded")
+    location: str | None = Field(default=None, description="Recording location")
 
     @field_validator("recording_date")
     @classmethod
@@ -194,6 +191,20 @@ class YouTubeRecordingDetails(BaseModel):
             return {"recordingDate": self.recording_date}
 
 
+class YoutubeVideoResource(BaseModel):
+    id: str
+    snippet: YouTubeSnippet
+    recording_details: YouTubeRecordingDetails = Field(default_factory=YouTubeRecordingDetails)
+    status: YouTubeStatus = Field(default_factory=YouTubeStatus)
+
+
+class YouTubeMetadata(YouTubeBasic):
+    channelId: str  # noqa N815
+    channelTitle: str  # noqa N815
+    resourceId: YouTubeRessource  # noqa N815
+
+
+# TODO: rename contains YouTube but is not for YouTube
 class YouTubeVideoMetadata(BaseModel):
     """Complete metadata for a YouTube video.
 
@@ -201,40 +212,18 @@ class YouTubeVideoMetadata(BaseModel):
     including conference-specific tracking fields.
     """
 
-    video_id: str = Field(
-        ...,
-        description="YouTube video ID"
-    )
-    pretalx_id: str = Field(
-        ...,
-        description="Conference system ID for tracking"
-    )
-    channel: str = Field(
-        ...,
-        description="Assigned YouTube channel (pycon, pydata, etc.)"
-    )
-    snippet: YouTubeSnippet = Field(
-        default_factory=YouTubeSnippet,
-        description="Video snippet metadata"
-    )
-    status: YouTubeStatus = Field(
-        default_factory=YouTubeStatus,
-        description="Video status settings"
-    )
-    recording_details: YouTubeRecordingDetails | None = Field(
-        None,
-        description="Recording information"
-    )
+    video_id: str = Field(..., description="YouTube video ID")
+    pretalx_id: str = Field(..., description="Conference system ID for tracking")
+    channel: str = Field(..., description="Assigned YouTube channel (pycon, pydata, etc.)")
+    snippet: YouTubeSnippet = Field(default_factory=YouTubeSnippet, description="Video snippet metadata")
+    status: YouTubeStatus = Field(default_factory=YouTubeStatus, description="Video status settings")
+    recording_details: YouTubeRecordingDetails | None = Field(None, description="Recording information")
 
     # Tracking fields
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(UTC),
-        description="When this metadata was created"
+        default_factory=lambda: datetime.now(UTC), description="When this metadata was created"
     )
-    updated_at: datetime | None = Field(
-        None,
-        description="When this metadata was last updated"
-    )
+    updated_at: datetime | None = Field(None, description="When this metadata was last updated")
 
     def create_update_request(self) -> "YouTubeUpdateRequest":
         """Create an update request for the YouTube API."""
@@ -264,22 +253,11 @@ class YouTubeUpdateRequest(BaseModel):
     YouTube Data API v3 videos.update method.
     """
 
-    id: str = Field(
-        ...,
-        description="YouTube video ID to update"
-    )
-    snippet: dict[str, Any] | None = Field(
-        None,
-        description="Snippet data to update"
-    )
-    status: dict[str, Any] | None = Field(
-        None,
-        description="Status data to update"
-    )
+    id: str = Field(..., description="YouTube video ID to update")
+    snippet: dict[str, Any] | None = Field(None, description="Snippet data to update")
+    status: dict[str, Any] | None = Field(None, description="Status data to update")
     recording_details: dict[str, Any] | None = Field(
-        None,
-        alias="recordingDetails",
-        description="Recording details to update"
+        None, alias="recordingDetails", description="Recording details to update"
     )
 
     class Config:
@@ -311,35 +289,3 @@ class YouTubeUpdateRequest(BaseModel):
         if self.recording_details is not None:
             parts.append("recordingDetails")
         return parts
-
-
-class YouTubeMetadataDefaults(BaseModel):
-    """Default values for conference videos."""
-
-    category_id: str = Field(
-        default="28",
-        description="Default category (28 = Science & Technology)"
-    )
-    default_language: str = Field(
-        default="en",
-        description="Default language"
-    )
-    privacy_status: Literal["private", "unlisted", "public"] = Field(
-        default="unlisted",
-        description="Default privacy setting"
-    )
-    embeddable: bool = Field(
-        default=True,
-        description="Default embedding permission"
-    )
-    license: Literal["youtube", "creativeCommon"] = Field(
-        default="youtube",
-        description="Default license"
-    )
-    tags_base: list[str] = Field(
-        default_factory=lambda: [
-            "Python", "PyConDE", "PyData", "Conference",
-            "Programming", "Tech Talk", "2025"
-        ],
-        description="Base tags for all videos"
-    )

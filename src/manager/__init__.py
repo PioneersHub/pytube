@@ -8,6 +8,6 @@ if src_dir.name == "src" and src_dir.exists():
     sys.path.insert(0, str(src_dir))
 
 # Import from the top-level src package
-from __init__ import __version__, conf, logger
+from src.__init__ import __version__, conf, logger  # noqa: E402
 
 __all__ = ["logger", "conf", "__version__"]

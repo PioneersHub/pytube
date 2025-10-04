@@ -16,13 +16,9 @@ from manager import conf, logger
 from manager.config import get_event_dir
 from manager.handlers.records import Records
 from manager.models.sessions import SessionRecord
-from manager.models.video import (
-    BaseRecordingDetails,
-    VideoSnippet,
-    YouTubeMetadata,
-    YoutubeVideoResource,
-)
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
+from models.youtube_metadata import YouTubeMetadata, YouTubeRecordingDetails, YoutubeVideoResource
+from models.youtube_metadata import YouTubeSnippet as VideoSnippet
 
 
 class YT:
@@ -168,9 +164,9 @@ class YT:
                 response = request.execute()
         return videos
 
-    def update_video_metadata(
+    def update_video_metadata(  # noqa: PLR0913
         self,
-        video_id,  # noqa: PLR0913
+        video_id,
         title=None,
         description=None,
         tags=None,
@@ -565,7 +561,7 @@ class PrepareVideoMetadata:
                     "description": youtube_description,
                 }
             ),
-            recording_details=BaseRecordingDetails(**{"recording_date": recorded_iso}),
+            recording_details=YouTubeRecordingDetails.model_validate(**{"recording_date": recorded_iso}),
         )
 
         (self.video_records_path / f"{record.pretalx_id}.json").open("w").write(
@@ -577,7 +573,7 @@ class PrepareVideoMetadata:
         """Provides commonly used values for rendering the description"""
         description_kwargs = {
             "date": record.recorded_date.strftime("%d.%m.%Y"),
-            "session_link": f"{safe_conf.get('event.program_url', '')}{record.pretalx_id}/",
+            "session_link": f"{self.config.get('event.program_url', '')}{record.pretalx_id}/",
             "teaser_text": record.sm_teaser_text,
             "speakers": ", ".join([f"{s.name}" for s in record.speakers]),
             "description": description,

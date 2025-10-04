@@ -13,8 +13,8 @@ from manager.config import get_event_dir
 from manager.handlers import LinkedInPost
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.sessions import SessionRecord
-from manager.models.video import YoutubeVideoResource
 from manager.utils.common import SafeConfig
+from models.youtube_metadata import YoutubeVideoResource
 
 
 class MailClient:

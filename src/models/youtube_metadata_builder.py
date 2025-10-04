@@ -21,7 +21,7 @@ from src.models.youtube_metadata import (
 
 class YouTubeMetadataBuilder:
     """Builds YouTube metadata from conference session records.
-    
+
     This class handles the transformation of conference session data
     into YouTube-compatible metadata, including:
     - Title optimization for YouTube's 100 character limit
@@ -35,10 +35,10 @@ class YouTubeMetadataBuilder:
         template_path: Path | str | None = None,
         template_string: str | None = None,
         defaults: YouTubeMetadataDefaults | None = None,
-        conference_name: str = "PyCon DE & PyData 2025"
+        conference_name: str = "PyCon DE & PyData 2025",
     ):
         """Initialize the metadata builder.
-        
+
         Args:
             template_path: Path to Jinja2 template file
             template_string: Template string (if not using file)
@@ -54,7 +54,7 @@ class YouTubeMetadataBuilder:
             template_name = Path(template_path).name
             env = Environment(
                 loader=FileSystemLoader(str(template_dir)),
-                autoescape=False  # YouTube doesn't need HTML escaping
+                autoescape=False,  # YouTube doesn't need HTML escaping
             )
             self.template = env.get_template(template_name)
         elif template_string:
@@ -62,9 +62,7 @@ class YouTubeMetadataBuilder:
         else:
             # Default minimal template
             self.template = Template(
-                "{{ description }}\n\n"
-                "Speaker(s): {{ speakers }}\n\n"
-                "Recorded at {{ conference_name }}, {{ date }}"
+                "{{ description }}\n\nSpeaker(s): {{ speakers }}\n\nRecorded at {{ conference_name }}, {{ date }}"
             )
 
     def build_metadata(
@@ -72,16 +70,16 @@ class YouTubeMetadataBuilder:
         session_record: dict[str, Any],
         video_id: str,
         channel: str,
-        pretalx_youtube_map: dict[str, str] | None = None
+        pretalx_youtube_map: dict[str, str] | None = None,
     ) -> YouTubeVideoMetadata:
         """Build YouTube metadata from a session record.
-        
+
         Args:
             session_record: Session data dictionary
             video_id: YouTube video ID
             channel: Target YouTube channel
             pretalx_youtube_map: Optional mapping of Pretalx IDs to YouTube IDs
-            
+
         Returns:
             Complete YouTube metadata object
         """
@@ -104,7 +102,7 @@ class YouTubeMetadataBuilder:
             channel=channel,
             snippet=snippet,
             status=status,
-            recording_details=recording_details
+            recording_details=recording_details,
         )
 
         return metadata
@@ -126,7 +124,7 @@ class YouTubeMetadataBuilder:
             description=description,
             tags=tags,
             category_id=self.defaults.category_id,
-            default_language=self.defaults.default_language
+            default_language=self.defaults.default_language,
         )
 
         return snippet
@@ -136,7 +134,7 @@ class YouTubeMetadataBuilder:
         status = YouTubeStatus(
             privacy_status=self.defaults.privacy_status,
             embeddable=self.defaults.embeddable,
-            license=self.defaults.license
+            license=self.defaults.license,
         )
 
         # Check if there's a scheduled publish date
@@ -149,10 +147,7 @@ class YouTubeMetadataBuilder:
 
         return status
 
-    def _build_recording_details(
-        self,
-        session_record: dict[str, Any]
-    ) -> YouTubeRecordingDetails | None:
+    def _build_recording_details(self, session_record: dict[str, Any]) -> YouTubeRecordingDetails | None:
         """Build recording details from session data."""
         # Try different date fields
         recorded_date = None
@@ -177,7 +172,7 @@ class YouTubeMetadataBuilder:
 
     def _optimize_title(self, title: str) -> str:
         """Optimize title for YouTube's 100 character limit.
-        
+
         Strategy:
         1. Remove restricted characters (< >)
         2. If title fits, add conference name in brackets
@@ -191,7 +186,7 @@ class YouTubeMetadataBuilder:
 
         # If title is already too long, truncate it
         if len(clean_title) > max_length:
-            return f"{clean_title[:max_length-1]}…"
+            return f"{clean_title[: max_length - 1]}…"
 
         # Try to add conference name
         full_title = f"{clean_title} [{self.conference_name}]"
@@ -222,7 +217,7 @@ class YouTubeMetadataBuilder:
 
             # If still too long, truncate
             if len(description) > max_length:
-                description = description[:max_length-3] + "..."
+                description = description[: max_length - 3] + "..."
 
         return description
 
@@ -239,26 +234,21 @@ class YouTubeMetadataBuilder:
 
         # Get description text (prefer sm_long_text for YouTube)
         description = (
-            session_record.get("sm_long_text") or
-            session_record.get("description") or
-            session_record.get("abstract") or
-            ""
+            session_record.get("sm_long_text")
+            or session_record.get("description")
+            or session_record.get("abstract")
+            or ""
         )
 
         # Get teaser text
-        teaser_text = (
-            session_record.get("sm_teaser_text") or
-            session_record.get("abstract", "")[:200]
-        )
+        teaser_text = session_record.get("sm_teaser_text") or session_record.get("abstract", "")[:200]
 
         # Get date
         date_str = "2025"  # Default
         if "recorded_date" in session_record:
             try:
                 if isinstance(session_record["recorded_date"], str):
-                    recorded_date = datetime.fromisoformat(
-                        session_record["recorded_date"].replace("Z", "+00:00")
-                    )
+                    recorded_date = datetime.fromisoformat(session_record["recorded_date"].replace("Z", "+00:00"))
                 else:
                     recorded_date = session_record["recorded_date"]
                 date_str = recorded_date.strftime("%d.%m.%Y")
@@ -276,14 +266,14 @@ class YouTubeMetadataBuilder:
             "date": date_str,
             "session_link": session_link,
             "conference_name": self.conference_name,
-            "pydata": "pydata" in session_record.get("youtube_channel", "").lower()
+            "pydata": "pydata" in session_record.get("youtube_channel", "").lower(),
         }
 
         return context
 
     def _generate_tags(self, session_record: dict[str, Any]) -> list[str]:
         """Generate tags from session data.
-        
+
         Combines:
         - Base tags from defaults
         - Track name
