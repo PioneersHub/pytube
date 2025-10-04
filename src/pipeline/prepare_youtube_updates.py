@@ -167,10 +167,23 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
     youtube_id = youtube_data.get("youtube_id", "")
 
     # Get tags - prefer AI summary tags, fallback to keywords
-    tags = ai_summaries.get("tags", [])
-    if not tags:
+    ai_tags = ai_summaries.get("tags", [])
+    if not ai_tags:
         short_summary = ai_summaries.get("short", {})
-        tags = short_summary.get("keywords", [])
+        ai_tags = short_summary.get("keywords", [])
+
+    # Always include base conference tags
+    base_tags = ["Python", "PyConDE", "PyData", "Conference", "Programming", "Tech Talk"]
+
+    # Combine and deduplicate tags (case-insensitive comparison)
+    all_tags = base_tags + ai_tags
+    seen_lower = set()
+    unique_tags = []
+    for tag in all_tags:
+        tag_lower = tag.lower()
+        if tag_lower not in seen_lower:
+            seen_lower.add(tag_lower)
+            unique_tags.append(tag)
 
     # Get default metadata
     youtube_metadata = prepared_metadata.get("youtube_metadata", {})
@@ -184,7 +197,7 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
         "snippet": {
             "title": title,
             "description": description,
-            "tags": tags,
+            "tags": unique_tags,
             "categoryId": str(category_id),
             "defaultLanguage": "en",
         },
