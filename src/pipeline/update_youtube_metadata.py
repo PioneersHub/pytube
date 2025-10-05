@@ -206,6 +206,9 @@ def update_single_video(
 def save_update_status(pretalx_id: str, response: dict, paths: WorkPaths, success: bool = True):
     """Save update status to file for tracking.
 
+    On success: Moves original file from update/ to updated/ and saves status log.
+    On failure: Keeps original file in update/ for retry and saves status to failed/.
+
     Args:
         pretalx_id: Pretalx session ID
         response: API response or error info
@@ -214,7 +217,7 @@ def save_update_status(pretalx_id: str, response: dict, paths: WorkPaths, succes
     """
     # Add timestamp to filename: pretalx_id_YYMMDDHHMMSS.json
     timestamp = time.strftime("%y%m%d%H%M%S")
-    filename = f"{pretalx_id}_{timestamp}.json"
+    status_filename = f"{pretalx_id}_{timestamp}.json"
 
     status_data = {
         "pretalx_id": pretalx_id,
@@ -225,9 +228,19 @@ def save_update_status(pretalx_id: str, response: dict, paths: WorkPaths, succes
     }
 
     if success:
-        paths.save_json(status_data, "youtube_records", "updated", filename)
+        # Save status log to updated/
+        paths.save_json(status_data, "youtube_records", "updated", status_filename)
+
+        # MOVE original file from update/ to updated/ (preserves original metadata)
+        update_file = paths.event_dir / "youtube_records" / "update" / f"{pretalx_id}.json"
+        if update_file.exists():
+            updated_original = paths.event_dir / "youtube_records" / "updated" / f"{pretalx_id}.json"
+            update_file.rename(updated_original)
+            logger.debug("moved_to_updated", pretalx_id=pretalx_id, from_file=str(update_file))
     else:
-        paths.save_json(status_data, "youtube_records", "failed", filename)
+        # KEEP in update/ for retry, save failure log to failed/
+        paths.save_json(status_data, "youtube_records", "failed", status_filename)
+        logger.debug("kept_in_update_for_retry", pretalx_id=pretalx_id)
 
 
 def main():
