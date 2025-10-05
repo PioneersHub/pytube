@@ -231,6 +231,44 @@ def main():
         pending_updates = pending_updates[: args.limit]
         logger.info("limit_applied", processing=len(pending_updates))
 
+    # Determine which channel(s) will be updated
+    tracks_map_path = paths.event_dir / "tracks_map.json"
+    if tracks_map_path.exists():
+        with open(tracks_map_path) as f:
+            tracks_map = json.load(f)
+
+        # Count channel distribution in pending updates
+        channel_counts = {}
+        for pretalx_id, _ in pending_updates:
+            channel = tracks_map.get(pretalx_id, "unknown")
+            channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+        # Determine primary channel
+        if channel_counts:
+            primary_channel = max(channel_counts.items(), key=lambda x: x[1])[0]
+
+            # Get channel ID from config if available
+            channel_id = None
+            if hasattr(config, "youtube") and hasattr(config.youtube, "channels"):
+                channel_config = getattr(config.youtube.channels, primary_channel, None)
+                if channel_config and hasattr(channel_config, "id"):
+                    channel_id = channel_config.id
+
+            # Log channel info
+            if len(channel_counts) > 1:
+                logger.info(
+                    "authenticating_channel",
+                    primary_channel=primary_channel,
+                    channel_id=channel_id,
+                    distribution=channel_counts,
+                )
+            else:
+                logger.info(
+                    "authenticating_channel",
+                    channel_name=primary_channel,
+                    channel_id=channel_id,
+                )
+
     # Initialize YouTube client (unless dry-run)
     youtube_client = None
     if not args.dry_run:
