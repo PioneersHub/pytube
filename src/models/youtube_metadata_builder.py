@@ -3,12 +3,15 @@
 This module provides functionality to transform SessionRecord data into
 YouTube-compatible metadata, including template rendering and validation.
 """
+raise Exception("Do not use this module")
 
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template
+
+
 
 from src.models.youtube_metadata import (
     YouTubeMetadataDefaults,

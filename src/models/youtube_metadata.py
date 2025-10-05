@@ -198,10 +198,15 @@ class YoutubeVideoResource(BaseModel):
     status: YouTubeStatus = Field(default_factory=YouTubeStatus)
 
 
+
+class YouTubeResource(BaseModel):
+    kind: str
+    videoId: str
+
 class YouTubeMetadata(YouTubeBasic):
-    channelId: str  # noqa N815
-    channelTitle: str  # noqa N815
-    resourceId: YouTubeRessource  # noqa N815
+    channelId: str
+    channelTitle: str
+    resourceId: YouTubeResource
 
 
 # TODO: rename contains YouTube but is not for YouTube

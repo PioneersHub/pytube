@@ -157,6 +157,7 @@ The script creates a `debug_map_videos/` directory with:
 3. **Enable detailed logging**:
    Add this to the script for more verbose output:
    ```python
+    # noinspection PyUnresolvedReferences
    logging.getLogger('googleapiclient.discovery').setLevel(logging.DEBUG)
    ```
 
