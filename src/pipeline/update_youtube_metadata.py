@@ -71,7 +71,9 @@ def get_already_updated(updated_dir: Path) -> set[str]:
 
     already_updated = set()
     for file_path in updated_dir.glob("*.json"):
-        already_updated.add(file_path.stem)
+        # Extract pretalx_id from filename (format: PRETALX_ID_YYMMDDHHMMSS.json)
+        pretalx_id = file_path.stem.split("_")[0]
+        already_updated.add(pretalx_id)
 
     if already_updated:
         logger.info("found_already_updated", count=len(already_updated))
@@ -165,6 +167,10 @@ def save_update_status(pretalx_id: str, response: dict, paths: WorkPaths, succes
         paths: WorkPaths instance
         success: Whether update was successful
     """
+    # Add timestamp to filename: pretalx_id_YYMMDDHHMMSS.json
+    timestamp = time.strftime("%y%m%d%H%M%S")
+    filename = f"{pretalx_id}_{timestamp}.json"
+
     status_data = {
         "pretalx_id": pretalx_id,
         "video_id": response.get("id") if response else None,
@@ -174,9 +180,9 @@ def save_update_status(pretalx_id: str, response: dict, paths: WorkPaths, succes
     }
 
     if success:
-        paths.save_json(status_data, "youtube_records", "updated", f"{pretalx_id}.json")
+        paths.save_json(status_data, "youtube_records", "updated", filename)
     else:
-        paths.save_json(status_data, "youtube_records", "failed", f"{pretalx_id}.json")
+        paths.save_json(status_data, "youtube_records", "failed", filename)
 
 
 def main():
