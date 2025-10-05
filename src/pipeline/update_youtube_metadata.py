@@ -13,6 +13,7 @@ import argparse
 import json
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import googleapiclient.errors
@@ -21,10 +22,7 @@ import structlog
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.paths import WorkPaths
-
-# Import existing YouTube authentication
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from manager.handlers.youtube import YT
+from pipeline.youtube_auth import YouTubeAuth
 
 # YouTube API quota costs
 QUOTA_PER_UPDATE = 50
@@ -81,11 +79,59 @@ def get_already_updated(updated_dir: Path) -> set[str]:
     return already_updated
 
 
-def update_single_video(youtube_client, update_body: dict, pretalx_id: str, dry_run: bool = False) -> dict | None:
+def load_channel_assignments(event_work_dir: Path) -> dict[str, str]:
+    """Load channel assignments from tracks_map.json.
+
+    Args:
+        event_work_dir: Path to event work directory
+
+    Returns:
+        Dictionary mapping pretalx_id to channel name (pycon/pydata)
+    """
+    tracks_map_file = event_work_dir / "tracks_map.json"
+
+    if not tracks_map_file.exists():
+        logger.warning("tracks_map_not_found", path=str(tracks_map_file))
+        return {}
+
+    with open(tracks_map_file) as f:
+        tracks_map = json.load(f)
+
+    logger.info("loaded_channel_assignments", count=len(tracks_map))
+    return tracks_map
+
+
+def group_videos_by_channel(
+    updates: list[tuple[str, dict]], channel_assignments: dict[str, str]
+) -> dict[str, list[tuple[str, dict]]]:
+    """Group video updates by their channel assignment.
+
+    Args:
+        updates: List of (pretalx_id, update_body) tuples
+        channel_assignments: Dictionary mapping pretalx_id to channel
+
+    Returns:
+        Dictionary mapping channel name to list of updates
+    """
+    grouped = defaultdict(list)
+
+    for pretalx_id, update_body in updates:
+        channel = channel_assignments.get(pretalx_id)
+        if channel:
+            grouped[channel].append((pretalx_id, update_body))
+        else:
+            logger.warning("no_channel_assignment", pretalx_id=pretalx_id)
+
+    return dict(grouped)
+
+
+def update_single_video(
+    youtube_auth: YouTubeAuth, update_body: dict, pretalx_id: str, dry_run: bool = False
+) -> dict | None:
     """Update a single video on YouTube.
 
     Args:
-        youtube_client: Authenticated YouTube API client
+        youtube_auth: YouTubeAuth instance for the video's channel
         update_body: YouTube API request body
         pretalx_id: Pretalx session ID for tracking
         dry_run: If True, don't actually send the update
@@ -106,8 +152,7 @@ def update_single_video(youtube_client, update_body: dict, pretalx_id: str, dry_
 
     try:
         # Send update to YouTube API
-        request = youtube_client.videos().update(part="snippet,status", body=update_body)
-        response = request.execute()
+        response = youtube_auth.update_video(update_body)
 
         logger.info(
             "video_updated",
@@ -231,107 +276,109 @@ def main():
         pending_updates = pending_updates[: args.limit]
         logger.info("limit_applied", processing=len(pending_updates))
 
-    # Determine which channel(s) will be updated
-    tracks_map_path = paths.event_dir / "tracks_map.json"
-    if tracks_map_path.exists():
-        with open(tracks_map_path) as f:
-            tracks_map = json.load(f)
+    # Load channel assignments and group videos
+    channel_assignments = load_channel_assignments(paths.event_dir)
+    grouped_by_channel = group_videos_by_channel(pending_updates, channel_assignments)
 
-        # Count channel distribution in pending updates
-        channel_counts = {}
-        for pretalx_id, _ in pending_updates:
-            channel = tracks_map.get(pretalx_id, "unknown")
-            channel_counts[channel] = channel_counts.get(channel, 0) + 1
+    if not grouped_by_channel:
+        logger.error("no_channel_assignments_found")
+        return 1
 
-        # Determine primary channel
-        if channel_counts:
-            primary_channel = max(channel_counts.items(), key=lambda x: x[1])[0]
+    logger.info("videos_grouped_by_channel", channels={ch: len(vids) for ch, vids in grouped_by_channel.items()})
 
-            # Get channel ID from config if available
-            channel_id = None
-            if hasattr(config, "youtube") and hasattr(config.youtube, "channels"):
-                channel_config = getattr(config.youtube.channels, primary_channel, None)
-                if channel_config and hasattr(channel_config, "id"):
-                    channel_id = channel_config.id
-
-            # Log channel info
-            if len(channel_counts) > 1:
-                logger.info(
-                    "authenticating_channel",
-                    primary_channel=primary_channel,
-                    channel_id=channel_id,
-                    distribution=channel_counts,
-                )
-            else:
-                logger.info(
-                    "authenticating_channel",
-                    channel_name=primary_channel,
-                    channel_id=channel_id,
-                )
-
-    # Initialize YouTube client (unless dry-run)
-    youtube_client = None
+    # Initialize YouTube auth for each channel (unless dry-run)
+    youtube_auth_clients = {}
     if not args.dry_run:
-        logger.info("authenticating_youtube")
-        yt = YT(youtube_offline=False)  # Use OAuth for updates
-        youtube_client = yt.youtube
+        client_secrets_file = paths.root / config.youtube.client_secrets_file
+        token_dir = paths.root
 
-    # Process updates
+        for channel_name in grouped_by_channel.keys():
+            logger.info("authenticating_channel", channel=channel_name)
+            youtube_auth_clients[channel_name] = YouTubeAuth(channel_name, client_secrets_file, token_dir)
+
+    # Process updates by channel
     stats = {
         "processed": 0,
         "success": 0,
         "failed": 0,
         "quota_used": 0,
         "quota_exceeded": False,
+        "by_channel": defaultdict(lambda: {"success": 0, "failed": 0}),
     }
 
-    for idx, (pretalx_id, update_body) in enumerate(pending_updates, 1):
-        logger.info(
-            "processing",
-            index=idx,
-            total=len(pending_updates),
-            pretalx_id=pretalx_id,
-            video_id=update_body.get("id"),
-        )
+    total_videos = sum(len(videos) for videos in grouped_by_channel.values())
+    current_index = 0
 
-        try:
-            response = update_single_video(youtube_client, update_body, pretalx_id, dry_run=args.dry_run)
+    for channel_name, channel_videos in grouped_by_channel.items():
+        logger.info("processing_channel", channel=channel_name, count=len(channel_videos))
 
-            if response:
-                stats["success"] += 1
-                stats["quota_used"] += QUOTA_PER_UPDATE
-                save_update_status(pretalx_id, response, paths, success=True)
-            else:
-                stats["failed"] += 1
-                save_update_status(pretalx_id, {"error": "Update failed"}, paths, success=False)
+        youtube_auth = youtube_auth_clients.get(channel_name) if not args.dry_run else None
 
-            stats["processed"] += 1
+        for pretalx_id, update_body in channel_videos:
+            current_index += 1
 
-            # Add small delay to avoid rate limiting
-            if not args.dry_run:
-                time.sleep(0.5)
+            logger.info(
+                "processing",
+                index=current_index,
+                total=total_videos,
+                pretalx_id=pretalx_id,
+                video_id=update_body.get("id"),
+                channel=channel_name,
+            )
 
-        except googleapiclient.errors.HttpError as e:
-            if e.resp.status == 403 and "quota" in str(e).lower():
-                stats["quota_exceeded"] = True
-                logger.error(
-                    "quota_limit_reached",
-                    processed=stats["processed"],
-                    remaining=len(pending_updates) - idx + 1,
-                    quota_used=stats["quota_used"],
-                )
+            try:
+                response = update_single_video(youtube_auth, update_body, pretalx_id, dry_run=args.dry_run)
+
+                if response:
+                    stats["success"] += 1
+                    stats["by_channel"][channel_name]["success"] += 1
+                    stats["quota_used"] += QUOTA_PER_UPDATE
+                    save_update_status(pretalx_id, response, paths, success=True)
+                else:
+                    stats["failed"] += 1
+                    stats["by_channel"][channel_name]["failed"] += 1
+                    save_update_status(pretalx_id, {"error": "Update failed"}, paths, success=False)
+
+                stats["processed"] += 1
+
+                # Add small delay to avoid rate limiting
+                if not args.dry_run:
+                    time.sleep(0.5)
+
+            except googleapiclient.errors.HttpError as e:
+                if e.resp.status == 403 and "quota" in str(e).lower():
+                    stats["quota_exceeded"] = True
+                    logger.error(
+                        "quota_limit_reached",
+                        processed=stats["processed"],
+                        remaining=total_videos - current_index,
+                        quota_used=stats["quota_used"],
+                    )
+                    break
+                else:
+                    stats["failed"] += 1
+                    stats["by_channel"][channel_name]["failed"] += 1
+                    save_update_status(pretalx_id, {"error": str(e)}, paths, success=False)
+
+            except KeyboardInterrupt:
+                logger.warning("interrupted_by_user", processed=stats["processed"])
                 break
-            else:
-                stats["failed"] += 1
-                save_update_status(pretalx_id, {"error": str(e)}, paths, success=False)
 
-        except KeyboardInterrupt:
-            logger.warning("interrupted_by_user", processed=stats["processed"])
+        if stats["quota_exceeded"]:
             break
 
     # Final summary
     quota_remaining = DEFAULT_DAILY_QUOTA - stats["quota_used"]
     max_more_updates = quota_remaining // QUOTA_PER_UPDATE
+
+    # Log per-channel stats
+    for channel_name, channel_stats in stats["by_channel"].items():
+        logger.info(
+            "channel_summary",
+            channel=channel_name,
+            success=channel_stats["success"],
+            failed=channel_stats["failed"],
+        )
 
     logger.info(
         "update_complete",
