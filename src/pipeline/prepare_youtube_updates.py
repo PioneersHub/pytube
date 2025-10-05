@@ -4,9 +4,18 @@ This script generates YouTube metadata update files by:
 1. Loading release records with AI summaries
 2. Rendering YouTube description template
 3. Creating metadata update JSON files ready for YouTube API
+
+Usage:
+    # Generate update for all videos
+    uv run python -m src.pipeline.prepare_youtube_updates
+
+    # Generate update for single video
+    uv run python -m src.pipeline.prepare_youtube_updates --pretalx-id LRUKZQ
 """
 
+import argparse
 import json
+import sys
 from pathlib import Path
 
 import structlog
@@ -214,9 +223,28 @@ def create_youtube_update_metadata(record: dict, channel: str, description: str)
 
 def main():
     """Main entry point."""
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description="Prepare YouTube metadata updates from release records",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate updates for all videos
+  uv run python -m src.pipeline.prepare_youtube_updates
+
+  # Generate update for single video
+  uv run python -m src.pipeline.prepare_youtube_updates --pretalx-id LRUKZQ
+        """,
+    )
+    parser.add_argument(
+        "--pretalx-id",
+        help="Process only this Pretalx ID (if not provided, processes all)",
+    )
+    args = parser.parse_args()
+
     # Setup logging
     logger = setup_logging(module_name="prepare_youtube_updates")
-    logger.info("prepare_youtube_updates_start")
+    logger.info("prepare_youtube_updates_start", pretalx_id=args.pretalx_id)
 
     # Load configuration
     config = load_config()
@@ -232,6 +260,14 @@ def main():
     release_records = load_release_records(paths.event_dir)
     tracks_map = load_tracks_map(paths.event_dir)
     template_env = load_template()
+
+    # Filter to single record if specified
+    if args.pretalx_id:
+        if args.pretalx_id not in release_records:
+            logger.error("pretalx_id_not_found", pretalx_id=args.pretalx_id)
+            return 1
+        release_records = {args.pretalx_id: release_records[args.pretalx_id]}
+        logger.info("processing_single_record", pretalx_id=args.pretalx_id)
 
     # Create output directory
     output_dir = paths.event_dir / "youtube_records" / "update"
@@ -291,6 +327,8 @@ def main():
         total=len(release_records),
     )
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

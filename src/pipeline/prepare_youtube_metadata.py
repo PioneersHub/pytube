@@ -4,17 +4,17 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from config import load_config
-from logger import setup_logging
-from paths import WorkPaths
 from pydantic import ValidationError
-from youtube_models import (
+
+from models.youtube_metadata import YouTubeMetadataDefaults
+from pipeline.config import load_config
+from pipeline.logger import setup_logging
+from pipeline.models import SessionRecord
+from pipeline.paths import WorkPaths
+from pipeline.youtube_models import (
     DescriptionPlaceholder,
     PreparedVideoMetadata,
 )
-
-from models.youtube_metadata import YouTubeMetadataDefaults
-from pipeline.models import SessionRecord
 
 
 def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:
