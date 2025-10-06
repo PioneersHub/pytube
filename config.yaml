@@ -151,14 +151,67 @@ ai_service:
     temperature: 0.3
     max_tokens: 2000
 
-  # Prompt templates for video summaries (optional - defaults in prompts.yaml)
-  # prompts:
-  #   video_summary:
-  #     template: |
-  #       Custom prompt template here...
-  #     transcript_truncated: |
-  #       TRANSCRIPT (truncated): {transcript_text}
-  #     no_transcript: |
-  #       [No transcript available]
+  # Prompt templates for video summaries
+  prompts:
+    video_summary:
+      system: "You are creating metadata for a conference talk video that will be published on YouTube."
+
+      template: |
+        TALK INFORMATION:
+        Title: {title}
+        Speakers: {speakers}
+        Abstract: {abstract}
+        Description: {description}
+        {transcript_section}
+
+        Please generate the following content:
+
+        1. SHORT DESCRIPTION (200-400 words):
+        Write an engaging YouTube video description that:
+        - Summarizes the main topics and key points
+        - Highlights what viewers will learn
+        - Uses clear, accessible language
+        - Includes 2-3 key takeaways
+        - Maintains a professional yet approachable tone
+
+        2. TEASER (one sentence, max 200 characters):
+        Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
+
+        3. TAGS (10-15 relevant keywords):
+        List specific, relevant tags for YouTube that will help people find this video. Include:
+        - Technical topics covered
+        - Programming concepts
+        - Tools and libraries mentioned
+        - Target audience level
+
+        4. KEY TAKEAWAYS (3-5 bullet points):
+        List the main learning points or insights from the talk.
+
+        5. TARGET AUDIENCE:
+        Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
+
+        IMPORTANT: You MUST respond with valid JSON in exactly this format:
+        {{
+          "short_description": "...",
+          "teaser": "...",
+          "tags": ["tag1", "tag2", ...],
+          "key_takeaways": ["takeaway1", "takeaway2", ...],
+          "target_audience": "beginner|intermediate|advanced|all"
+        }}
+
+      transcript_with_data: |
+
+        TRANSCRIPT:
+        {transcript_text}
+
+      transcript_truncated: |
+
+        TRANSCRIPT (truncated for length):
+        {transcript_text}
+        [... transcript truncated ...]
+
+      no_transcript: |
+
+        [No transcript available - base summary on abstract and description only]
 
 # ########################################

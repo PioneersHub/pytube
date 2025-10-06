@@ -13,6 +13,15 @@ logger = structlog.get_logger()
 class AIProvider(ABC):
     """Abstract base class for AI providers."""
 
+    # Required output schema
+    REQUIRED_FIELDS = {
+        "short_description": str,
+        "teaser": str,
+        "tags": list,
+        "key_takeaways": list,
+        "target_audience": str,
+    }
+
     def __init__(self, config: dict):
         """Initialize provider with configuration.
 
@@ -31,7 +40,7 @@ class AIProvider(ABC):
             prompt: The formatted prompt
 
         Returns:
-            Parsed JSON response
+            Parsed JSON response matching REQUIRED_FIELDS schema
         """
         pass
 
@@ -43,6 +52,35 @@ class AIProvider(ABC):
             Cost estimation dictionary
         """
         pass
+
+    def validate_response(self, response: dict) -> dict:
+        """Validate response matches required schema.
+
+        Args:
+            response: Response dictionary to validate
+
+        Returns:
+            Validated response dictionary
+
+        Raises:
+            ValueError: If response is missing required fields or has wrong types
+        """
+        validated = {}
+
+        for field, expected_type in self.REQUIRED_FIELDS.items():
+            if field not in response:
+                raise ValueError(f"Missing required field: {field}")
+
+            value = response[field]
+            if not isinstance(value, expected_type):
+                raise ValueError(
+                    f"Field '{field}' has wrong type: expected {expected_type.__name__}, got {type(value).__name__}"
+                )
+
+            validated[field] = value
+
+        logger.debug("response_validated", fields=list(validated.keys()))
+        return validated
 
     def extract_json(self, response_text: str) -> dict:
         """Extract JSON from response text.
@@ -135,7 +173,9 @@ class AnthropicProvider(AIProvider):
                 output_tokens=getattr(message.usage, "output_tokens", 0),
             )
 
-            return self.extract_json(response_text)
+            # Extract and validate JSON
+            response_dict = self.extract_json(response_text)
+            return self.validate_response(response_dict)
 
         except Exception as e:
             logger.error("anthropic_api_error", error=str(e))
@@ -239,11 +279,13 @@ class OpenAIProvider(AIProvider):
                 output_tokens=response.usage.completion_tokens if response.usage else 0,
             )
 
-            # Parse JSON directly (OpenAI returns valid JSON with response_format)
+            # Parse and validate JSON (OpenAI returns valid JSON with response_format)
             try:
-                return json.loads(response_text)
+                response_dict = json.loads(response_text)
             except json.JSONDecodeError:
-                return self.extract_json(response_text)
+                response_dict = self.extract_json(response_text)
+
+            return self.validate_response(response_dict)
 
         except Exception as e:
             logger.error("openai_api_error", error=str(e))
