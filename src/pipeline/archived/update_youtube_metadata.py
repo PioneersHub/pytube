@@ -18,11 +18,11 @@ from pathlib import Path
 
 import googleapiclient.errors
 import structlog
+from pipeline.youtube_auth import YouTubeAuth
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.paths import WorkPaths
-from pipeline.youtube_auth import YouTubeAuth
 
 # YouTube API quota costs
 QUOTA_PER_UPDATE = 50

@@ -9,8 +9,6 @@ import json
 import shutil
 import sys
 import time
-from pathlib import Path
-from typing import Optional
 
 import googleapiclient.errors
 import structlog
@@ -18,6 +16,7 @@ import structlog
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.paths import WorkPaths
+
 from .auth import YouTubeAuth
 from .models import PreparedYouTubeUpdate
 from .status import StatusTracker
@@ -79,7 +78,7 @@ class YouTubeUpdater:
         self.youtube_auth = YouTubeAuth(client_secrets_file)
         logger.info("youtube_auth_initialized")
 
-    def load_pending_update(self, pretalx_id: str) -> Optional[PreparedYouTubeUpdate]:
+    def load_pending_update(self, pretalx_id: str) -> PreparedYouTubeUpdate | None:
         """Load a pending update file.
 
         Args:
@@ -98,11 +97,7 @@ class YouTubeUpdater:
                 data = json.load(f)
             return PreparedYouTubeUpdate(**data)
         except Exception as e:
-            logger.error(
-                "failed_to_load_pending_update",
-                pretalx_id=pretalx_id,
-                error=str(e)
-            )
+            logger.error("failed_to_load_pending_update", pretalx_id=pretalx_id, error=str(e))
             return None
 
     def send_update(self, pretalx_id: str) -> bool:
@@ -124,23 +119,14 @@ class YouTubeUpdater:
 
         # Check quota
         if self.quota_used >= DEFAULT_DAILY_QUOTA - QUOTA_PER_UPDATE:
-            logger.error(
-                "quota_limit_approaching",
-                used=self.quota_used,
-                limit=DEFAULT_DAILY_QUOTA
-            )
+            logger.error("quota_limit_approaching", used=self.quota_used, limit=DEFAULT_DAILY_QUOTA)
             return False
 
         # Mark as processing
         self.status_tracker.set_processing(pretalx_id)
 
         if self.dry_run:
-            logger.info(
-                "dry_run_update",
-                pretalx_id=pretalx_id,
-                youtube_id=youtube_id,
-                title=title_preview
-            )
+            logger.info("dry_run_update", pretalx_id=pretalx_id, youtube_id=youtube_id, title=title_preview)
             # In dry-run, mark as completed
             self.status_tracker.set_completed(pretalx_id)
             return True
@@ -160,7 +146,7 @@ class YouTubeUpdater:
                 pretalx_id=pretalx_id,
                 youtube_id=youtube_id,
                 title=title_preview,
-                quota_used=self.quota_used
+                quota_used=self.quota_used,
             )
 
             # Save response details
@@ -174,12 +160,7 @@ class YouTubeUpdater:
 
             # Check for quota exceeded
             if e.resp.status == 403 and "quota" in reason.lower():
-                logger.error(
-                    "quota_exceeded",
-                    pretalx_id=pretalx_id,
-                    youtube_id=youtube_id,
-                    error=reason
-                )
+                logger.error("quota_exceeded", pretalx_id=pretalx_id, youtube_id=youtube_id, error=reason)
                 # Don't move file - leave in pending for retry tomorrow
                 self.status_tracker.set_failed(pretalx_id, f"Quota exceeded: {reason}")
                 raise  # Re-raise to stop batch processing
@@ -191,7 +172,7 @@ class YouTubeUpdater:
                 youtube_id=youtube_id,
                 status_code=e.resp.status,
                 error=str(e),
-                reason=reason
+                reason=reason,
             )
 
             # Move to failed
@@ -207,7 +188,7 @@ class YouTubeUpdater:
                 pretalx_id=pretalx_id,
                 youtube_id=youtube_id,
                 error=str(e),
-                error_type=type(e).__name__
+                error_type=type(e).__name__,
             )
 
             # Move to failed
@@ -246,17 +227,12 @@ class YouTubeUpdater:
 
         with response_file.open("w") as f:
             json.dump(
-                {
-                    "pretalx_id": pretalx_id,
-                    "timestamp": timestamp,
-                    "success": success,
-                    "response": response
-                },
+                {"pretalx_id": pretalx_id, "timestamp": timestamp, "success": success, "response": response},
                 f,
-                indent=2
+                indent=2,
             )
 
-    def send_all(self, limit: Optional[int] = None) -> dict:
+    def send_all(self, limit: int | None = None) -> dict:
         """Send all pending updates.
 
         Args:
@@ -278,22 +254,12 @@ class YouTubeUpdater:
         if limit:
             pending_files = pending_files[:limit]
 
-        logger.info(
-            "starting_batch_update",
-            total=len(pending_files),
-            limit=limit,
-            dry_run=self.dry_run
-        )
+        logger.info("starting_batch_update", total=len(pending_files), limit=limit, dry_run=self.dry_run)
 
         for i, pending_file in enumerate(pending_files, 1):
             pretalx_id = pending_file.stem
 
-            logger.info(
-                "processing",
-                index=i,
-                total=len(pending_files),
-                pretalx_id=pretalx_id
-            )
+            logger.info("processing", index=i, total=len(pending_files), pretalx_id=pretalx_id)
 
             try:
                 success = self.send_update(pretalx_id)
@@ -312,9 +278,7 @@ class YouTubeUpdater:
                 # Quota exceeded - stop processing
                 if e.resp.status == 403:
                     logger.error(
-                        "stopping_due_to_quota",
-                        processed=stats["processed"],
-                        remaining=len(pending_files) - i
+                        "stopping_due_to_quota", processed=stats["processed"], remaining=len(pending_files) - i
                     )
                     break
                 else:
@@ -351,33 +315,13 @@ Examples:
 
   # Reset failed videos for retry
   python -m src.pipeline.youtube.send_updates --reset-failed
-        """
+        """,
     )
-    parser.add_argument(
-        "pretalx_ids",
-        nargs="*",
-        help="Specific Pretalx IDs to process"
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Maximum number of videos to update"
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview updates without sending to YouTube"
-    )
-    parser.add_argument(
-        "--status",
-        action="store_true",
-        help="Show current status and exit"
-    )
-    parser.add_argument(
-        "--reset-failed",
-        action="store_true",
-        help="Reset failed videos for retry and exit"
-    )
+    parser.add_argument("pretalx_ids", nargs="*", help="Specific Pretalx IDs to process")
+    parser.add_argument("--limit", type=int, help="Maximum number of videos to update")
+    parser.add_argument("--dry-run", action="store_true", help="Preview updates without sending to YouTube")
+    parser.add_argument("--status", action="store_true", help="Show current status and exit")
+    parser.add_argument("--reset-failed", action="store_true", help="Reset failed videos for retry and exit")
     args = parser.parse_args()
 
     # Setup
@@ -435,11 +379,7 @@ Examples:
             if updater.send_update(pretalx_id):
                 success += 1
 
-        logger.info(
-            "updates_complete",
-            requested=len(args.pretalx_ids),
-            success=success
-        )
+        logger.info("updates_complete", requested=len(args.pretalx_ids), success=success)
     else:
         # Process all pending
         stats = updater.send_all(limit=args.limit)
@@ -449,7 +389,7 @@ Examples:
             processed=stats["processed"],
             success=stats["success"],
             failed=stats["failed"],
-            quota_used=updater.quota_used
+            quota_used=updater.quota_used,
         )
 
         # Show quota info

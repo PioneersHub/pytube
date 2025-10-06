@@ -4,7 +4,6 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional
 
 import structlog
 
@@ -55,7 +54,7 @@ class AIProvider(ABC):
             Parsed JSON dictionary
         """
         # Find JSON in response (AI might add explanation text)
-        json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+        json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
         if json_match:
             json_str = json_match.group()
             try:
@@ -63,7 +62,7 @@ class AIProvider(ABC):
             except json.JSONDecodeError as e:
                 logger.warning("failed_to_parse_json", error=str(e))
                 # Try to clean common issues
-                json_str = json_str.replace('\n', ' ').replace('\\', '\\\\')
+                json_str = json_str.replace("\n", " ").replace("\\", "\\\\")
                 try:
                     return json.loads(json_str)
                 except:
@@ -75,7 +74,7 @@ class AIProvider(ABC):
             "teaser": "",
             "tags": [],
             "key_takeaways": [],
-            "target_audience": "all"
+            "target_audience": "all",
         }
 
 
@@ -93,12 +92,10 @@ class AnthropicProvider(AIProvider):
         # Get API key
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY environment variable not set. "
-                "Please export ANTHROPIC_API_KEY=your_key"
-            )
+            raise ValueError("ANTHROPIC_API_KEY environment variable not set. Please export ANTHROPIC_API_KEY=your_key")
 
         from anthropic import Anthropic
+
         self.client = Anthropic(api_key=api_key)
 
         # Get model from config, with fallback
@@ -120,27 +117,22 @@ class AnthropicProvider(AIProvider):
                 model=self.model,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Extract text from response
             response_text = message.content[0].text
 
             # Track token usage
-            if hasattr(message, 'usage'):
+            if hasattr(message, "usage"):
                 self.total_input_tokens += message.usage.input_tokens
                 self.total_output_tokens += message.usage.output_tokens
 
             logger.info(
                 "anthropic_generation_complete",
                 model=self.model,
-                input_tokens=getattr(message.usage, 'input_tokens', 0),
-                output_tokens=getattr(message.usage, 'output_tokens', 0)
+                input_tokens=getattr(message.usage, "input_tokens", 0),
+                output_tokens=getattr(message.usage, "output_tokens", 0),
             )
 
             return self.extract_json(response_text)
@@ -178,7 +170,7 @@ class AnthropicProvider(AIProvider):
             "output_tokens": self.total_output_tokens,
             "input_cost_usd": round(input_cost, 4),
             "output_cost_usd": round(output_cost, 4),
-            "total_cost_usd": round(total_cost, 4)
+            "total_cost_usd": round(total_cost, 4),
         }
 
 
@@ -196,12 +188,10 @@ class OpenAIProvider(AIProvider):
         # Get API key
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError(
-                "OPENAI_API_KEY environment variable not set. "
-                "Please export OPENAI_API_KEY=your_key"
-            )
+            raise ValueError("OPENAI_API_KEY environment variable not set. Please export OPENAI_API_KEY=your_key")
 
         from openai import OpenAI
+
         self.client = OpenAI(api_key=api_key)
 
         # Get model from config, with fallback
@@ -225,16 +215,13 @@ class OpenAIProvider(AIProvider):
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant that generates video metadata. Always respond with valid JSON."
+                        "content": "You are a helpful assistant that generates video metadata. Always respond with valid JSON.",
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt},
                 ],
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                response_format={"type": "json_object"}  # Force JSON response
+                response_format={"type": "json_object"},  # Force JSON response
             )
 
             # Extract text from response
@@ -249,7 +236,7 @@ class OpenAIProvider(AIProvider):
                 "openai_generation_complete",
                 model=self.model,
                 input_tokens=response.usage.prompt_tokens if response.usage else 0,
-                output_tokens=response.usage.completion_tokens if response.usage else 0
+                output_tokens=response.usage.completion_tokens if response.usage else 0,
             )
 
             # Parse JSON directly (OpenAI returns valid JSON with response_format)
@@ -291,7 +278,7 @@ class OpenAIProvider(AIProvider):
             "output_tokens": self.total_output_tokens,
             "input_cost_usd": round(input_cost, 4),
             "output_cost_usd": round(output_cost, 4),
-            "total_cost_usd": round(total_cost, 4)
+            "total_cost_usd": round(total_cost, 4),
         }
 
 
@@ -320,10 +307,7 @@ class ProviderFactory:
         provider_class = cls.PROVIDERS.get(provider_name.lower())
         if not provider_class:
             available = ", ".join(cls.PROVIDERS.keys())
-            raise ValueError(
-                f"Unsupported provider: {provider_name}. "
-                f"Available providers: {available}"
-            )
+            raise ValueError(f"Unsupported provider: {provider_name}. Available providers: {available}")
 
         logger.info("creating_ai_provider", provider=provider_name)
         return provider_class(config)

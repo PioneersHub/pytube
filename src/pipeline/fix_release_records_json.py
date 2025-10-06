@@ -8,8 +8,6 @@ import json
 import re
 from pathlib import Path
 
-import structlog
-
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.paths import WorkPaths

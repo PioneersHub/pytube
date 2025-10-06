@@ -3,7 +3,6 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import structlog
 
@@ -46,16 +45,11 @@ class StatusTracker:
 
                 # Convert last_run to datetime
                 if "last_run" in data and data["last_run"]:
-                    data["last_run"] = datetime.fromisoformat(
-                        data["last_run"].replace("Z", "+00:00")
-                    )
+                    data["last_run"] = datetime.fromisoformat(data["last_run"].replace("Z", "+00:00"))
 
                 report = UpdateStatusReport(**data)
                 logger.info(
-                    "loaded_status",
-                    total=report.total_videos,
-                    completed=report.completed,
-                    failed=report.failed
+                    "loaded_status", total=report.total_videos, completed=report.completed, failed=report.failed
                 )
                 return report
             except Exception as e:
@@ -84,7 +78,7 @@ class StatusTracker:
 
         logger.debug("saved_status", path=str(self.status_file))
 
-    def get_status(self, pretalx_id: str) -> Optional[UpdateStatus]:
+    def get_status(self, pretalx_id: str) -> UpdateStatus | None:
         """Get status for a specific video.
 
         Args:
@@ -103,9 +97,7 @@ class StatusTracker:
             youtube_id: YouTube video ID
         """
         status = self.get_status(pretalx_id) or UpdateStatus(
-            pretalx_id=pretalx_id,
-            youtube_id=youtube_id,
-            status="pending"
+            pretalx_id=pretalx_id, youtube_id=youtube_id, status="pending"
         )
         status.status = "pending"
         self._report.videos[pretalx_id] = status
@@ -145,11 +137,7 @@ class StatusTracker:
         self._report.last_run = datetime.utcnow()
         self.save()
 
-        logger.info(
-            "update_completed",
-            pretalx_id=pretalx_id,
-            attempts=status.attempts
-        )
+        logger.info("update_completed", pretalx_id=pretalx_id, attempts=status.attempts)
 
     def set_failed(self, pretalx_id: str, error: str):
         """Mark a video as failed.
@@ -168,28 +156,15 @@ class StatusTracker:
         self._report.last_run = datetime.utcnow()
         self.save()
 
-        logger.warning(
-            "update_failed",
-            pretalx_id=pretalx_id,
-            attempts=status.attempts,
-            error=error
-        )
+        logger.warning("update_failed", pretalx_id=pretalx_id, attempts=status.attempts, error=error)
 
     def _update_counts(self):
         """Update summary counts in report."""
         self._report.total_videos = len(self._report.videos)
-        self._report.pending = sum(
-            1 for s in self._report.videos.values() if s.status == "pending"
-        )
-        self._report.processing = sum(
-            1 for s in self._report.videos.values() if s.status == "processing"
-        )
-        self._report.completed = sum(
-            1 for s in self._report.videos.values() if s.status == "completed"
-        )
-        self._report.failed = sum(
-            1 for s in self._report.videos.values() if s.status == "failed"
-        )
+        self._report.pending = sum(1 for s in self._report.videos.values() if s.status == "pending")
+        self._report.processing = sum(1 for s in self._report.videos.values() if s.status == "processing")
+        self._report.completed = sum(1 for s in self._report.videos.values() if s.status == "completed")
+        self._report.failed = sum(1 for s in self._report.videos.values() if s.status == "failed")
 
     def get_pending_videos(self) -> list[str]:
         """Get list of videos pending update.
@@ -197,10 +172,7 @@ class StatusTracker:
         Returns:
             List of pretalx IDs
         """
-        return [
-            pid for pid, status in self._report.videos.items()
-            if status.status == "pending"
-        ]
+        return [pid for pid, status in self._report.videos.items() if status.status == "pending"]
 
     def get_failed_videos(self) -> list[str]:
         """Get list of failed videos.
@@ -208,10 +180,7 @@ class StatusTracker:
         Returns:
             List of pretalx IDs
         """
-        return [
-            pid for pid, status in self._report.videos.items()
-            if status.status == "failed"
-        ]
+        return [pid for pid, status in self._report.videos.items() if status.status == "failed"]
 
     def get_summary(self) -> dict:
         """Get summary statistics.
@@ -225,7 +194,7 @@ class StatusTracker:
             "processing": self._report.processing,
             "completed": self._report.completed,
             "failed": self._report.failed,
-            "last_run": self._report.last_run.isoformat() if self._report.last_run else None
+            "last_run": self._report.last_run.isoformat() if self._report.last_run else None,
         }
 
     def reset_failed(self):

@@ -9,7 +9,6 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import structlog
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound
@@ -19,6 +18,7 @@ from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
 from pipeline.text_generation.models import Summary
+
 from .models import (
     PreparedYouTubeUpdate,
     UpdateMetadata,
@@ -111,7 +111,7 @@ class MetadataBuilder:
         logger.warning("no_template_directory_found")
         return Environment(loader=FileSystemLoader("."))
 
-    def load_pretalx_record(self, pretalx_id: str) -> Optional[SessionRecord]:
+    def load_pretalx_record(self, pretalx_id: str) -> SessionRecord | None:
         """Load a Pretalx record.
 
         Args:
@@ -132,7 +132,7 @@ class MetadataBuilder:
             logger.error("failed_to_load_pretalx_record", pretalx_id=pretalx_id, error=str(e))
             return None
 
-    def load_summary(self, pretalx_id: str) -> Optional[Summary]:
+    def load_summary(self, pretalx_id: str) -> Summary | None:
         """Load an AI-generated summary.
 
         Args:
@@ -155,10 +155,7 @@ class MetadataBuilder:
             return None
 
     def render_description(
-        self,
-        record: SessionRecord,
-        summary: Optional[Summary],
-        template_name: str = "youtube_2025.txt"
+        self, record: SessionRecord, summary: Summary | None, template_name: str = "youtube_2025.txt"
     ) -> str:
         """Render YouTube description from template.
 
@@ -207,10 +204,10 @@ class MetadataBuilder:
             date=recorded_date,
             teaser_text=teaser_text,
             session_link=session_link,
-            pydata=("pydata" in record.track.lower() if record.track else False)
+            pydata=("pydata" in record.track.lower() if record.track else False),
         )
 
-    def _create_basic_description(self, record: SessionRecord, summary: Optional[Summary]) -> str:
+    def _create_basic_description(self, record: SessionRecord, summary: Summary | None) -> str:
         """Create a basic description without template."""
         speakers = [s.name for s in record.speakers]
         speaker_names = ", ".join(speakers)
@@ -227,11 +224,7 @@ class MetadataBuilder:
 
         return "\n".join(lines)
 
-    def prepare_metadata(
-        self,
-        pretalx_id: str,
-        force: bool = False
-    ) -> Optional[PreparedYouTubeUpdate]:
+    def prepare_metadata(self, pretalx_id: str, force: bool = False) -> PreparedYouTubeUpdate | None:
         """Prepare metadata for a single video.
 
         Args:
@@ -285,14 +278,14 @@ class MetadataBuilder:
                 description=description,
                 tags=unique_tags,
                 categoryId="28",  # Science & Technology
-                defaultLanguage="en"
+                defaultLanguage="en",
             ),
             status=YouTubeStatus(
                 privacyStatus=self.config.youtube.get("privacy_status", "unlisted"),
                 embeddable=True,
                 license="youtube",
-                selfDeclaredMadeForKids=False
-            )
+                selfDeclaredMadeForKids=False,
+            ),
         )
 
         # Create update metadata
@@ -300,14 +293,11 @@ class MetadataBuilder:
             pretalx_id=pretalx_id,
             prepared_at=datetime.utcnow(),
             template_version="v1",
-            has_ai_summary=summary is not None
+            has_ai_summary=summary is not None,
         )
 
         # Create prepared update
-        prepared_update = PreparedYouTubeUpdate(
-            youtube_metadata=youtube_metadata,
-            update_metadata=update_metadata
-        )
+        prepared_update = PreparedYouTubeUpdate(youtube_metadata=youtube_metadata, update_metadata=update_metadata)
 
         # Save to pending directory
         with pending_file.open("w") as f:
@@ -321,7 +311,7 @@ class MetadataBuilder:
             pretalx_id=pretalx_id,
             youtube_id=youtube_id,
             has_summary=summary is not None,
-            file=str(pending_file)
+            file=str(pending_file),
         )
 
         return prepared_update
@@ -345,11 +335,7 @@ class MetadataBuilder:
                 else:
                     stats["skipped"] += 1
             except Exception as e:
-                logger.error(
-                    "failed_to_prepare_metadata",
-                    pretalx_id=pretalx_id,
-                    error=str(e)
-                )
+                logger.error("failed_to_prepare_metadata", pretalx_id=pretalx_id, error=str(e))
                 stats["failed"] += 1
 
         return stats
@@ -370,23 +356,11 @@ Examples:
 
   # Force regeneration
   python -m src.pipeline.youtube.prepare_metadata --all --force
-        """
+        """,
     )
-    parser.add_argument(
-        "pretalx_ids",
-        nargs="*",
-        help="Specific Pretalx IDs to process"
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Process all mapped videos"
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force regeneration even if already exists"
-    )
+    parser.add_argument("pretalx_ids", nargs="*", help="Specific Pretalx IDs to process")
+    parser.add_argument("--all", action="store_true", help="Process all mapped videos")
+    parser.add_argument("--force", action="store_true", help="Force regeneration even if already exists")
     args = parser.parse_args()
 
     # Validate arguments
@@ -405,10 +379,7 @@ Examples:
         logger.info("preparing_all_videos", force=args.force)
         stats = builder.prepare_all(force=args.force)
         logger.info(
-            "preparation_complete",
-            prepared=stats["prepared"],
-            skipped=stats["skipped"],
-            failed=stats["failed"]
+            "preparation_complete", prepared=stats["prepared"], skipped=stats["skipped"], failed=stats["failed"]
         )
     else:
         prepared = 0
@@ -417,11 +388,7 @@ Examples:
             if result:
                 prepared += 1
 
-        logger.info(
-            "preparation_complete",
-            requested=len(args.pretalx_ids),
-            prepared=prepared
-        )
+        logger.info("preparation_complete", requested=len(args.pretalx_ids), prepared=prepared)
 
     # Show next steps
     pending_count = len(list(builder.pending_dir.glob("*.json")))

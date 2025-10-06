@@ -4,9 +4,6 @@ Moves successfully processed files from update/ to updated/, keeping failed ones
 """
 
 import json
-from pathlib import Path
-
-import structlog
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging

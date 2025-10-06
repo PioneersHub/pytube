@@ -11,7 +11,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
 
 import structlog
 import yaml
@@ -20,6 +19,7 @@ from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+
 from .models import Summary, SummaryGenerationRequest
 from .providers import AIProvider, ProviderFactory
 
@@ -57,7 +57,7 @@ class SummaryGenerator:
             Prompts configuration dictionary
         """
         # Try to load from config first
-        if hasattr(self.config, 'ai_service') and hasattr(self.config.ai_service, 'prompts'):
+        if hasattr(self.config, "ai_service") and hasattr(self.config.ai_service, "prompts"):
             logger.info("using_prompts_from_config")
             return self.config.ai_service.prompts
 
@@ -118,7 +118,7 @@ Please format your response as JSON with the following structure:
   "tags": ["tag1", "tag2", ...],
   "key_takeaways": ["takeaway1", "takeaway2", ...],
   "target_audience": "beginner|intermediate|advanced|all"
-}}"""
+}}""",
             }
         }
 
@@ -132,48 +132,40 @@ Please format your response as JSON with the following structure:
             ValueError: If provider configuration is invalid
         """
         # Get AI service configuration
-        ai_config = getattr(self.config, 'ai_service', {})
+        ai_config = getattr(self.config, "ai_service", {})
 
         # Handle OmegaConf DictConfig
-        if hasattr(ai_config, 'to_dict'):
+        if hasattr(ai_config, "to_dict"):
             ai_config = ai_config.to_dict()
-        elif hasattr(ai_config, '__dict__'):
+        elif hasattr(ai_config, "__dict__"):
             ai_config = ai_config.__dict__
 
         # Get provider name and config
-        provider_name = ai_config.get('provider', 'anthropic')
+        provider_name = ai_config.get("provider", "anthropic")
         provider_config = ai_config.get(provider_name, {})
 
         # Ensure provider config is a dict
-        if hasattr(provider_config, 'to_dict'):
+        if hasattr(provider_config, "to_dict"):
             provider_config = provider_config.to_dict()
-        elif hasattr(provider_config, '__dict__'):
+        elif hasattr(provider_config, "__dict__"):
             provider_config = provider_config.__dict__
 
-        logger.info(
-            "initializing_ai_provider",
-            provider=provider_name,
-            model=provider_config.get('model', 'default')
-        )
+        logger.info("initializing_ai_provider", provider=provider_name, model=provider_config.get("model", "default"))
 
         # Check for required API key based on provider
-        if provider_name == 'anthropic':
-            if not os.environ.get('ANTHROPIC_API_KEY'):
+        if provider_name == "anthropic":
+            if not os.environ.get("ANTHROPIC_API_KEY"):
                 raise ValueError(
-                    "ANTHROPIC_API_KEY environment variable not set. "
-                    "Please export ANTHROPIC_API_KEY=your_key"
+                    "ANTHROPIC_API_KEY environment variable not set. Please export ANTHROPIC_API_KEY=your_key"
                 )
-        elif provider_name == 'openai':
-            if not os.environ.get('OPENAI_API_KEY'):
-                raise ValueError(
-                    "OPENAI_API_KEY environment variable not set. "
-                    "Please export OPENAI_API_KEY=your_key"
-                )
+        elif provider_name == "openai":
+            if not os.environ.get("OPENAI_API_KEY"):
+                raise ValueError("OPENAI_API_KEY environment variable not set. Please export OPENAI_API_KEY=your_key")
 
         # Create provider using factory
         return ProviderFactory.create(provider_name, provider_config)
 
-    def load_transcript(self, pretalx_id: str) -> Optional[str]:
+    def load_transcript(self, pretalx_id: str) -> str | None:
         """Load transcript for a session.
 
         Args:
@@ -206,18 +198,14 @@ Please format your response as JSON with the following structure:
                         transcript_file = session_dir / "transcript.txt"
 
                     if transcript_file.exists():
-                        logger.info(
-                            "found_transcript",
-                            pretalx_id=pretalx_id,
-                            file=str(transcript_file)
-                        )
+                        logger.info("found_transcript", pretalx_id=pretalx_id, file=str(transcript_file))
                         with transcript_file.open(encoding="utf-8") as f:
                             return f.read()
 
         logger.info("no_transcript_found", pretalx_id=pretalx_id)
         return None
 
-    def load_session_record(self, pretalx_id: str) -> Optional[SessionRecord]:
+    def load_session_record(self, pretalx_id: str) -> SessionRecord | None:
         """Load Pretalx session record.
 
         Args:
@@ -258,18 +246,23 @@ Please format your response as JSON with the following structure:
         transcript_section = ""
         if request.transcript_text:
             # Get max length from config
-            max_length = getattr(self.config, 'ai_service', {}).get('max_transcript_length', 50000)
+            max_length = getattr(self.config, "ai_service", {}).get("max_transcript_length", 50000)
 
             if len(request.transcript_text) > max_length:
                 transcript_text = request.transcript_text[:max_length]
-                transcript_template = prompt_config.get("transcript_truncated", "\n\nTRANSCRIPT (truncated):\n{transcript_text}\n[... transcript truncated ...]")
+                transcript_template = prompt_config.get(
+                    "transcript_truncated",
+                    "\n\nTRANSCRIPT (truncated):\n{transcript_text}\n[... transcript truncated ...]",
+                )
             else:
                 transcript_text = request.transcript_text
                 transcript_template = prompt_config.get("transcript_with_data", "\n\nTRANSCRIPT:\n{transcript_text}")
 
             transcript_section = transcript_template.format(transcript_text=transcript_text)
         else:
-            transcript_section = prompt_config.get("no_transcript", "\n\n[No transcript available - base summary on abstract and description only]")
+            transcript_section = prompt_config.get(
+                "no_transcript", "\n\n[No transcript available - base summary on abstract and description only]"
+            )
 
         # Format the prompt
         prompt = template.format(
@@ -277,16 +270,12 @@ Please format your response as JSON with the following structure:
             speakers=speakers,
             abstract=request.abstract or "",
             description=request.description or "",
-            transcript_section=transcript_section
+            transcript_section=transcript_section,
         )
 
         return prompt
 
-    def generate_summary(
-        self,
-        pretalx_id: str,
-        force: bool = False
-    ) -> Optional[Summary]:
+    def generate_summary(self, pretalx_id: str, force: bool = False) -> Summary | None:
         """Generate AI summary for a session.
 
         Args:
@@ -320,7 +309,7 @@ Please format your response as JSON with the following structure:
             description=session.description or "",
             speakers=[s.name for s in session.speakers],
             transcript_text=transcript,
-            force_regenerate=force
+            force_regenerate=force,
         )
 
         logger.info(
@@ -328,7 +317,7 @@ Please format your response as JSON with the following structure:
             pretalx_id=pretalx_id,
             has_transcript=bool(transcript),
             title=session.title[:50],
-            provider=self.provider.__class__.__name__
+            provider=self.provider.__class__.__name__,
         )
 
         # Create prompt and call provider
@@ -345,12 +334,8 @@ Please format your response as JSON with the following structure:
                     break
                 except Exception as e:
                     if "rate" in str(e).lower() and attempt < max_retries - 1:
-                        wait_time = 2 ** attempt  # Exponential backoff
-                        logger.warning(
-                            "rate_limited_retrying",
-                            attempt=attempt + 1,
-                            wait_seconds=wait_time
-                        )
+                        wait_time = 2**attempt  # Exponential backoff
+                        logger.warning("rate_limited_retrying", attempt=attempt + 1, wait_seconds=wait_time)
                         time.sleep(wait_time)
                     else:
                         raise
@@ -359,8 +344,8 @@ Please format your response as JSON with the following structure:
                 raise ValueError("Failed to generate response after retries")
 
             # Get model info from provider config
-            provider_name = self.config.ai_service.provider if hasattr(self.config, 'ai_service') else 'anthropic'
-            model_info = getattr(self.provider, 'model', f'{provider_name}-default')
+            provider_name = self.config.ai_service.provider if hasattr(self.config, "ai_service") else "anthropic"
+            model_info = getattr(self.provider, "model", f"{provider_name}-default")
 
             # Create Summary object
             summary = Summary(
@@ -376,7 +361,7 @@ Please format your response as JSON with the following structure:
                 model_used=model_info,
                 prompt_version="v2",  # Version 2 with configurable prompts
                 has_transcript=bool(transcript),
-                transcript_duration_seconds=None  # Could be calculated if needed
+                transcript_duration_seconds=None,  # Could be calculated if needed
             )
 
             # Save to file
@@ -387,20 +372,16 @@ Please format your response as JSON with the following structure:
                 "summary_generated",
                 pretalx_id=pretalx_id,
                 tags_count=len(summary.tags),
-                description_length=len(summary.short_description)
+                description_length=len(summary.short_description),
             )
 
             return summary
 
         except Exception as e:
-            logger.error(
-                "failed_to_generate_summary",
-                pretalx_id=pretalx_id,
-                error=str(e)
-            )
+            logger.error("failed_to_generate_summary", pretalx_id=pretalx_id, error=str(e))
             return None
 
-    def generate_all(self, force: bool = False, limit: Optional[int] = None) -> dict:
+    def generate_all(self, force: bool = False, limit: int | None = None) -> dict:
         """Generate summaries for all sessions.
 
         Args:
@@ -410,12 +391,7 @@ Please format your response as JSON with the following structure:
         Returns:
             Statistics dictionary
         """
-        stats = {
-            "generated": 0,
-            "skipped": 0,
-            "failed": 0,
-            "no_session": 0
-        }
+        stats = {"generated": 0, "skipped": 0, "failed": 0, "no_session": 0}
 
         # Get all session records
         records_dir = self.paths.get_path("pretalx_records")
@@ -428,12 +404,7 @@ Please format your response as JSON with the following structure:
         if limit:
             record_files = record_files[:limit]
 
-        logger.info(
-            "starting_batch_generation",
-            total=len(record_files),
-            limit=limit,
-            force=force
-        )
+        logger.info("starting_batch_generation", total=len(record_files), limit=limit, force=force)
 
         for i, record_file in enumerate(record_files, 1):
             pretalx_id = record_file.stem
@@ -442,12 +413,7 @@ Please format your response as JSON with the following structure:
             if pretalx_id.startswith("_"):
                 continue
 
-            logger.info(
-                "processing_session",
-                index=i,
-                total=len(record_files),
-                pretalx_id=pretalx_id
-            )
+            logger.info("processing_session", index=i, total=len(record_files), pretalx_id=pretalx_id)
 
             try:
                 result = self.generate_summary(pretalx_id, force=force)
@@ -462,11 +428,7 @@ Please format your response as JSON with the following structure:
                     time.sleep(1)  # Short pause every 5 requests
 
             except Exception as e:
-                logger.error(
-                    "batch_generation_error",
-                    pretalx_id=pretalx_id,
-                    error=str(e)
-                )
+                logger.error("batch_generation_error", pretalx_id=pretalx_id, error=str(e))
                 stats["failed"] += 1
 
         return stats
@@ -515,33 +477,13 @@ Environment:
   Export API key based on provider:
   export ANTHROPIC_API_KEY=your_key_here
   export OPENAI_API_KEY=your_key_here
-        """
+        """,
     )
-    parser.add_argument(
-        "pretalx_ids",
-        nargs="*",
-        help="Specific Pretalx IDs to process"
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Process all sessions"
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force regeneration even if already exists"
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Limit number of summaries to generate"
-    )
-    parser.add_argument(
-        "--provider",
-        choices=['anthropic', 'openai'],
-        help="Override AI provider from config"
-    )
+    parser.add_argument("pretalx_ids", nargs="*", help="Specific Pretalx IDs to process")
+    parser.add_argument("--all", action="store_true", help="Process all sessions")
+    parser.add_argument("--force", action="store_true", help="Force regeneration even if already exists")
+    parser.add_argument("--limit", type=int, help="Limit number of summaries to generate")
+    parser.add_argument("--provider", choices=["anthropic", "openai"], help="Override AI provider from config")
     args = parser.parse_args()
 
     # Validate arguments
@@ -555,9 +497,9 @@ Environment:
 
     # Override provider if specified
     if args.provider:
-        if not hasattr(config, 'ai_service'):
+        if not hasattr(config, "ai_service"):
             config.ai_service = {}
-        config.ai_service['provider'] = args.provider
+        config.ai_service["provider"] = args.provider
         logger.info("overriding_provider", provider=args.provider)
 
     # Initialize generator
@@ -578,13 +520,13 @@ Environment:
             generated=stats["generated"],
             skipped=stats["skipped"],
             failed=stats["failed"],
-            no_session=stats["no_session"]
+            no_session=stats["no_session"],
         )
 
         # Show cost estimate
         cost = generator.estimate_cost()
         print(f"\n✅ Generated {stats['generated']} summaries")
-        if stats['failed'] > 0:
+        if stats["failed"] > 0:
             print(f"⚠️  {stats['failed']} failed")
         print(f"\nEstimated API cost ({cost['provider']} - {cost['model']}):")
         print(f"  Input tokens:  {cost['input_tokens']:,}")
@@ -599,11 +541,7 @@ Environment:
             if result:
                 generated += 1
 
-        logger.info(
-            "generation_complete",
-            requested=len(args.pretalx_ids),
-            generated=generated
-        )
+        logger.info("generation_complete", requested=len(args.pretalx_ids), generated=generated)
 
         # Show cost for individual runs too
         if generated > 0:

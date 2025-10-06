@@ -17,7 +17,6 @@ from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
 
-
 # Claude 3.5 Sonnet model
 CLAUDE_MODEL = "claude-3-5-sonnet-20241022"
 

@@ -5,11 +5,11 @@ Supports multiple YouTube channels with separate token files for each channel.
 
 from pathlib import Path
 
+import structlog
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-import structlog
 
 logger = structlog.get_logger()
 

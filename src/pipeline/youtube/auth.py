@@ -4,13 +4,12 @@ Simplified authentication focusing on single channel operations.
 """
 
 from pathlib import Path
-from typing import Optional
 
+import structlog
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-import structlog
 
 logger = structlog.get_logger()
 
@@ -20,7 +19,7 @@ class YouTubeAuth:
 
     SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 
-    def __init__(self, client_secrets_file: Path, token_path: Optional[Path] = None):
+    def __init__(self, client_secrets_file: Path, token_path: Path | None = None):
         """Initialize YouTube authentication.
 
         Args:
@@ -78,10 +77,7 @@ class YouTubeAuth:
                     "starting_oauth_flow",
                     message="Please authenticate with YouTube channel credentials in the browser window",
                 )
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    str(self.client_secrets_file),
-                    self.SCOPES
-                )
+                flow = InstalledAppFlow.from_client_secrets_file(str(self.client_secrets_file), self.SCOPES)
                 creds = flow.run_local_server(port=0)
 
             # Save credentials for next run
@@ -122,10 +118,7 @@ class YouTubeAuth:
         Raises:
             googleapiclient.errors.HttpError: On API errors
         """
-        request = self.service.videos().list(
-            part="snippet,status",
-            id=video_id
-        )
+        request = self.service.videos().list(part="snippet,status", id=video_id)
         response = request.execute()
 
         if response.get("items"):
@@ -151,10 +144,7 @@ class YouTubeAuth:
 
         while True:
             request = self.service.playlistItems().list(
-                part="snippet",
-                playlistId=playlist_id,
-                maxResults=max_results,
-                pageToken=next_page_token
+                part="snippet", playlistId=playlist_id, maxResults=max_results, pageToken=next_page_token
             )
             response = request.execute()
 
