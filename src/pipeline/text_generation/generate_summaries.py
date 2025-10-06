@@ -33,7 +33,6 @@ class SummaryGenerator:
         """Initialize summary generator."""
         self.config = load_config()
         self.paths = WorkPaths(self.config)
-        self.event_slug = self.config.pretalx.event_slug
 
         # Setup directories
         self.summaries_dir = self.paths.event_dir / "summaries"

@@ -39,7 +39,6 @@ class MetadataBuilder:
         """Initialize metadata builder."""
         self.config = load_config()
         self.paths = WorkPaths(self.config)
-        self.event_slug = self.config.pretalx.event_slug
 
         # Setup directories
         self.youtube_dir = self.paths.event_dir / "youtube"
