@@ -10,10 +10,8 @@ import os
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 import structlog
-import yaml
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
@@ -21,7 +19,7 @@ from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
 
 from .models import Summary, SummaryGenerationRequest
-from .providers import AIProvider, ProviderFactory
+from .providers import ProviderFactory
 
 logger = structlog.get_logger()
 
@@ -45,78 +43,23 @@ class SummaryGenerator:
         self.provider = self._init_provider()
 
     def _load_prompts(self) -> dict:
-        """Load prompts from configuration file.
+        """Load prompts from configuration.
 
         Returns:
             Prompts configuration dictionary
+
+        Raises:
+            ValueError: If prompts are not configured
         """
-        # Try to load from config first
         if hasattr(self.config, "ai_service") and hasattr(self.config.ai_service, "prompts"):
             logger.info("using_prompts_from_config")
             return self.config.ai_service.prompts
 
-        # Fallback to prompts.yaml file
-        prompts_file = Path(__file__).parent / "prompts.yaml"
-        if prompts_file.exists():
-            logger.info("loading_prompts_from_file", file=str(prompts_file))
-            with prompts_file.open() as f:
-                prompts_config = yaml.safe_load(f)
-                return prompts_config.get("prompts", {})
+        raise ValueError(
+            "Prompts not configured in config.yaml. Add prompts to ai_service.prompts section in config_local.yaml"
+        )
 
-        # Fallback to hardcoded default
-        logger.warning("using_default_prompts")
-        return self._get_default_prompts()
-
-    def _get_default_prompts(self) -> dict:
-        """Get default prompts as fallback.
-
-        Returns:
-            Default prompts dictionary
-        """
-        return {
-            "video_summary": {
-                "system": "You are creating metadata for a conference talk video that will be published on YouTube.",
-                "template": """TALK INFORMATION:
-Title: {title}
-Speakers: {speakers}
-Abstract: {abstract}
-Description: {description}
-{transcript_section}
-
-Please generate the following content:
-
-1. SHORT DESCRIPTION (200-400 words):
-Write an engaging YouTube video description that:
-- Summarizes the main topics and key points
-- Highlights what viewers will learn
-- Uses clear, accessible language
-- Includes 2-3 key takeaways
-- Maintains a professional yet approachable tone
-
-2. TEASER (one sentence, max 200 characters):
-Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
-
-3. TAGS (10-15 relevant keywords):
-List specific, relevant tags for YouTube that will help people find this video.
-
-4. KEY TAKEAWAYS (3-5 bullet points):
-List the main learning points or insights from the talk.
-
-5. TARGET AUDIENCE:
-Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
-
-Please format your response as JSON with the following structure:
-{{
-  "short_description": "...",
-  "teaser": "...",
-  "tags": ["tag1", "tag2", ...],
-  "key_takeaways": ["takeaway1", "takeaway2", ...],
-  "target_audience": "beginner|intermediate|advanced|all"
-}}""",
-            }
-        }
-
-    def _init_provider(self) -> AIProvider:
+    def _init_provider(self):
         """Initialize AI provider from configuration.
 
         Returns:
