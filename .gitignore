@@ -175,6 +175,9 @@ _data
 .work/
 .logs/
 
+# OAuth tokens (YouTube, etc.)
+token_*.json
+
 .DS_Store
 # Code Assistant Files
 
