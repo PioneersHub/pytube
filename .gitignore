@@ -164,7 +164,7 @@ cython_debug/
 *.egg-info
 config_local.yml
 _tmp
-_secret
+.secrets
 .idea
 ,pixi
 config_local.yaml

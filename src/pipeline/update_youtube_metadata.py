@@ -265,7 +265,7 @@ def main():
     youtube_auth_clients = {}
     if not args.dry_run:
         client_secrets_file = paths.root / config.youtube.client_secrets_file
-        token_dir = paths.root
+        token_dir = paths.root / ".secrets"
 
         for channel_name in grouped_by_channel.keys():
             logger.info("authenticating_channel", channel=channel_name)
