@@ -21,7 +21,7 @@ class MailClient:
     """Drop-in replacement for the HelpDesk MailClient in pytanis."""
 
     def __init__(self):
-        self.api_key = (Path(__file__).parents[2] / "_secret/brevo_key").read_text().strip()
+        self.api_key = (Path(__file__).parents[2] / ".secrets/brevo_key").read_text().strip()
         self.sender_name = "PyCon DE + PyData"
         self.sender_email = "mailings@pycon.de"
 
