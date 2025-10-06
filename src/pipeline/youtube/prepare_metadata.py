@@ -35,19 +35,14 @@ logger = structlog.get_logger()
 class MetadataBuilder:
     """Build YouTube metadata from various sources."""
 
-    def __init__(self, config, paths: WorkPaths):
-        """Initialize metadata builder.
-
-        Args:
-            config: Configuration object
-            paths: WorkPaths instance
-        """
-        self.config = config
-        self.paths = paths
-        self.event_slug = config.pretalx.event_slug
+    def __init__(self):
+        """Initialize metadata builder."""
+        self.config = load_config()
+        self.paths = WorkPaths(self.config)
+        self.event_slug = self.config.pretalx.event_slug
 
         # Setup directories
-        self.youtube_dir = paths.event_dir / "youtube"
+        self.youtube_dir = self.paths.event_dir / "youtube"
         self.youtube_dir.mkdir(parents=True, exist_ok=True)
 
         self.pending_dir = self.youtube_dir / "pending"
@@ -369,11 +364,9 @@ Examples:
 
     # Setup
     logger = setup_logging(module_name="youtube.prepare_metadata")
-    config = load_config()
-    paths = WorkPaths(config)
 
     # Initialize builder
-    builder = MetadataBuilder(config, paths)
+    builder = MetadataBuilder()
 
     if args.all:
         logger.info("preparing_all_videos", force=args.force)

@@ -29,19 +29,14 @@ logger = structlog.get_logger()
 class SummaryGenerator:
     """Generate AI summaries using configurable providers."""
 
-    def __init__(self, config, paths: WorkPaths):
-        """Initialize summary generator.
-
-        Args:
-            config: Configuration object
-            paths: WorkPaths instance
-        """
-        self.config = config
-        self.paths = paths
-        self.event_slug = config.pretalx.event_slug
+    def __init__(self):
+        """Initialize summary generator."""
+        self.config = load_config()
+        self.paths = WorkPaths(self.config)
+        self.event_slug = self.config.pretalx.event_slug
 
         # Setup directories
-        self.summaries_dir = paths.event_dir / "summaries"
+        self.summaries_dir = self.paths.event_dir / "summaries"
         self.summaries_dir.mkdir(parents=True, exist_ok=True)
 
         # Load prompts configuration
@@ -140,8 +135,8 @@ Please format your response as JSON with the following structure:
         elif hasattr(ai_config, "__dict__"):
             ai_config = ai_config.__dict__
 
-        # Get provider name and config
-        provider_name = ai_config.get("provider", "anthropic")
+        # Get provider name and config (check for override)
+        provider_name = os.environ.get("AI_PROVIDER_OVERRIDE") or ai_config.get("provider", "anthropic")
         provider_config = ai_config.get(provider_name, {})
 
         # Ensure provider config is a dict
@@ -492,19 +487,15 @@ Environment:
 
     # Setup
     logger = setup_logging(module_name="text_generation.generate_summaries")
-    config = load_config()
-    paths = WorkPaths(config)
 
-    # Override provider if specified
+    # Override provider via environment variable if specified
     if args.provider:
-        if not hasattr(config, "ai_service"):
-            config.ai_service = {}
-        config.ai_service["provider"] = args.provider
+        os.environ["AI_PROVIDER_OVERRIDE"] = args.provider
         logger.info("overriding_provider", provider=args.provider)
 
     # Initialize generator
     try:
-        generator = SummaryGenerator(config, paths)
+        generator = SummaryGenerator()
     except ValueError as e:
         logger.error("initialization_failed", error=str(e))
         print(f"\nError: {e}")

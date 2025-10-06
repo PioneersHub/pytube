@@ -32,20 +32,18 @@ MAX_UPDATES_PER_DAY = DEFAULT_DAILY_QUOTA // QUOTA_PER_UPDATE  # ~200
 class YouTubeUpdater:
     """Send metadata updates to YouTube API."""
 
-    def __init__(self, config, paths: WorkPaths, dry_run: bool = False):
+    def __init__(self, dry_run: bool = False):
         """Initialize YouTube updater.
 
         Args:
-            config: Configuration object
-            paths: WorkPaths instance
             dry_run: If True, don't actually send updates
         """
-        self.config = config
-        self.paths = paths
+        self.config = load_config()
+        self.paths = WorkPaths(self.config)
         self.dry_run = dry_run
 
         # Setup directories
-        self.youtube_dir = paths.event_dir / "youtube"
+        self.youtube_dir = self.paths.event_dir / "youtube"
         self.pending_dir = self.youtube_dir / "pending"
         self.completed_dir = self.youtube_dir / "completed"
         self.failed_dir = self.youtube_dir / "failed"
@@ -327,7 +325,7 @@ Examples:
     # Setup
     logger = setup_logging(module_name="youtube.send_updates")
     config = load_config()
-    paths = WorkPaths(config)
+    paths = WorkPaths(config)  # Keep for status check and reset-failed
 
     # Handle status check
     if args.status:
@@ -370,7 +368,7 @@ Examples:
         return 0
 
     # Initialize updater
-    updater = YouTubeUpdater(config, paths, dry_run=args.dry_run)
+    updater = YouTubeUpdater(dry_run=args.dry_run)
 
     if args.pretalx_ids:
         # Process specific videos
