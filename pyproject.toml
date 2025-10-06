@@ -42,6 +42,40 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Pipeline: Text Generation (AI summaries)
+text_generation = [
+    "anthropic>=0.39.0",  # Claude API for AI summaries
+    "structlog>=25.3.0",  # Structured logging
+    "pydantic>=2.11.7",  # Data models
+    "omegaconf>=2.3.0",  # Config management
+    "pytanis",  # Pretalx integration
+    "pyyaml>=6.0.2",  # YAML support
+    "markdown>=3.8.2",  # Markdown to text conversion
+    "beautifulsoup4>=4.13.4",  # HTML parsing for markdown
+]
+
+# Pipeline: YouTube Module
+youtube = [
+    "google-api-python-client>=2.169.0",  # YouTube API
+    "google-auth-oauthlib>=1.2.2",  # OAuth2 authentication
+    "google-auth>=2.36.0",  # Google authentication
+    "oauth2client>=4.1.3",  # OAuth2 client (legacy support)
+    "jinja2>=3.1.4",  # Template rendering
+    "structlog>=25.3.0",  # Structured logging
+    "pydantic>=2.11.7",  # Data models
+    "omegaconf>=2.3.0",  # Config management
+    "pytanis",  # Pretalx integration
+    "pyyaml>=6.0.2",  # YAML support
+    "markdown>=3.8.2",  # Markdown to text conversion
+    "beautifulsoup4>=4.13.4",  # HTML parsing
+]
+
+# Combined pipeline dependencies (for running both modules)
+pipeline = [
+    "video_manager[text_generation]",
+    "video_manager[youtube]",
+]
+
 # Core test dependencies
 test = [
     "pytest>=8.4.1",
@@ -113,6 +147,7 @@ all = [
     "video_manager[dev]",
     "video_manager[docs]",
     "video_manager[video_processor]",
+    "video_manager[pipeline]",
 ]
 
 
