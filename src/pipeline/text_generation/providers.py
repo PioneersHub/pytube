@@ -6,6 +6,7 @@ import re
 from abc import ABC, abstractmethod
 
 import structlog
+from pydantic import ValidationError
 
 logger = structlog.get_logger()
 
@@ -54,7 +55,7 @@ class AIProvider(ABC):
         pass
 
     def validate_response(self, response: dict) -> dict:
-        """Validate response matches required schema.
+        """Validate response matches required schema using Pydantic.
 
         Args:
             response: Response dictionary to validate
@@ -63,24 +64,25 @@ class AIProvider(ABC):
             Validated response dictionary
 
         Raises:
-            ValueError: If response is missing required fields or has wrong types
+            ValueError: If response fails validation
         """
-        validated = {}
+        try:
+            # Import here to avoid circular dependency
+            from .models import AIGeneratedResponse
 
-        for field, expected_type in self.REQUIRED_FIELDS.items():
-            if field not in response:
-                raise ValueError(f"Missing required field: {field}")
+            # Validate with Pydantic model
+            validated_response = AIGeneratedResponse(**response)
 
-            value = response[field]
-            if not isinstance(value, expected_type):
-                raise ValueError(
-                    f"Field '{field}' has wrong type: expected {expected_type.__name__}, got {type(value).__name__}"
-                )
+            # Convert back to dict for consistency
+            result = validated_response.model_dump()
 
-            validated[field] = value
+            logger.debug("response_validated", fields=list(result.keys()))
+            return result
 
-        logger.debug("response_validated", fields=list(validated.keys()))
-        return validated
+        except ValidationError as e:
+            error_msg = f"AI response validation failed: {e}"
+            logger.error("validation_error", error=str(e))
+            raise ValueError(error_msg) from e
 
     def extract_json(self, response_text: str) -> dict:
         """Extract JSON from response text.

@@ -48,6 +48,19 @@ class SummaryGenerationRequest(BaseModel):
     force_regenerate: bool = Field(False, description="Regenerate even if exists")
 
 
+class AIGeneratedResponse(BaseModel):
+    """Expected response format from AI providers.
+
+    This model defines the exact schema that all AI providers must return.
+    """
+
+    short_description: str = Field(..., min_length=50, description="Concise summary (200-400 words)")
+    teaser: str = Field(..., min_length=1, max_length=200, description="One-sentence hook")
+    tags: list[str] = Field(..., min_length=1, description="Keywords (10-15 items)")
+    key_takeaways: list[str] = Field(..., min_length=1, description="Main points (3-5 items)")
+    target_audience: Literal["beginner", "intermediate", "advanced", "all"] = Field(..., description="Audience level")
+
+
 class SummaryBatch(BaseModel):
     """Batch of summaries for processing."""
 
