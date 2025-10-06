@@ -1,0 +1,135 @@
+# AI Text Generation Prompts Configuration
+# This file contains all prompts used for generating summaries and metadata
+
+prompts:
+  # Main summary generation prompt
+  video_summary:
+    system: |
+      You are creating metadata for a conference talk video that will be published on YouTube.
+      Your responses should be engaging, informative, and optimized for discoverability.
+
+    template: |
+      TALK INFORMATION:
+      Title: {title}
+      Speakers: {speakers}
+      Abstract: {abstract}
+      Description: {description}
+      {transcript_section}
+
+      Please generate the following content:
+
+      1. SHORT DESCRIPTION (200-400 words):
+      Write an engaging YouTube video description that:
+      - Summarizes the main topics and key points
+      - Highlights what viewers will learn
+      - Uses clear, accessible language
+      - Includes 2-3 key takeaways
+      - Maintains a professional yet approachable tone
+
+      2. TEASER (one sentence, max 200 characters):
+      Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
+
+      3. TAGS (10-15 relevant keywords):
+      List specific, relevant tags for YouTube that will help people find this video. Include:
+      - Technical topics covered
+      - Programming concepts
+      - Tools and libraries mentioned
+      - Target audience level (beginner/intermediate/advanced)
+
+      4. KEY TAKEAWAYS (3-5 bullet points):
+      List the main learning points or insights from the talk.
+
+      5. TARGET AUDIENCE:
+      Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
+
+      Please format your response as JSON with the following structure:
+      {{
+        "short_description": "...",
+        "teaser": "...",
+        "tags": ["tag1", "tag2", ...],
+        "key_takeaways": ["takeaway1", "takeaway2", ...],
+        "target_audience": "beginner|intermediate|advanced|all"
+      }}
+
+    transcript_with_data: |
+
+      TRANSCRIPT:
+      {transcript_text}
+
+    transcript_truncated: |
+
+      TRANSCRIPT (truncated for length):
+      {transcript_text}
+      [... transcript truncated ...]
+
+    no_transcript: |
+
+      [No transcript available - base summary on abstract and description only]
+
+  # Alternative prompt for shorter summaries
+  quick_summary:
+    system: |
+      You are a technical content summarizer specializing in conference talks.
+
+    template: |
+      Create a brief summary for this conference talk:
+
+      Title: {title}
+      Speaker(s): {speakers}
+      Abstract: {abstract}
+
+      Generate:
+      1. A 100-word summary
+      2. 5 relevant tags
+      3. Target audience level
+
+      Respond in JSON format.
+
+  # Prompt for social media posts
+  social_media:
+    system: |
+      You are a social media content creator for technical conferences.
+
+    template: |
+      Based on this talk:
+      Title: {title}
+      Summary: {summary}
+
+      Create:
+      1. A LinkedIn post (300 chars max) with relevant hashtags
+      2. A Twitter/X post (280 chars max) with hashtags
+      3. An engaging question to spark discussion
+
+      Format as JSON with keys: linkedin_post, twitter_post, discussion_question
+
+# Configuration for different use cases
+prompt_selection:
+  default: "video_summary"
+
+  # Map different scenarios to prompts
+  scenarios:
+    full_transcript: "video_summary"
+    no_transcript: "video_summary"  # Same prompt, different section
+    quick: "quick_summary"
+    social: "social_media"
+
+# Limits and constraints
+constraints:
+  max_transcript_length: 50000  # characters
+  max_prompt_tokens: 100000     # approximate
+
+  field_limits:
+    short_description:
+      min_words: 200
+      max_words: 400
+    long_description:
+      min_words: 400
+      max_words: 600
+    teaser:
+      max_chars: 200
+    tags:
+      min_count: 5
+      max_count: 15
+    key_takeaways:
+      min_count: 3
+      max_count: 5

@@ -125,58 +125,40 @@ prompts:
     Avoid the verb “delve.”
     Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
 # ########################################
-# AI Service Configuration
+# AI Service Configuration for Text Generation
 # Configure your preferred AI service in config_local.yaml
 # For setup instructions, see: docs/api-credentials.md
-# Quick start guide: docs/quick-setup-services.md
 # ########################################
 
-# Active AI service - options: openai, anthropic, google, cohere
-ai_service: "openai"
+ai_service:
+  # Provider selection: anthropic or openai
+  provider: anthropic
 
-# OpenAI Configuration
-openai:
-  api_key: ""
-  # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
-  model: "gpt-3.5-turbo"
-  # Temperature settings for different tasks
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Optional: Organization ID
-  organization: ""
+  # Maximum transcript length before truncation (characters)
+  max_transcript_length: 50000
 
-# Anthropic Claude Configuration
-anthropic:
-  api_key: ""
-  # Models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
-  model: "claude-3-sonnet-20240229"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Max tokens for Claude (different from OpenAI)
-  max_tokens: 1000
+  # Anthropic Claude configuration
+  anthropic:
+    # Models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-haiku-20240307
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.3  # Lower for more consistent output
+    max_tokens: 2000
 
-# Google Gemini Configuration
-google:
-  api_key: ""
-  # Models: gemini-pro, gemini-pro-vision
-  model: "gemini-pro"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Safety settings
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+  # OpenAI GPT configuration
+  openai:
+    # Models: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+    model: gpt-4o-mini
+    temperature: 0.3
+    max_tokens: 2000
 
-# Cohere Configuration
-cohere:
-  api_key: ""
-  # Models: command, command-light, command-nightly
-  model: "command"
-  temperature:
-    teaser: 0.7
-    description: 0.9
+  # Prompt templates for video summaries (optional - defaults in prompts.yaml)
+  # prompts:
+  #   video_summary:
+  #     template: |
+  #       Custom prompt template here...
+  #     transcript_truncated: |
+  #       TRANSCRIPT (truncated): {transcript_text}
+  #     no_transcript: |
+  #       [No transcript available]
 
 # ########################################

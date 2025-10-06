@@ -34,19 +34,45 @@ The text generation module is designed to be **independent and reusable**. While
    - Greatly improves summary quality
    - Directory name should contain `[{pretalx_id}]`
 
-### API Key Setup
+### AI Provider Setup
 
-You need a Claude API key from Anthropic:
+The module supports multiple AI providers. Configure your choice in `config_local.yaml`:
+
+#### Option 1: Anthropic Claude (Recommended)
+
+```yaml
+# config_local.yaml
+ai_service:
+  provider: anthropic
+  anthropic:
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.3
+```
 
 ```bash
 # Set environment variable
 export ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
-
-# Or add to your shell profile
-echo 'export ANTHROPIC_API_KEY=sk-ant-api03-xxxxx' >> ~/.bashrc
 ```
 
 Get your API key from: https://console.anthropic.com/
+
+#### Option 2: OpenAI GPT
+
+```yaml
+# config_local.yaml
+ai_service:
+  provider: openai
+  openai:
+    model: gpt-4o-mini  # or gpt-4o for better quality
+    temperature: 0.3
+```
+
+```bash
+# Set environment variable
+export OPENAI_API_KEY=sk-xxxxx
+```
+
+Get your API key from: https://platform.openai.com/
 
 ## Generated Content
 
@@ -138,10 +164,33 @@ Estimated API cost:
 ```
 
 ### Pricing (as of late 2024)
+
+#### Anthropic Claude
 - **Claude 3.5 Sonnet**:
   - Input: $3 per million tokens
   - Output: $15 per million tokens
-- **Average per video**: $0.10-0.30 depending on transcript length
+- **Claude 3 Opus** (higher quality):
+  - Input: $15 per million tokens
+  - Output: $75 per million tokens
+- **Claude 3 Haiku** (faster, cheaper):
+  - Input: $0.25 per million tokens
+  - Output: $1.25 per million tokens
+
+#### OpenAI GPT
+- **GPT-4o**:
+  - Input: $2.50 per million tokens
+  - Output: $10 per million tokens
+- **GPT-4o-mini** (recommended for cost):
+  - Input: $0.15 per million tokens
+  - Output: $0.60 per million tokens
+- **GPT-4 Turbo**:
+  - Input: $10 per million tokens
+  - Output: $30 per million tokens
+
+**Average cost per video**:
+- Claude 3.5 Sonnet: $0.10-0.30
+- GPT-4o-mini: $0.01-0.05
+- GPT-4o: $0.08-0.25
 
 ## Transcript Integration
 

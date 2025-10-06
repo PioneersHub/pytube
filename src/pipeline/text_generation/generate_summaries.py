@@ -1,6 +1,6 @@
 """Generate AI-powered summaries from transcripts and session data.
 
-This module uses Claude API to generate enhanced descriptions, tags, and
+This module uses configurable AI providers to generate enhanced descriptions, tags, and
 summaries from video transcripts and Pretalx session data.
 """
 
@@ -11,22 +11,23 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import structlog
-from anthropic import Anthropic
+import yaml
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
 from .models import Summary, SummaryGenerationRequest
+from .providers import AIProvider, ProviderFactory
 
 logger = structlog.get_logger()
 
 
 class SummaryGenerator:
-    """Generate AI summaries using Claude API."""
+    """Generate AI summaries using configurable providers."""
 
     def __init__(self, config, paths: WorkPaths):
         """Initialize summary generator.
@@ -43,18 +44,134 @@ class SummaryGenerator:
         self.summaries_dir = paths.event_dir / "summaries"
         self.summaries_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize Claude client
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY environment variable not set. "
-                "Please export ANTHROPIC_API_KEY=your_key"
-            )
-        self.client = Anthropic(api_key=api_key)
+        # Load prompts configuration
+        self.prompts = self._load_prompts()
 
-        # Track API usage for cost estimation
-        self.total_input_tokens = 0
-        self.total_output_tokens = 0
+        # Initialize AI provider from config
+        self.provider = self._init_provider()
+
+    def _load_prompts(self) -> dict:
+        """Load prompts from configuration file.
+
+        Returns:
+            Prompts configuration dictionary
+        """
+        # Try to load from config first
+        if hasattr(self.config, 'ai_service') and hasattr(self.config.ai_service, 'prompts'):
+            logger.info("using_prompts_from_config")
+            return self.config.ai_service.prompts
+
+        # Fallback to prompts.yaml file
+        prompts_file = Path(__file__).parent / "prompts.yaml"
+        if prompts_file.exists():
+            logger.info("loading_prompts_from_file", file=str(prompts_file))
+            with prompts_file.open() as f:
+                prompts_config = yaml.safe_load(f)
+                return prompts_config.get("prompts", {})
+
+        # Fallback to hardcoded default
+        logger.warning("using_default_prompts")
+        return self._get_default_prompts()
+
+    def _get_default_prompts(self) -> dict:
+        """Get default prompts as fallback.
+
+        Returns:
+            Default prompts dictionary
+        """
+        return {
+            "video_summary": {
+                "system": "You are creating metadata for a conference talk video that will be published on YouTube.",
+                "template": """TALK INFORMATION:
+Title: {title}
+Speakers: {speakers}
+Abstract: {abstract}
+Description: {description}
+{transcript_section}
+
+Please generate the following content:
+
+1. SHORT DESCRIPTION (200-400 words):
+Write an engaging YouTube video description that:
+- Summarizes the main topics and key points
+- Highlights what viewers will learn
+- Uses clear, accessible language
+- Includes 2-3 key takeaways
+- Maintains a professional yet approachable tone
+
+2. TEASER (one sentence, max 200 characters):
+Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
+
+3. TAGS (10-15 relevant keywords):
+List specific, relevant tags for YouTube that will help people find this video.
+
+4. KEY TAKEAWAYS (3-5 bullet points):
+List the main learning points or insights from the talk.
+
+5. TARGET AUDIENCE:
+Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
+
+Please format your response as JSON with the following structure:
+{{
+  "short_description": "...",
+  "teaser": "...",
+  "tags": ["tag1", "tag2", ...],
+  "key_takeaways": ["takeaway1", "takeaway2", ...],
+  "target_audience": "beginner|intermediate|advanced|all"
+}}"""
+            }
+        }
+
+    def _init_provider(self) -> AIProvider:
+        """Initialize AI provider from configuration.
+
+        Returns:
+            Configured AI provider instance
+
+        Raises:
+            ValueError: If provider configuration is invalid
+        """
+        # Get AI service configuration
+        ai_config = getattr(self.config, 'ai_service', {})
+
+        # Handle OmegaConf DictConfig
+        if hasattr(ai_config, 'to_dict'):
+            ai_config = ai_config.to_dict()
+        elif hasattr(ai_config, '__dict__'):
+            ai_config = ai_config.__dict__
+
+        # Get provider name and config
+        provider_name = ai_config.get('provider', 'anthropic')
+        provider_config = ai_config.get(provider_name, {})
+
+        # Ensure provider config is a dict
+        if hasattr(provider_config, 'to_dict'):
+            provider_config = provider_config.to_dict()
+        elif hasattr(provider_config, '__dict__'):
+            provider_config = provider_config.__dict__
+
+        logger.info(
+            "initializing_ai_provider",
+            provider=provider_name,
+            model=provider_config.get('model', 'default')
+        )
+
+        # Check for required API key based on provider
+        if provider_name == 'anthropic':
+            if not os.environ.get('ANTHROPIC_API_KEY'):
+                raise ValueError(
+                    "ANTHROPIC_API_KEY environment variable not set. "
+                    "Please export ANTHROPIC_API_KEY=your_key"
+                )
+        elif provider_name == 'openai':
+            if not os.environ.get('OPENAI_API_KEY'):
+                raise ValueError(
+                    "OPENAI_API_KEY environment variable not set. "
+                    "Please export OPENAI_API_KEY=your_key"
+                )
+
+        # Create provider using factory
+        return ProviderFactory.create(provider_name, provider_config)
 
     def load_transcript(self, pretalx_id: str) -> Optional[str]:
         """Load transcript for a session.
@@ -122,7 +239,7 @@ class SummaryGenerator:
             return None
 
     def create_prompt(self, request: SummaryGenerationRequest) -> str:
-        """Create the prompt for Claude API.
+        """Create the prompt for AI generation.
 
         Args:
             request: Summary generation request
@@ -130,124 +247,40 @@ class SummaryGenerator:
         Returns:
             Formatted prompt string
         """
-        # Build context about the talk
-        context_parts = [
-            f"Title: {request.title}",
-            f"Speakers: {', '.join(request.speakers)}" if request.speakers else "",
-            f"Abstract: {request.abstract}" if request.abstract else "",
-            f"Description: {request.description}" if request.description else "",
-        ]
-        context = "\n".join(part for part in context_parts if part)
+        # Get prompt template from config
+        prompt_config = self.prompts.get("video_summary", self.prompts.get("default", {}))
+        template = prompt_config.get("template", "")
 
-        # Include transcript if available
+        # Prepare template variables
+        speakers = ", ".join(request.speakers) if request.speakers else "Unknown"
+
+        # Handle transcript
+        transcript_section = ""
         if request.transcript_text:
-            # Truncate very long transcripts to avoid token limits
-            max_transcript_length = 50000  # characters
-            if len(request.transcript_text) > max_transcript_length:
-                transcript_text = request.transcript_text[:max_transcript_length] + "\n[... transcript truncated ...]"
+            # Get max length from config
+            max_length = getattr(self.config, 'ai_service', {}).get('max_transcript_length', 50000)
+
+            if len(request.transcript_text) > max_length:
+                transcript_text = request.transcript_text[:max_length]
+                transcript_template = prompt_config.get("transcript_truncated", "\n\nTRANSCRIPT (truncated):\n{transcript_text}\n[... transcript truncated ...]")
             else:
                 transcript_text = request.transcript_text
+                transcript_template = prompt_config.get("transcript_with_data", "\n\nTRANSCRIPT:\n{transcript_text}")
 
-            transcript_section = f"\n\nTRANSCRIPT:\n{transcript_text}"
+            transcript_section = transcript_template.format(transcript_text=transcript_text)
         else:
-            transcript_section = "\n\n[No transcript available - base summary on abstract and description only]"
+            transcript_section = prompt_config.get("no_transcript", "\n\n[No transcript available - base summary on abstract and description only]")
 
-        prompt = f"""You are creating metadata for a conference talk video that will be published on YouTube.
-
-TALK INFORMATION:
-{context}
-{transcript_section}
-
-Please generate the following content:
-
-1. SHORT DESCRIPTION (200-400 words):
-Write an engaging YouTube video description that:
-- Summarizes the main topics and key points
-- Highlights what viewers will learn
-- Uses clear, accessible language
-- Includes 2-3 key takeaways
-- Maintains a professional yet approachable tone
-
-2. TEASER (one sentence, max 200 characters):
-Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
-
-3. TAGS (10-15 relevant keywords):
-List specific, relevant tags for YouTube that will help people find this video. Include:
-- Technical topics covered
-- Programming concepts
-- Tools and libraries mentioned
-- Target audience level (beginner/intermediate/advanced)
-
-4. KEY TAKEAWAYS (3-5 bullet points):
-List the main learning points or insights from the talk.
-
-5. TARGET AUDIENCE:
-Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
-
-Please format your response as JSON with the following structure:
-{{
-  "short_description": "...",
-  "teaser": "...",
-  "tags": ["tag1", "tag2", ...],
-  "key_takeaways": ["takeaway1", "takeaway2", ...],
-  "target_audience": "beginner|intermediate|advanced|all"
-}}"""
+        # Format the prompt
+        prompt = template.format(
+            title=request.title,
+            speakers=speakers,
+            abstract=request.abstract or "",
+            description=request.description or "",
+            transcript_section=transcript_section
+        )
 
         return prompt
-
-    def call_claude_api(self, prompt: str) -> dict:
-        """Call Claude API to generate summary.
-
-        Args:
-            prompt: The formatted prompt
-
-        Returns:
-            Parsed JSON response from Claude
-        """
-        try:
-            message = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=2000,
-                temperature=0.3,  # Lower temperature for more consistent output
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            )
-
-            # Extract JSON from response
-            response_text = message.content[0].text
-
-            # Track token usage
-            if hasattr(message, 'usage'):
-                self.total_input_tokens += message.usage.input_tokens
-                self.total_output_tokens += message.usage.output_tokens
-
-            # Find JSON in response (Claude might add explanation text)
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                return json.loads(json_str)
-            else:
-                # Try parsing the whole response as JSON
-                return json.loads(response_text)
-
-        except json.JSONDecodeError as e:
-            logger.error("failed_to_parse_claude_response", error=str(e))
-            # Return a basic structure if parsing fails
-            return {
-                "short_description": response_text[:400] if response_text else "",
-                "teaser": "",
-                "tags": [],
-                "key_takeaways": [],
-                "target_audience": "all"
-            }
-        except Exception as e:
-            logger.error("claude_api_error", error=str(e))
-            raise
 
     def generate_summary(
         self,
@@ -294,21 +327,24 @@ Please format your response as JSON with the following structure:
             "generating_summary",
             pretalx_id=pretalx_id,
             has_transcript=bool(transcript),
-            title=session.title[:50]
+            title=session.title[:50],
+            provider=self.provider.__class__.__name__
         )
 
-        # Create prompt and call API
+        # Create prompt and call provider
         prompt = self.create_prompt(request)
 
         try:
             # Add retry logic for rate limiting
             max_retries = 3
+            response = None
+
             for attempt in range(max_retries):
                 try:
-                    response = self.call_claude_api(prompt)
+                    response = self.provider.generate(prompt)
                     break
                 except Exception as e:
-                    if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
+                    if "rate" in str(e).lower() and attempt < max_retries - 1:
                         wait_time = 2 ** attempt  # Exponential backoff
                         logger.warning(
                             "rate_limited_retrying",
@@ -318,6 +354,13 @@ Please format your response as JSON with the following structure:
                         time.sleep(wait_time)
                     else:
                         raise
+
+            if not response:
+                raise ValueError("Failed to generate response after retries")
+
+            # Get model info from provider config
+            provider_name = self.config.ai_service.provider if hasattr(self.config, 'ai_service') else 'anthropic'
+            model_info = getattr(self.provider, 'model', f'{provider_name}-default')
 
             # Create Summary object
             summary = Summary(
@@ -330,8 +373,8 @@ Please format your response as JSON with the following structure:
                 target_audience=response.get("target_audience", "all"),
                 social_media_post=response.get("social_media_post"),
                 generated_at=datetime.utcnow(),
-                model_used="claude-3-5-sonnet",
-                prompt_version="v1",
+                model_used=model_info,
+                prompt_version="v2",  # Version 2 with configurable prompts
                 has_transcript=bool(transcript),
                 transcript_duration_seconds=None  # Could be calculated if needed
             )
@@ -434,20 +477,7 @@ Please format your response as JSON with the following structure:
         Returns:
             Cost estimation dictionary
         """
-        # Claude 3.5 Sonnet pricing (as of late 2024)
-        # Input: $3 per million tokens
-        # Output: $15 per million tokens
-        input_cost = (self.total_input_tokens / 1_000_000) * 3.0
-        output_cost = (self.total_output_tokens / 1_000_000) * 15.0
-        total_cost = input_cost + output_cost
-
-        return {
-            "input_tokens": self.total_input_tokens,
-            "output_tokens": self.total_output_tokens,
-            "input_cost_usd": round(input_cost, 4),
-            "output_cost_usd": round(output_cost, 4),
-            "total_cost_usd": round(total_cost, 4)
-        }
+        return self.provider.estimate_cost()
 
 
 def main():
@@ -469,9 +499,22 @@ Examples:
   # Limit for testing
   python -m src.pipeline.text_generation.generate_summaries --all --limit 5
 
+Configuration:
+  Set AI provider in config.yaml or config_local.yaml:
+
+  ai_service:
+    provider: anthropic  # or openai
+    anthropic:
+      model: claude-3-5-sonnet-20241022
+      temperature: 0.3
+    openai:
+      model: gpt-4o-mini
+      temperature: 0.3
+
 Environment:
-  Export ANTHROPIC_API_KEY before running:
-  export ANTHROPIC_API_KEY=your_api_key_here
+  Export API key based on provider:
+  export ANTHROPIC_API_KEY=your_key_here
+  export OPENAI_API_KEY=your_key_here
         """
     )
     parser.add_argument(
@@ -494,28 +537,35 @@ Environment:
         type=int,
         help="Limit number of summaries to generate"
     )
+    parser.add_argument(
+        "--provider",
+        choices=['anthropic', 'openai'],
+        help="Override AI provider from config"
+    )
     args = parser.parse_args()
 
     # Validate arguments
     if not args.all and not args.pretalx_ids:
         parser.error("Either specify Pretalx IDs or use --all")
 
-    # Check for API key
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Error: ANTHROPIC_API_KEY environment variable not set")
-        print("Please run: export ANTHROPIC_API_KEY=your_api_key_here")
-        return 1
-
     # Setup
     logger = setup_logging(module_name="text_generation.generate_summaries")
     config = load_config()
     paths = WorkPaths(config)
+
+    # Override provider if specified
+    if args.provider:
+        if not hasattr(config, 'ai_service'):
+            config.ai_service = {}
+        config.ai_service['provider'] = args.provider
+        logger.info("overriding_provider", provider=args.provider)
 
     # Initialize generator
     try:
         generator = SummaryGenerator(config, paths)
     except ValueError as e:
         logger.error("initialization_failed", error=str(e))
+        print(f"\nError: {e}")
         return 1
 
     # Process summaries
@@ -536,7 +586,7 @@ Environment:
         print(f"\n✅ Generated {stats['generated']} summaries")
         if stats['failed'] > 0:
             print(f"⚠️  {stats['failed']} failed")
-        print(f"\nEstimated API cost:")
+        print(f"\nEstimated API cost ({cost['provider']} - {cost['model']}):")
         print(f"  Input tokens:  {cost['input_tokens']:,}")
         print(f"  Output tokens: {cost['output_tokens']:,}")
         print(f"  Total cost:    ${cost['total_cost_usd']:.2f}")
@@ -559,6 +609,7 @@ Environment:
         if generated > 0:
             cost = generator.estimate_cost()
             print(f"\n✅ Generated {generated} summaries")
+            print(f"Provider: {cost['provider']} ({cost['model']})")
             print(f"Estimated cost: ${cost['total_cost_usd']:.2f}")
 
     # Show next steps

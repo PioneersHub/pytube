@@ -1,0 +1,64 @@
+# Local Configuration Example
+# Copy this file to config_local.yaml and add your API keys
+
+# ########################################
+# AI Service Configuration for Text Generation
+# ########################################
+
+ai_service:
+  # Choose your provider: anthropic or openai
+  provider: anthropic  # or openai
+
+  # Provider-specific settings (uncomment the one you use)
+
+  # For Anthropic Claude:
+  anthropic:
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.3
+    max_tokens: 2000
+
+  # For OpenAI GPT:
+  # openai:
+  #   model: gpt-4o-mini  # Cheaper option
+  #   # model: gpt-4o     # Better quality, more expensive
+  #   temperature: 0.3
+  #   max_tokens: 2000
+
+# ########################################
+# YouTube Configuration
+# ########################################
+
+youtube:
+  client_secrets_file: "client_secrets.json"
+  privacy_status: "unlisted"  # or "public", "private"
+
+# ########################################
+# Pretalx Configuration
+# ########################################
+
+pretalx:
+  event_slug: "pyconde-pydata-2025"
+
+# ########################################
+# Event Information
+# ########################################
+
+event:
+  name: "PyCon DE & PyData Berlin 2025"
+  url: "https://2025.pycon.de"
+  program_url: "https://2025.pycon.de/program/"
+
+# ########################################
+# Environment Variables Required
+# ########################################
+
+# Set these environment variables based on your AI provider:
+#
+# For Anthropic:
+#   export ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+#
+# For OpenAI:
+#   export OPENAI_API_KEY=sk-xxxxx
+#
+# For Pretalx (using pytanis):
+#   Configure ~/.pytanis/credentials as per pytanis documentation
