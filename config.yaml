@@ -5,9 +5,29 @@
 # ########################################
 ---
 vimeo:
+  # Authentication (override in config_local.yaml with environment variables)
+  access_token: ""
   client_id: ""
   client_secret: ""
-  access_token: ""
+  user_id: ""
+
+  # Selection strategy - EXACTLY ONE must be configured
+  selection:
+    # Option A: Folder-based (recommended)
+    folder_id: ""  # Your Vimeo project/folder ID
+
+    # Option B: Pattern-based (uncomment and set in config_local.yaml)
+    # pattern:
+    #   title_contains: ""
+    #   title_regex: ""
+
+  # Download settings
+  download:
+    output_dir: "downloads/vimeo"  # Relative to .work/{event}/
+    quality: "best"                 # "best", "1080p", "720p", "480p"
+    max_concurrent: 3               # Number of simultaneous downloads
+    skip_existing: true             # Skip already downloaded videos
+    verify_complete: true           # Verify download completeness
 # ########################################
 # ########################################
 dirs:
