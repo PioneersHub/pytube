@@ -190,9 +190,9 @@ def download_videos_concurrent(videos: list[VimeoVideoInfo], ctx: DownloadContex
             else:
                 results["failed"] += 1
 
-            # Save tracking after each download
+            # Save tracking after each download (use mode='json' to serialize dates)
             with tracking_lock:
-                ctx.paths.save_json(ctx.tracking.model_dump(), "vimeo", "downloads.json")
+                ctx.paths.save_json(ctx.tracking.model_dump(mode="json"), "vimeo", "downloads.json")
 
     return results
 

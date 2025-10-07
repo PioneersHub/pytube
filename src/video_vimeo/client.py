@@ -241,7 +241,7 @@ class VimeoClient:
         response = requests.get(url, stream=True, timeout=30)
         response.raise_for_status()
 
-        # Get file size
+        # Get file size from response header (this is the actual size we'll download)
         file_size = int(response.headers.get("content-length", expected_size or 0))
 
         # Download with progress bar
@@ -258,9 +258,10 @@ class VimeoClient:
         if show_progress and file_size > 0:
             progress_bar.close()
 
-        # Verify size
+        # Verify size matches what we actually downloaded (from content-length header)
         actual_size = output_path.stat().st_size
-        return not (expected_size and actual_size != expected_size)
+        # Return True if file_size is 0 (unknown) or if sizes match
+        return file_size in (0, actual_size)
 
     def extract_video_id(self, url: str) -> tuple[str, str | None]:
         """Extract video ID and privacy hash from URL."""
