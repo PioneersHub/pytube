@@ -53,12 +53,16 @@ event:
 # ########################################
 
 vimeo:
-  # Authentication (set as environment variable)
-  access_token: ${VIMEO_ACCESS_TOKEN}
+  # Authentication
+  # Option 1: Direct token in config (simple, keep config_local.yaml private!)
+  access_token: "your_vimeo_access_token_here"
+
+  # Option 2: Environment variable reference (more secure)
+  # access_token: ${VIMEO_ACCESS_TOKEN}
 
   # Optional: Enhanced API access
-  # client_id: ${VIMEO_CLIENT_ID}
-  # client_secret: ${VIMEO_CLIENT_SECRET}
+  # client_id: "your_client_id"
+  # client_secret: "your_client_secret"
 
   # Optional: Your Vimeo user ID (uses 'me' if not provided)
   # user_id: "123456"

@@ -21,15 +21,20 @@ In `config_local.yaml`:
 
 ```yaml
 vimeo:
-  # Authentication (required)
-  access_token: ${VIMEO_ACCESS_TOKEN}  # Set in environment
+  # Authentication (required) - Choose one option:
+
+  # Option 1: Direct token (simple, keep config_local.yaml private!)
+  access_token: "your_vimeo_access_token_here"
+
+  # Option 2: Environment variable (more secure)
+  # access_token: ${VIMEO_ACCESS_TOKEN}
 
   # Optional: for enhanced API access
-  client_id: ${VIMEO_CLIENT_ID}
-  client_secret: ${VIMEO_CLIENT_SECRET}
+  # client_id: "your_client_id"
+  # client_secret: "your_client_secret"
 
   # Optional: your Vimeo user ID (uses 'me' if not provided)
-  user_id: "123456"
+  # user_id: "123456"
 
   # Selection strategy - EXACTLY ONE must be configured
   selection:
@@ -54,15 +59,33 @@ pretalx:
   event_slug: "pyconde-pydata-2025"
 ```
 
-### Environment Variables
+### Authentication Options
 
-Set your Vimeo access token:
+#### Option 1: Direct Token in Config (Simpler)
+
+Add your token directly to `config_local.yaml`:
+
+```yaml
+vimeo:
+  access_token: "your_actual_token_here"
+```
+
+#### Option 2: Environment Variable (More Secure)
+
+Use environment variable in `config_local.yaml`:
+
+```yaml
+vimeo:
+  access_token: ${VIMEO_ACCESS_TOKEN}
+```
+
+Then export in your shell:
 
 ```bash
 export VIMEO_ACCESS_TOKEN='your_vimeo_access_token_here'
 ```
 
-**Getting a Vimeo Access Token:**
+#### Getting a Vimeo Access Token
 
 1. Go to https://developer.vimeo.com/apps
 2. Create a new app or select existing
@@ -105,12 +128,9 @@ export VIMEO_ACCESS_TOKEN='your_vimeo_access_token_here'
 
 ### Basic Usage
 
-**Important:** Set the environment variable that `config_local.yaml` references:
+Ensure your `config_local.yaml` has the `access_token` configured (see Authentication Options above).
 
 ```bash
-# Set environment variable (required - config_local.yaml uses ${VIMEO_ACCESS_TOKEN})
-export VIMEO_ACCESS_TOKEN='your_token_here'
-
 # Download all videos matching your selection
 uv run python -m src.video_vimeo.downloader
 
@@ -120,6 +140,8 @@ uv run python -m src.video_vimeo.downloader --dry-run
 # Force re-download (ignore tracking)
 uv run python -m src.video_vimeo.downloader --force
 ```
+
+**Note:** If using environment variable option, ensure `VIMEO_ACCESS_TOKEN` is exported before running.
 
 ### Programmatic Usage
 
@@ -275,11 +297,13 @@ vimeo:
 ## Complete Workflow Example
 
 ```bash
-# 1. Set environment variable (required - config_local.yaml uses ${VIMEO_ACCESS_TOKEN})
-export VIMEO_ACCESS_TOKEN='your_token_here'
+# 1. Configure access_token in config_local.yaml
+# Either directly: access_token: "your_token"
+# Or via env var: access_token: ${VIMEO_ACCESS_TOKEN}
+#   (if using env var, export it now):
+#   export VIMEO_ACCESS_TOKEN='your_token_here'
 
 # 2. Configure selection in config_local.yaml
-# The config uses ${VIMEO_ACCESS_TOKEN} which OmegaConf resolves from environment
 # (Choose folder_id OR pattern)
 
 # 3. Dry run to preview
