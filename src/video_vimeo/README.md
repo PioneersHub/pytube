@@ -105,14 +105,11 @@ export VIMEO_ACCESS_TOKEN='your_vimeo_access_token_here'
 
 ### Basic Usage
 
-**Important:** Ensure `VIMEO_ACCESS_TOKEN` is set in your environment:
+**Important:** Set the environment variable that `config_local.yaml` references:
 
 ```bash
-# Option 1: Export in your shell
+# Set environment variable (required - config_local.yaml uses ${VIMEO_ACCESS_TOKEN})
 export VIMEO_ACCESS_TOKEN='your_token_here'
-
-# Option 2: Create .env file with VIMEO_ACCESS_TOKEN=your_token
-# Then use: uv run --env-file .env python -m src.video_vimeo.downloader
 
 # Download all videos matching your selection
 uv run python -m src.video_vimeo.downloader
@@ -234,10 +231,8 @@ This means you can safely re-run the downloader and it will:
 **Override skip logic:**
 
 ```bash
-# Ensure VIMEO_ACCESS_TOKEN is set first
-export VIMEO_ACCESS_TOKEN='your_token_here'
-
-uv run python -m src.video_vimeo.downloader --force  # Re-download everything
+# Re-download everything (ensure VIMEO_ACCESS_TOKEN is set in environment)
+uv run python -m src.video_vimeo.downloader --force
 ```
 
 ## Quality Selection
@@ -280,13 +275,11 @@ vimeo:
 ## Complete Workflow Example
 
 ```bash
-# 1. Set environment variable (required!)
+# 1. Set environment variable (required - config_local.yaml uses ${VIMEO_ACCESS_TOKEN})
 export VIMEO_ACCESS_TOKEN='your_token_here'
 
-# Or alternatively, create a .env file:
-# echo "VIMEO_ACCESS_TOKEN=your_token_here" > .env
-
 # 2. Configure selection in config_local.yaml
+# The config uses ${VIMEO_ACCESS_TOKEN} which OmegaConf resolves from environment
 # (Choose folder_id OR pattern)
 
 # 3. Dry run to preview
