@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class VimeoVideoInfo(BaseModel):
@@ -49,14 +49,12 @@ class PatternSelection(BaseModel):
     title_contains: str | None = None
     title_regex: str | None = None
 
-    @field_validator("title_contains", "title_regex")
-    @classmethod
-    def at_least_one_pattern(cls, v, info):
+    @model_validator(mode="after")
+    def at_least_one_pattern(self):
         """Ensure at least one pattern is specified."""
-        values = info.data
-        if not values.get("title_contains") and not values.get("title_regex"):
+        if not self.title_contains and not self.title_regex:
             raise ValueError("Must specify either title_contains or title_regex")
-        return v
+        return self
 
 
 class VimeoSelection(BaseModel):
