@@ -49,16 +49,52 @@ event:
   program_url: "https://2025.pycon.de/program/"
 
 # ########################################
+# Vimeo Configuration
+# ########################################
+
+vimeo:
+  # Authentication (set as environment variable)
+  access_token: ${VIMEO_ACCESS_TOKEN}
+
+  # Optional: Enhanced API access
+  # client_id: ${VIMEO_CLIENT_ID}
+  # client_secret: ${VIMEO_CLIENT_SECRET}
+
+  # Optional: Your Vimeo user ID (uses 'me' if not provided)
+  # user_id: "123456"
+
+  # Selection strategy - EXACTLY ONE must be configured
+  selection:
+    # Option A: Folder-based (recommended)
+    folder_id: "25746204"  # Your Vimeo project/folder ID
+
+    # Option B: Pattern-based (comment out folder_id to use this)
+    # pattern:
+    #   title_contains: "PyCon DE 2025"  # Videos containing this text
+    #   # title_regex: "^PyCon.*2025$"   # Optional regex pattern
+
+  # Download settings
+  download:
+    output_dir: "downloads/vimeo"  # Relative to .work/{event}/
+    quality: "best"                 # "best", "1080p", "720p", "480p"
+    max_concurrent: 3               # Number of simultaneous downloads
+    skip_existing: true             # Skip already downloaded videos
+    verify_complete: true           # Verify download completeness
+
+# ########################################
 # Environment Variables Required
 # ########################################
 
-# Set these environment variables based on your AI provider:
+# Set these environment variables based on your services:
 #
 # For Anthropic:
 #   export ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
 #
 # For OpenAI:
 #   export OPENAI_API_KEY=sk-xxxxx
+#
+# For Vimeo:
+#   export VIMEO_ACCESS_TOKEN=your_vimeo_token
 #
 # For Pretalx (using pytanis):
 #   Configure ~/.pytanis/credentials as per pytanis documentation
