@@ -5,6 +5,7 @@ Robust Vimeo video downloading with smart tracking, concurrent downloads, and be
 ## Overview
 
 This module downloads videos from Vimeo with:
+
 - **Folder-based or pattern-based selection**: Choose videos by Vimeo folder or title pattern
 - **Smart tracking**: Avoids re-downloading already downloaded videos
 - **Best quality selection**: Automatically selects highest available quality
@@ -62,6 +63,7 @@ export VIMEO_ACCESS_TOKEN='your_vimeo_access_token_here'
 ```
 
 **Getting a Vimeo Access Token:**
+
 1. Go to https://developer.vimeo.com/apps
 2. Create a new app or select existing
 3. Generate a Personal Access Token
@@ -103,15 +105,23 @@ export VIMEO_ACCESS_TOKEN='your_vimeo_access_token_here'
 
 ### Basic Usage
 
+**Important:** Ensure `VIMEO_ACCESS_TOKEN` is set in your environment:
+
 ```bash
+# Option 1: Export in your shell
+export VIMEO_ACCESS_TOKEN='your_token_here'
+
+# Option 2: Create .env file with VIMEO_ACCESS_TOKEN=your_token
+# Then use: uv run --env-file .env python -m src.video_vimeo.downloader
+
 # Download all videos matching your selection
-python -m src.video_vimeo.downloader
+uv run python -m src.video_vimeo.downloader
 
 # Dry run (preview without downloading)
-python -m src.video_vimeo.downloader --dry-run
+uv run python -m src.video_vimeo.downloader --dry-run
 
 # Force re-download (ignore tracking)
-python -m src.video_vimeo.downloader --force
+uv run python -m src.video_vimeo.downloader --force
 ```
 
 ### Programmatic Usage
@@ -184,6 +194,7 @@ vimeo:
 ```
 
 **Finding your folder ID:**
+
 1. Go to your Vimeo project/folder
 2. Look at the URL: `https://vimeo.com/manage/folders/{FOLDER_ID}`
 3. Use that ID in config
@@ -202,24 +213,31 @@ vimeo:
 ```
 
 **Examples:**
+
 - `title_contains: "2025"` - All videos with "2025" in title
 - `title_regex: "^(PyCon|PyData).*2025"` - Titles starting with PyCon or PyData containing 2025
 
 ## Smart Skip Logic
 
 The downloader automatically skips videos that:
+
 1. **Already exist** in tracking
 2. **Match file size** (downloaded completely)
 3. **Not modified on Vimeo** (no updates since download)
 
 This means you can safely re-run the downloader and it will:
+
 - Skip successfully downloaded videos
 - Re-download failed or incomplete downloads
 - Update videos that changed on Vimeo
 
 **Override skip logic:**
+
 ```bash
-python -m src.video_vimeo.downloader --force  # Re-download everything
+# Ensure VIMEO_ACCESS_TOKEN is set first
+export VIMEO_ACCESS_TOKEN='your_token_here'
+
+uv run python -m src.video_vimeo.downloader --force  # Re-download everything
 ```
 
 ## Quality Selection
@@ -233,6 +251,7 @@ vimeo:
 ```
 
 **Available options:**
+
 - `"best"` - Highest quality available (recommended)
 - `"1080p"` - 1920x1080 resolution
 - `"720p"` - 1280x720 resolution
@@ -251,6 +270,7 @@ vimeo:
 ```
 
 **Recommendations:**
+
 - `1-3` - Good for slower connections
 - `3-5` - Good for most use cases
 - `5+` - Only if you have very fast connection and Vimeo allows it
@@ -260,14 +280,17 @@ vimeo:
 ## Complete Workflow Example
 
 ```bash
-# 1. Set environment variable
+# 1. Set environment variable (required!)
 export VIMEO_ACCESS_TOKEN='your_token_here'
+
+# Or alternatively, create a .env file:
+# echo "VIMEO_ACCESS_TOKEN=your_token_here" > .env
 
 # 2. Configure selection in config_local.yaml
 # (Choose folder_id OR pattern)
 
 # 3. Dry run to preview
-python -m src.video_vimeo.downloader --dry-run
+uv run python -m src.video_vimeo.downloader --dry-run
 
 # Output shows:
 # Found 150 videos
@@ -276,7 +299,7 @@ python -m src.video_vimeo.downloader --dry-run
 # ...
 
 # 4. Start downloads
-python -m src.video_vimeo.downloader
+uv run python -m src.video_vimeo.downloader
 
 # Output shows:
 # Downloading video: Video Title (hd, 1920x1080, 234 MB)
@@ -290,21 +313,24 @@ ls .work/pyconde-pydata-2025/vimeo/downloads/vimeo/
 cat .work/pyconde-pydata-2025/vimeo/downloads.json
 
 # 6. Retry failed downloads (automatically skips successful ones)
-python -m src.video_vimeo.downloader
+uv run python -m src.video_vimeo.downloader
 ```
 
 ## Verification
 
 The downloader verifies each download by:
+
 1. **Comparing file size** with expected size from Vimeo
 2. **Ensuring file is complete** (not truncated)
 
 If verification fails:
+
 - Download is marked as failed
 - File is kept for inspection
 - Re-running downloader will retry
 
 **Disable verification** (not recommended):
+
 ```yaml
 vimeo:
   download:
@@ -316,6 +342,7 @@ vimeo:
 ### No videos found
 
 **Check:**
+
 - Folder ID is correct (check Vimeo URL)
 - Pattern matches actual video titles
 - Access token has proper permissions
@@ -324,22 +351,26 @@ vimeo:
 ### Download fails with 403 Forbidden
 
 **Causes:**
+
 - Access token lacks `video_files` scope
 - Videos are not downloadable (check Vimeo settings)
 - Account type doesn't allow downloads (need PRO or Business)
 
 **Solution:**
+
 1. Regenerate token with `video_files` scope
 2. Verify account has download permissions
 
 ### Size mismatch during verification
 
 **Causes:**
+
 - Network interruption during download
 - Vimeo changed the video
 - Disk full
 
 **Solution:**
+
 - Re-run downloader (will retry failed videos)
 - Check disk space
 - Use `--force` to re-download from scratch
@@ -347,11 +378,13 @@ vimeo:
 ### Rate limiting
 
 **Symptoms:**
+
 - Slow downloads
 - Connection timeouts
 - 429 errors
 
 **Solution:**
+
 - Reduce `max_concurrent` to 1-2
 - Add delays between downloads (modify client.py)
 - Wait and retry later
@@ -359,11 +392,13 @@ vimeo:
 ### Videos already downloaded but re-downloading
 
 **Causes:**
+
 - `skip_existing: false` in config
 - Video was modified on Vimeo
 - Tracking file corrupted
 
 **Solution:**
+
 - Check `downloads.json` is valid
 - Ensure `skip_existing: true` in config
 - Use `--force` only when needed
@@ -371,7 +406,9 @@ vimeo:
 ## Module Components
 
 ### `downloader.py`
+
 Main orchestrator:
+
 - Loads configuration
 - Fetches videos via selection strategy
 - Manages download tracking
@@ -379,7 +416,9 @@ Main orchestrator:
 - Reports results
 
 ### `client.py`
+
 Vimeo API client:
+
 - Authenticates with Vimeo API
 - Lists videos in folders
 - Filters videos by pattern
@@ -388,7 +427,9 @@ Vimeo API client:
 - Handles rate limiting
 
 ### `models.py`
+
 Pydantic models:
+
 - `VimeoVideoInfo` - Video metadata
 - `DownloadRecord` - Download tracking record
 - `DownloadTracking` - Full tracking state
@@ -398,6 +439,7 @@ Pydantic models:
 ## Error Handling
 
 The module handles:
+
 - **Network errors**: Retries with timeouts
 - **API errors**: Clear error messages
 - **File system errors**: Creates directories automatically
