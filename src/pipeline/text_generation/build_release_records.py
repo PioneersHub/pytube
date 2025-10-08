@@ -110,31 +110,20 @@ class ReleaseRecordBuilder:
         if not provider_name:
             raise ValueError("ai_service.provider is empty")
 
-        # Get provider config using dot notation
-        if provider_name == "anthropic":
-            try:
-                provider_config_obj = ai_config.anthropic
-            except AttributeError as e:
-                raise ValueError("ai_service.anthropic configuration not found in config") from e
-        elif provider_name == "openai":
-            try:
-                provider_config_obj = ai_config.openai
-            except AttributeError as e:
-                raise ValueError("ai_service.openai configuration not found in config") from e
-        else:
-            raise ValueError(f"Unknown provider: {provider_name}")
-
-        # Convert to dict for provider factory
-        if hasattr(provider_config_obj, "_metadata"):
-            provider_config = OmegaConf.to_container(provider_config_obj, resolve=True)
-        else:
-            provider_config = provider_config_obj
+        # Get provider config dynamically using dot notation
+        try:
+            provider_config_obj = getattr(ai_config, provider_name)
+        except AttributeError as e:
+            raise ValueError(f"ai_service.{provider_name} configuration not found in config") from e
 
         # Get model name using dot notation
         try:
             model_name = provider_config_obj.model
         except AttributeError:
             model_name = "default"
+
+        # Convert to dict for provider factory
+        provider_config = OmegaConf.to_container(provider_config_obj, resolve=True)
 
         logger.info("initializing_ai_provider", provider=provider_name, model=model_name)
 
