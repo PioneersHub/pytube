@@ -11,6 +11,37 @@ from pydantic import ValidationError
 logger = structlog.get_logger()
 
 
+# Exception hierarchy for AI provider errors
+class AIProviderError(Exception):
+    """Base exception for AI provider errors."""
+
+    pass
+
+
+class AIRateLimitError(AIProviderError):
+    """Rate limit exceeded - retryable."""
+
+    pass
+
+
+class AITimeoutError(AIProviderError):
+    """Request timeout - retryable."""
+
+    pass
+
+
+class AIValidationError(AIProviderError):
+    """Response validation failed - not retryable."""
+
+    pass
+
+
+class AIQuotaError(AIProviderError):
+    """API quota exceeded - not retryable."""
+
+    pass
+
+
 class AIProvider(ABC):
     """Abstract base class for AI providers."""
 
@@ -54,35 +85,119 @@ class AIProvider(ABC):
         """
         pass
 
-    def validate_response(self, response: dict) -> dict:
-        """Validate response matches required schema using Pydantic.
+    def set_constraints(self, constraints: dict) -> None:
+        """Set constraints for response validation.
 
         Args:
-            response: Response dictionary to validate
+            constraints: Constraints dictionary from config
+        """
+        self._constraints = constraints
+
+    def validate_response(self, response: dict) -> dict:
+        """Validate AI response strictly against schema and constraints.
+
+        Args:
+            response: Raw response dictionary
 
         Returns:
             Validated response dictionary
 
         Raises:
-            ValueError: If response fails validation
+            AIValidationError: If response doesn't match schema or violates constraints
         """
         try:
             # Import here to avoid circular dependency
             from .models import AIGeneratedResponse
 
-            # Validate with Pydantic model
-            validated_response = AIGeneratedResponse(**response)
+            # Step 1: Validate schema with Pydantic
+            try:
+                validated_response = AIGeneratedResponse(**response)
+            except ValidationError as e:
+                logger.error(
+                    "response_schema_invalid",
+                    error=str(e),
+                    response_keys=list(response.keys()),
+                    missing_fields=[err["loc"][0] for err in e.errors() if err["type"] == "missing"],
+                )
+                raise AIValidationError(f"AI response schema validation failed: {e}") from e
 
-            # Convert back to dict for consistency
+            # Step 2: Validate constraints from config (if available)
+            if hasattr(self, "_constraints"):
+                self._validate_constraints(validated_response)
+
+            # Convert back to dict
             result = validated_response.model_dump()
 
-            logger.debug("response_validated", fields=list(result.keys()))
+            logger.info(
+                "response_validated",
+                teaser_len=len(result.get("teaser_text", "")),
+                short_words=len(result.get("short_text", "").split()),
+                long_words=len(result.get("long_text", "").split()),
+                tags_count=len(result.get("tags", [])),
+                quotes_count=len(result.get("quotes", [])),
+            )
             return result
 
-        except ValidationError as e:
-            error_msg = f"AI response validation failed: {e}"
-            logger.error("validation_error", error=str(e))
-            raise ValueError(error_msg) from e
+        except AIValidationError:
+            raise  # Re-raise our custom exception
+        except Exception as e:
+            error_msg = f"Unexpected validation error: {e}"
+            logger.error("validation_unexpected_error", error=str(e))
+            raise AIValidationError(error_msg) from e
+
+    def _validate_constraints(self, response) -> None:
+        """Validate response against configured constraints.
+
+        Args:
+            response: Validated AIGeneratedResponse object
+
+        Raises:
+            AIValidationError: If constraints are violated
+        """
+        constraints = self._constraints
+        errors = []
+
+        # Check teaser length
+        teaser_max = constraints.get("teaser_text", {}).get("max_chars")
+        if teaser_max and len(response.teaser_text) > teaser_max:
+            errors.append(f"teaser_text: {len(response.teaser_text)} chars (max: {teaser_max})")
+
+        # Check short text word count
+        short_words = len(response.short_text.split())
+        short_min = constraints.get("short_text", {}).get("min_words", 0)
+        short_max = constraints.get("short_text", {}).get("max_words", 999999)
+        if not (short_min <= short_words <= short_max):
+            errors.append(f"short_text: {short_words} words (expected: {short_min}-{short_max})")
+
+        # Check long text word count
+        long_words = len(response.long_text.split())
+        long_min = constraints.get("long_text", {}).get("min_words", 0)
+        long_max = constraints.get("long_text", {}).get("max_words", 999999)
+        if not (long_min <= long_words <= long_max):
+            errors.append(f"long_text: {long_words} words (expected: {long_min}-{long_max})")
+
+        # Check social text length
+        social_max = constraints.get("social_text", {}).get("max_chars")
+        if social_max and len(response.social_text) > social_max:
+            errors.append(f"social_text: {len(response.social_text)} chars (max: {social_max})")
+
+        # Check tags count
+        tags_min = constraints.get("tags", {}).get("min_count", 0)
+        tags_max = constraints.get("tags", {}).get("max_count", 999)
+        tags_count = len(response.tags)
+        if not (tags_min <= tags_count <= tags_max):
+            errors.append(f"tags: {tags_count} items (expected: {tags_min}-{tags_max})")
+
+        # Check quotes count
+        quotes_expected = constraints.get("quotes", {}).get("count")
+        quotes_count = len(response.quotes)
+        if quotes_expected and quotes_count != quotes_expected:
+            errors.append(f"quotes: {quotes_count} items (expected: {quotes_expected})")
+
+        if errors:
+            error_msg = "AI response violates constraints: " + "; ".join(errors)
+            logger.error("constraint_violations", violations=errors)
+            raise AIValidationError(error_msg)
 
     def extract_json(self, response_text: str) -> dict:
         """Extract JSON from response text.
@@ -151,8 +266,16 @@ class AnthropicProvider(AIProvider):
 
         Returns:
             Parsed JSON response
+
+        Raises:
+            AIRateLimitError: If rate limit exceeded
+            AITimeoutError: If request times out
+            AIQuotaError: If API quota exceeded
+            AIProviderError: For other API errors
         """
         try:
+            import anthropic
+
             message = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
@@ -179,9 +302,24 @@ class AnthropicProvider(AIProvider):
             response_dict = self.extract_json(response_text)
             return self.validate_response(response_dict)
 
-        except Exception as e:
+        except anthropic.RateLimitError as e:
+            logger.warning("anthropic_rate_limit", error=str(e))
+            raise AIRateLimitError(f"Anthropic rate limit exceeded: {e}") from e
+        except anthropic.APITimeoutError as e:
+            logger.warning("anthropic_timeout", error=str(e))
+            raise AITimeoutError(f"Anthropic API timeout: {e}") from e
+        except anthropic.APIError as e:
+            error_str = str(e).lower()
+            if "quota" in error_str or "usage limit" in error_str:
+                logger.error("anthropic_quota_exceeded", error=str(e))
+                raise AIQuotaError(f"Anthropic quota exceeded: {e}") from e
             logger.error("anthropic_api_error", error=str(e))
-            raise
+            raise AIProviderError(f"Anthropic API error: {e}") from e
+        except AIValidationError:
+            raise  # Re-raise validation errors
+        except Exception as e:
+            logger.error("anthropic_unexpected_error", error_type=type(e).__name__, error=str(e))
+            raise AIProviderError(f"Unexpected Anthropic error: {e}") from e
 
     def estimate_cost(self) -> dict:
         """Estimate Anthropic API costs.
