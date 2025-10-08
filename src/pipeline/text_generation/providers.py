@@ -387,8 +387,16 @@ class OpenAIProvider(AIProvider):
 
         Returns:
             Parsed JSON response
+
+        Raises:
+            AIRateLimitError: If rate limit exceeded
+            AITimeoutError: If request times out
+            AIQuotaError: If API quota exceeded
+            AIProviderError: For other API errors
         """
         try:
+            import openai
+
             # Request JSON format explicitly
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -427,9 +435,24 @@ class OpenAIProvider(AIProvider):
 
             return self.validate_response(response_dict)
 
-        except Exception as e:
+        except openai.RateLimitError as e:
+            logger.warning("openai_rate_limit", error=str(e))
+            raise AIRateLimitError(f"OpenAI rate limit exceeded: {e}") from e
+        except openai.APITimeoutError as e:
+            logger.warning("openai_timeout", error=str(e))
+            raise AITimeoutError(f"OpenAI API timeout: {e}") from e
+        except openai.APIError as e:
+            error_str = str(e).lower()
+            if "quota" in error_str or "insufficient" in error_str:
+                logger.error("openai_quota_exceeded", error=str(e))
+                raise AIQuotaError(f"OpenAI quota exceeded: {e}") from e
             logger.error("openai_api_error", error=str(e))
-            raise
+            raise AIProviderError(f"OpenAI API error: {e}") from e
+        except AIValidationError:
+            raise  # Re-raise validation errors
+        except Exception as e:
+            logger.error("openai_unexpected_error", error_type=type(e).__name__, error=str(e))
+            raise AIProviderError(f"Unexpected OpenAI error: {e}") from e
 
     def estimate_cost(self) -> dict:
         """Estimate OpenAI API costs.

@@ -154,8 +154,9 @@ ai_service:
   # Provider selection: anthropic or openai
   provider: anthropic
 
-  # Maximum transcript length before truncation (characters)
-  max_transcript_length: 50000
+  # Maximum transcript length before intelligent chunking (characters)
+  # 100,000 chars supports ~120 minute talks (~18,000 words, ~24,000 tokens)
+  max_transcript_length: 100000
 
   # Text length constraints for AI-generated content
   constraints:

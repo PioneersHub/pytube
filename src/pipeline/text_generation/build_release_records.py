@@ -36,7 +36,14 @@ from .models import (
     SummaryMetadata,
     TextSummary,
 )
-from .providers import ProviderFactory
+from .providers import (
+    AIProviderError,
+    AIQuotaError,
+    AIRateLimitError,
+    AITimeoutError,
+    AIValidationError,
+    ProviderFactory,
+)
 
 logger = structlog.get_logger()
 
@@ -109,7 +116,12 @@ class ReleaseRecordBuilder:
 
         logger.info("initializing_ai_provider", provider=provider_name, model=provider_config.get("model", "default"))
 
-        return ProviderFactory.create(provider_name, provider_config)
+        provider = ProviderFactory.create(provider_name, provider_config)
+
+        # Pass constraints to provider for validation
+        provider.set_constraints(self.constraints)
+
+        return provider
 
     def load_pretalx_record(self, pretalx_id: str) -> SessionRecord | None:
         """Load Pretalx session record.
@@ -204,6 +216,56 @@ class ReleaseRecordBuilder:
         logger.info("no_transcript_found", pretalx_id=pretalx_id)
         return None
 
+    def _process_long_transcript(self, transcript: str) -> str:
+        """Process long transcripts intelligently for AI consumption.
+
+        For transcripts exceeding max_transcript_length, uses smart chunking
+        to preserve beginning, middle, and end sections.
+
+        Args:
+            transcript: Full transcript text
+
+        Returns:
+            Processed transcript (original or intelligently chunked)
+        """
+        max_length = getattr(self.config.ai_service, "max_transcript_length", 100000)
+
+        if len(transcript) <= max_length:
+            return transcript
+
+        logger.warning(
+            "transcript_exceeds_limit",
+            length=len(transcript),
+            max_length=max_length,
+            strategy="smart_chunk",
+        )
+
+        # Smart chunking: preserve beginning, middle sample, and end
+        # This maintains context while staying within limits
+        chunk_size = max_length // 3
+
+        beginning = transcript[:chunk_size]
+        middle_start = (len(transcript) - chunk_size) // 2
+        middle = transcript[middle_start : middle_start + chunk_size]
+        end = transcript[-chunk_size:]
+
+        chunked = (
+            f"{beginning}\n\n"
+            f"[... middle section omitted ({middle_start:,} - {middle_start + chunk_size:,} chars) ...]\n\n"
+            f"{middle}\n\n"
+            f"[... section omitted, jumping to end ...]\n\n"
+            f"{end}"
+        )
+
+        logger.info(
+            "transcript_chunked",
+            original_length=len(transcript),
+            chunked_length=len(chunked),
+            coverage_percent=round(len(chunked) / len(transcript) * 100, 1),
+        )
+
+        return chunked
+
     def create_prompt(self, request: SummaryGenerationRequest) -> str:
         """Create the prompt for AI generation with dynamic constraints.
 
@@ -226,22 +288,24 @@ class ReleaseRecordBuilder:
         # Prepare template variables
         speakers = ", ".join(request.speakers) if request.speakers else "Unknown"
 
-        # Handle transcript
+        # Handle transcript with smart processing
         transcript_section = ""
         if request.transcript_text:
-            max_length = getattr(self.config.ai_service, "max_transcript_length", 50000)
+            # Process long transcripts intelligently
+            processed_transcript = self._process_long_transcript(request.transcript_text)
 
-            if len(request.transcript_text) > max_length:
-                transcript_text = request.transcript_text[:max_length]
+            # Determine if transcript was truncated/chunked
+            was_processed = len(processed_transcript) < len(request.transcript_text)
+
+            if was_processed:
                 transcript_template = prompt_config.get(
                     "transcript_truncated",
-                    "\n\nTRANSCRIPT (truncated):\n{transcript_text}\n[... transcript truncated ...]",
+                    "\n\nTRANSCRIPT (intelligently sampled for length):\n{transcript_text}\n",
                 )
             else:
-                transcript_text = request.transcript_text
                 transcript_template = prompt_config.get("transcript_with_data", "\n\nTRANSCRIPT:\n{transcript_text}")
 
-            transcript_section = transcript_template.format(transcript_text=transcript_text)
+            transcript_section = transcript_template.format(transcript_text=processed_transcript)
         else:
             transcript_section = prompt_config.get(
                 "no_transcript", "\n\n[No transcript available - base summary on abstract and description only]"
@@ -365,42 +429,105 @@ class ReleaseRecordBuilder:
 
         return release_record
 
-    def _generate_ai_content(self, request: SummaryGenerationRequest) -> dict | None:
-        """Generate AI content with retry logic.
+    def _generate_ai_content(self, request: SummaryGenerationRequest) -> dict:
+        """Generate AI content with comprehensive error handling and retry logic.
 
         Args:
             request: Summary generation request
 
         Returns:
-            AI response dict if successful, None otherwise
+            AI response dict
+
+        Raises:
+            AIValidationError: If AI response doesn't match schema or constraints
+            AIQuotaError: If API quota exceeded
+            AIProviderError: For other critical API failures
         """
         prompt = self.create_prompt(request)
 
-        try:
-            # Add retry logic for rate limiting
-            max_retries = 3
-            response = None
+        max_retries = 3
+        retry_delays = [2, 5, 10]  # Exponential backoff in seconds
 
-            for attempt in range(max_retries):
-                try:
-                    response = self.provider.generate(prompt)
-                    break
-                except Exception as e:
-                    if "rate" in str(e).lower() and attempt < max_retries - 1:
-                        wait_time = 2**attempt
-                        logger.warning("rate_limited_retrying", attempt=attempt + 1, wait_seconds=wait_time)
-                        time.sleep(wait_time)
-                    else:
-                        raise
+        for attempt in range(max_retries):
+            try:
+                response = self.provider.generate(prompt)
 
-            if not response:
-                raise ValueError("Failed to generate response after retries")
+                # Validation happens inside provider.generate() via validate_response()
+                # If we get here, response is valid
+                return response
 
-            return response
+            except (AIRateLimitError, AITimeoutError) as e:
+                # Retryable errors
+                if attempt < max_retries - 1:
+                    wait_time = retry_delays[attempt]
+                    logger.warning(
+                        "retrying_after_error",
+                        pretalx_id=request.pretalx_id,
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        error_type=type(e).__name__,
+                        wait_seconds=wait_time,
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        "max_retries_exceeded",
+                        pretalx_id=request.pretalx_id,
+                        error_type=type(e).__name__,
+                        error=str(e),
+                    )
+                    raise AIProviderError(f"Failed after {max_retries} attempts: {e}") from e
 
-        except Exception as e:
-            logger.error("failed_to_generate_ai_content", pretalx_id=request.pretalx_id, error=str(e))
-            return None
+            except AIValidationError as e:
+                # Validation failure - don't retry, escalate immediately
+                logger.error(
+                    "ai_validation_failed",
+                    pretalx_id=request.pretalx_id,
+                    error=str(e),
+                )
+                raise  # Propagate validation errors immediately
+
+            except AIQuotaError as e:
+                # Quota exceeded - don't retry, escalate immediately
+                logger.error(
+                    "api_quota_exceeded",
+                    pretalx_id=request.pretalx_id,
+                    error=str(e),
+                )
+                raise  # Propagate quota errors immediately
+
+            except AIProviderError as e:
+                # Other provider errors - retry once, then escalate
+                if attempt < max_retries - 1:
+                    wait_time = retry_delays[attempt]
+                    logger.warning(
+                        "provider_error_retrying",
+                        pretalx_id=request.pretalx_id,
+                        attempt=attempt + 1,
+                        error=str(e),
+                        wait_seconds=wait_time,
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        "provider_error_max_retries",
+                        pretalx_id=request.pretalx_id,
+                        error=str(e),
+                    )
+                    raise
+
+            except Exception as e:
+                # Unexpected error - log details and escalate
+                logger.error(
+                    "unexpected_generation_error",
+                    pretalx_id=request.pretalx_id,
+                    error_type=type(e).__name__,
+                    error=str(e),
+                )
+                raise AIProviderError(f"Unexpected error during AI generation: {e}") from e
+
+        # Should never reach here, but just in case
+        raise AIProviderError("Failed to generate AI content after all retries")
 
     def _build_ai_summaries(self, ai_response: dict, speakers: list[str]) -> AIGeneratedSummaries:
         """Build AIGeneratedSummaries from AI response.
