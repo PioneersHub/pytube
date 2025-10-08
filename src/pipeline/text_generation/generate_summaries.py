@@ -69,37 +69,28 @@ class SummaryGenerator:
             ValueError: If provider configuration is invalid
         """
         # Get AI service configuration
+        from omegaconf import OmegaConf
+
         ai_config = getattr(self.config, "ai_service", {})
 
-        # Handle OmegaConf DictConfig
-        if hasattr(ai_config, "to_dict"):
-            ai_config = ai_config.to_dict()
-        elif hasattr(ai_config, "__dict__"):
-            ai_config = ai_config.__dict__
+        # Convert OmegaConf DictConfig to plain dict
+        if hasattr(ai_config, "_metadata"):  # It's a DictConfig
+            ai_config = OmegaConf.to_container(ai_config, resolve=True)
 
-        # Get provider name and config (check for override)
-        provider_name = os.environ.get("AI_PROVIDER_OVERRIDE") or ai_config.get("provider", "anthropic")
-        provider_config = ai_config.get(provider_name, {})
+        # Get provider name and config
+        provider_name = ai_config.get("provider")
+        if not provider_name:
+            raise ValueError("ai_service.provider not configured in config (must be 'anthropic' or 'openai')")
 
-        # Ensure provider config is a dict
-        if hasattr(provider_config, "to_dict"):
-            provider_config = provider_config.to_dict()
-        elif hasattr(provider_config, "__dict__"):
-            provider_config = provider_config.__dict__
+        provider_config = ai_config.get(provider_name)
+        if not provider_config:
+            raise ValueError(f"ai_service.{provider_name} configuration not found in config")
+
+        # Provider config is already a plain dict from OmegaConf.to_container above
 
         logger.info("initializing_ai_provider", provider=provider_name, model=provider_config.get("model", "default"))
 
-        # Check for required API key based on provider
-        if provider_name == "anthropic":
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                raise ValueError(
-                    "ANTHROPIC_API_KEY environment variable not set. Please export ANTHROPIC_API_KEY=your_key"
-                )
-        elif provider_name == "openai":
-            if not os.environ.get("OPENAI_API_KEY"):
-                raise ValueError("OPENAI_API_KEY environment variable not set. Please export OPENAI_API_KEY=your_key")
-
-        # Create provider using factory
+        # Create provider using factory (provider will validate API key)
         return ProviderFactory.create(provider_name, provider_config)
 
     def load_transcript(self, pretalx_id: str) -> str | None:
@@ -430,10 +421,9 @@ Environment:
     # Setup
     logger = setup_logging(module_name="text_generation.generate_summaries")
 
-    # Override provider via environment variable if specified
+    # Provider override not supported - must be set in config
     if args.provider:
-        os.environ["AI_PROVIDER_OVERRIDE"] = args.provider
-        logger.info("overriding_provider", provider=args.provider)
+        logger.warning("provider_override_not_supported", message="Set ai_service.provider in config instead")
 
     # Initialize generator
     try:

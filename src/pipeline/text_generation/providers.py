@@ -129,10 +129,10 @@ class AnthropicProvider(AIProvider):
         """
         super().__init__(config)
 
-        # Get API key
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        # Get API key from config
+        api_key = config.get("api_key")
         if not api_key:
-            raise ValueError("ANTHROPIC_API_KEY environment variable not set. Please export ANTHROPIC_API_KEY=your_key")
+            raise ValueError("api_key not found in ai_service.anthropic configuration")
 
         from anthropic import Anthropic
 
@@ -227,10 +227,10 @@ class OpenAIProvider(AIProvider):
         """
         super().__init__(config)
 
-        # Get API key
-        api_key = os.environ.get("OPENAI_API_KEY")
+        # Get API key from config
+        api_key = config.get("api_key")
         if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set. Please export OPENAI_API_KEY=your_key")
+            raise ValueError("api_key not found in ai_service.openai configuration")
 
         from openai import OpenAI
 

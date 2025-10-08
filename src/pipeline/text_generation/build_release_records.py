@@ -331,7 +331,7 @@ class ReleaseRecordBuilder:
         all_keywords = list(set(ai_summaries.short.keywords + ai_summaries.long.keywords + ai_summaries.tags))
 
         summary_metadata = SummaryMetadata(
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(datetime.UTC),
             model=model_name,
             has_transcript=bool(transcript),
             transcript_length=len(transcript) if transcript else None,

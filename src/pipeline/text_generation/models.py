@@ -42,7 +42,7 @@ class AIGeneratedSummaries(BaseModel):
 class SummaryMetadata(BaseModel):
     """Metadata about summary generation."""
 
-    generated_at: datetime = Field(default_factory=datetime.utcnow, description="Generation timestamp")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(datetime.UTC), description="Generation timestamp")
     model: str = Field(..., description="AI model used")
     has_transcript: bool = Field(..., description="Whether transcript was available")
     transcript_length: int | None = Field(None, description="Length of transcript in characters")
