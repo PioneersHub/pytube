@@ -15,7 +15,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import structlog
@@ -395,7 +395,7 @@ class ReleaseRecordBuilder:
         all_keywords = list(set(ai_summaries.short.keywords + ai_summaries.long.keywords + ai_summaries.tags))
 
         summary_metadata = SummaryMetadata(
-            generated_at=datetime.now(datetime.UTC),
+            generated_at=datetime.now(timezone.utc),
             model=model_name,
             has_transcript=bool(transcript),
             transcript_length=len(transcript) if transcript else None,

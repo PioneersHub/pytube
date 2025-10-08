@@ -1,10 +1,12 @@
 # Video Processor Module
 
-The `video_processor` module provides tools for automatically processing conference video recordings, detecting individual presentations, and organizing them for publication.
+The `video_processor` module provides tools for automatically processing conference video recordings, detecting individual presentations,
+and organizing them for publication.
 
 ## Overview
 
 This module handles two main tasks:
+
 1. **Session Matching**: Maps conference sessions from Pretalx to their corresponding video recordings
 2. **Presentation Detection**: Automatically detects and extracts individual talks from long conference recordings
 
@@ -12,9 +14,11 @@ This module handles two main tasks:
 
 ### 1. video_splitter.py (Recommended)
 
-Streamlined video splitter that processes conference videos one at a time with immediate extraction and automatic skip logic for already processed videos.
+Streamlined video splitter that processes conference videos one at a time with immediate extraction and automatic skip logic for already
+processed videos.
 
 #### Features
+
 - **Single-video processing**: Process one video, extract immediately
 - **Skip processed videos**: Maintains `.processed_videos.json` to avoid reprocessing
 - **Skip existing files**: Won't re-extract segments that already exist
@@ -23,6 +27,7 @@ Streamlined video splitter that processes conference videos one at a time with i
 - **Immediate extraction**: Cuts are made as soon as transitions are found
 
 #### Usage
+
 ```bash
 # Process all videos in input folder
 python -m src.video_processor.video_splitter --config config.yaml
@@ -36,9 +41,11 @@ python -m src.video_processor.video_splitter --config config.yaml --reset
 
 ### 2. presentation_detector.py (Legacy)
 
-Automatically detects and extracts individual presentations from long conference recordings by finding transitions between break screens and presentations.
+Automatically detects and extracts individual presentations from long conference recordings by finding transitions between break screens and
+presentations.
 
 #### Features
+
 - **Auto-detection of break screens**: Automatically identifies recurring break/pause screens in videos
 - **Binary search for precision**: Uses binary search to find exact transition points between segments
 - **Batch processing**: Process multiple videos in a single run
@@ -46,11 +53,13 @@ Automatically detects and extracts individual presentations from long conference
 - **Metadata generation**: Creates JSON metadata for all detected presentations
 
 #### Usage
+
 ```bash
 python -m src.video_processor.presentation_detector --config config.yaml
 ```
 
 #### Command-line Options
+
 - `--config`: Path to configuration file (default: config.yaml)
 - `--output`: Override output folder from config
 - `--break-images`: Directory containing break screen images (overrides config)
@@ -63,6 +72,7 @@ python -m src.video_processor.presentation_detector --config config.yaml
 Converts Pretalx JSON export to Parquet format with video recording matches.
 
 #### Features
+
 - Reads session data from JSON export (recommended format)
 - Matches sessions to recordings by room, day, and time period
 - Generates sequential filenames for organization
@@ -70,6 +80,7 @@ Converts Pretalx JSON export to Parquet format with video recording matches.
 - Fully configurable via command-line arguments
 
 #### Usage
+
 ```bash
 # Convert JSON to Parquet (output location is defined in config.yaml)
 python -m src.video_processor.json_to_parquet sessions.json
@@ -83,6 +94,7 @@ python -m src.video_processor.json_to_parquet sessions.json -c custom_config.yam
 Legacy script that matches conference sessions from Excel export to video recordings.
 
 #### Features
+
 - Reads session data from Excel export (legacy format)
 - Matches sessions to recordings by room, day, and time period
 - Generates sequential filenames for organization
@@ -95,7 +107,6 @@ Legacy script that matches conference sessions from Excel export to video record
 python - m  src.video_processor.process_talk_list
 ```
 
-
 **Note**: For new projects, use `json_to_parquet.py` with JSON exports instead.
 
 ### 4. config.yaml
@@ -105,6 +116,7 @@ Central configuration file controlling all tools. Uses a base directory to avoid
 #### Key Configuration Sections
 
 ##### Base Configuration
+
 ```yaml
 # All paths are relative to this base directory
 base_dir: "/Users/hendorf/Downloads/videos"
@@ -116,6 +128,7 @@ input:
 ```
 
 ##### Break Detection
+
 ```yaml
 break_detection:
   images_dir: "/path/to/break/screens"    # Pre-defined break screen images (optional)
@@ -126,6 +139,7 @@ break_detection:
 ```
 
 ##### Presentation Detection
+
 ```yaml
 presentation_detection:
   min_interval: 2                         # Minimum precision in seconds
@@ -136,6 +150,7 @@ presentation_detection:
 ```
 
 ##### Output Settings
+
 ```yaml
 output:
   folder: "/path/to/output"               # Base output directory
@@ -146,6 +161,7 @@ output:
 ```
 
 ##### Event Settings
+
 ```yaml
 event:
   lunch_break_cut: 13                     # Hour dividing morning/afternoon (24hr)
@@ -154,6 +170,7 @@ event:
 ## Streamlined Workflow (Recommended)
 
 ### Step 1: Export and Convert Session Data
+
 ```bash
 # Export from Pretalx as JSON and create parquet with mappings
 python -m src.video_processor.json_to_parquet /path/to/sessions.json \
@@ -162,13 +179,16 @@ python -m src.video_processor.json_to_parquet /path/to/sessions.json \
 ```
 
 ### Step 2: Configure
+
 Edit `config.yaml`:
-- Set `input.folder` to your video recordings directory  
+
+- Set `input.folder` to your video recordings directory
 - Set `input.mapping_file` to the parquet file from Step 1
 - Set `output.folder` for extracted presentations
 - Set `break_detection.images_dir` to your break screens
 
 ### Step 3: Process Videos
+
 ```bash
 # Process all videos (will skip already processed)
 python -m src.video_processor.video_splitter --config config.yaml
@@ -186,6 +206,7 @@ python -m src.video_processor.video_splitter --config config.yaml
 ### Step 1: Export Session Data from Pretalx
 
 Export your conference sessions from Pretalx in JSON format. This should include:
+
 - Session ID, title, and metadata
 - Speaker information
 - Room assignments
@@ -207,18 +228,22 @@ python -m src.video_processor.json_to_parquet /path/to/sessions.json \
 ```
 
 This creates a Parquet file that:
+
 - Maps each session to its corresponding video recording
 - Generates sequential filenames for extracted presentations
 - Creates folder structure based on day/time/room
 
 ### Step 3: Configure Processing
+
 Edit `config.yaml`:
+
 - Set `input.folder` to your video directory
 - Set `input.mapping_file` to the Parquet file from Step 2
 - Set `output.folder` for extracted presentations
 - Configure break detection settings
 
 ### Step 4: Detect Presentations (Dry Run)
+
 ```bash
 # First, detect presentations without extracting
 # Set in config.yaml:
@@ -227,14 +252,17 @@ Edit `config.yaml`:
 
 python -m src.video_processor.presentation_detector --config config.yaml
 ```
+
 This creates `processing_plan.json` with detected presentation timestamps.
 
 ### Step 5: Review Detection Results
+
 - Check `processing_plan.json` for detected presentations
 - Review break screens saved in `detected_screens_dir`
 - Adjust detection thresholds if needed
 
 ### Step 6: Extract Presentations
+
 ```bash
 # Set in config.yaml:
 #   make_processing_plan: false
@@ -242,6 +270,7 @@ This creates `processing_plan.json` with detected presentation timestamps.
 
 python -m src.video_processor.presentation_detector --config config.yaml
 ```
+
 This extracts all detected presentations as separate files.
 
 ## Output Structure
@@ -280,15 +309,18 @@ output_folder/
 ## Troubleshooting
 
 ### No presentations detected
+
 - Check if break screens are being detected correctly (review `detected_screens_dir`)
 - Lower the `break_detection.threshold` value
 - Ensure videos have clear transitions between breaks and presentations
 
 ### Wrong transition points
+
 - Decrease `presentation_detection.min_interval` for more precision
 - Adjust `break_detection.threshold` for better break screen matching
 
 ### Processing too slow
+
 - Enable `video.enable_resize` to process at lower resolution
 - Increase `presentation_detection.sampling_interval`
 - Reduce `presentation_detection.max_samples`

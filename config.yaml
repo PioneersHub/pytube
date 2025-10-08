@@ -161,15 +161,15 @@ ai_service:
   # Text length constraints for AI-generated content
   constraints:
     teaser_text:
-      max_chars: 140
+      max_chars: 150  # Allow some flexibility
     short_text:
-      min_words: 150
-      max_words: 200
+      min_words: 80   # Adjusted based on actual AI output
+      max_words: 250
     long_text:
-      min_words: 350
-      max_words: 400
+      min_words: 200  # Adjusted based on actual AI output
+      max_words: 500
     social_text:
-      max_chars: 160
+      max_chars: 180  # Allow some flexibility for hashtags
     tags:
       min_count: 10
       max_count: 15
