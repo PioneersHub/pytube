@@ -72,17 +72,31 @@ class VimeoClient:
 
             # Extract video info from each item
             for item in items:
-                # Items contain {"clip": {...}} for videos
-                video_data = item.get("clip") or item
-                if video_data:
-                    try:
-                        video_info = self._extract_video_info(video_data)
-                        videos.append(video_info)
-                    except Exception as e:
-                        # Skip videos that can't be downloaded or parsed
-                        video_name = video_data.get("name", "Unknown")
-                        print(f"Skipping {video_name}: {e}")
+                # Folder items contain {"video": {...}} with basic info
+                if not isinstance(item, dict):
+                    continue
+
+                # Get the video data from folder item
+                video_data = item.get("video")
+                if not video_data or not isinstance(video_data, dict):
+                    continue
+
+                # Extract video ID to fetch full details (including download links)
+                try:
+                    video_uri = video_data.get("uri", "")
+                    if not video_uri:
                         continue
+
+                    video_id = video_uri.split("/")[-1]
+
+                    # Fetch full video details including download links
+                    video_info = self.get_video_info(video_id)
+                    videos.append(video_info)
+
+                except Exception as e:
+                    video_name = video_data.get("name", "Unknown")
+                    print(f"Skipping {video_name}: {e}")
+                    continue
 
             # Check for next page
             paging = data.get("paging", {})
@@ -155,7 +169,7 @@ class VimeoClient:
         if privacy_hash:
             url += f":{privacy_hash}"
 
-        params = {"fields": "name,duration,download,files,created_time,modified_time,width,height"}
+        params = {"fields": "uri,name,duration,download,files,created_time,modified_time,width,height"}
 
         response = self.client.get(url, params=params)
         if response.status_code != HTTP_OK:
