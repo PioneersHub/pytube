@@ -201,42 +201,49 @@ class ReleaseRecordBuilder:
     def load_transcript(self, pretalx_id: str) -> str | None:
         """Load transcript for a session.
 
+        Expects transcripts in: {event_dir}/transcriptions/
+        Directory patterns:
+        - {pretalx_id}_Title/transcript_attributed.txt
+        - NNN-_Title_[{pretalx_id}]/transcript_attributed.txt
+
         Args:
             pretalx_id: Pretalx session ID
 
         Returns:
             Transcript text if found, None otherwise
+
+        Raises:
+            ValueError: If multiple directories match or transcript file missing
         """
-        # Look for transcript in transcriptions directory
-        transcript_dirs = [
-            self.paths.work_dir / "transcriptions",
-            self.paths.event_dir / "transcriptions",
+        transcript_dir = self.paths.event_dir / "transcriptions"
+
+        if not transcript_dir.exists():
+            logger.info("no_transcriptions_directory", path=str(transcript_dir))
+            return None
+
+        # Find matching directories (both patterns)
+        matching_dirs = [
+            d
+            for d in transcript_dir.iterdir()
+            if d.is_dir() and (d.name.startswith(f"{pretalx_id}_") or f"[{pretalx_id}]" in d.name)
         ]
 
-        for transcript_dir in transcript_dirs:
-            if not transcript_dir.exists():
-                continue
+        if not matching_dirs:
+            logger.info("no_transcript_found", pretalx_id=pretalx_id)
+            return None
 
-            # Find session directory (may have title suffix)
-            for session_dir in transcript_dir.iterdir():
-                if not session_dir.is_dir():
-                    continue
+        if len(matching_dirs) > 1:
+            raise ValueError(f"Multiple transcript directories found for {pretalx_id}: {[d.name for d in matching_dirs]}")
 
-                # Check if directory contains the pretalx ID
-                if f"[{pretalx_id}]" in session_dir.name or pretalx_id in session_dir.name:
-                    transcript_file = session_dir / "transcript_attributed.txt"
+        session_dir = matching_dirs[0]
+        transcript_file = session_dir / "transcript_attributed.txt"
 
-                    if not transcript_file.exists():
-                        # Try alternative filename
-                        transcript_file = session_dir / "transcript.txt"
+        if not transcript_file.exists():
+            raise ValueError(f"Transcript file not found: {transcript_file}")
 
-                    if transcript_file.exists():
-                        logger.info("found_transcript", pretalx_id=pretalx_id, file=str(transcript_file))
-                        with transcript_file.open(encoding="utf-8") as f:
-                            return f.read()
-
-        logger.info("no_transcript_found", pretalx_id=pretalx_id)
-        return None
+        logger.info("found_transcript", pretalx_id=pretalx_id, file=str(transcript_file))
+        with transcript_file.open(encoding="utf-8") as f:
+            return f.read()
 
     def _process_long_transcript(self, transcript: str) -> str:
         """Process long transcripts intelligently for AI consumption.
