@@ -15,11 +15,11 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import structlog
 import yaml
+from omegaconf import OmegaConf
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
@@ -75,8 +75,6 @@ class ReleaseRecordBuilder:
         Raises:
             ValueError: If constraints are not configured
         """
-        from omegaconf import OmegaConf
-
         constraints = getattr(self.config.ai_service, "constraints", None)
         if not constraints:
             raise ValueError("Text generation constraints not configured in ai_service.constraints")
@@ -97,24 +95,32 @@ class ReleaseRecordBuilder:
         Raises:
             ValueError: If provider configuration is invalid
         """
-        from omegaconf import OmegaConf
+        try:
+            ai_config = self.config.ai_service
+        except AttributeError as e:
+            raise ValueError("ai_service not configured in config") from e
 
-        ai_config = getattr(self.config, "ai_service", {})
+        # Get provider name using dot notation
+        try:
+            provider_name = ai_config.provider
+        except AttributeError as e:
+            raise ValueError("ai_service.provider not configured in config") from e
 
-        # Convert OmegaConf DictConfig to plain dict
-        if hasattr(ai_config, "_metadata"):
-            ai_config = OmegaConf.to_container(ai_config, resolve=True)
-
-        # Get provider name and config
-        provider_name = ai_config.get("provider")
         if not provider_name:
-            raise ValueError("ai_service.provider not configured in config (must be 'anthropic' or 'openai')")
+            raise ValueError("ai_service.provider is empty")
 
-        provider_config = ai_config.get(provider_name)
-        if not provider_config:
-            raise ValueError(f"ai_service.{provider_name} configuration not found in config")
+        # Get provider config using dot notation
+        try:
+            provider_config = getattr(ai_config, provider_name)
+        except AttributeError as e:
+            raise ValueError(f"ai_service.{provider_name} configuration not found in config") from e
 
-        logger.info("initializing_ai_provider", provider=provider_name, model=provider_config.get("model", "default"))
+        # Convert to dict for provider factory
+        if hasattr(provider_config, "_metadata"):
+            provider_config = OmegaConf.to_container(provider_config, resolve=True)
+
+        model_name = provider_config.get("model", "default") if isinstance(provider_config, dict) else "default"
+        logger.info("initializing_ai_provider", provider=provider_name, model=model_name)
 
         provider = ProviderFactory.create(provider_name, provider_config)
 
@@ -228,7 +234,7 @@ class ReleaseRecordBuilder:
         Returns:
             Processed transcript (original or intelligently chunked)
         """
-        max_length = getattr(self.config.ai_service, "max_transcript_length", 100000)
+        max_length = getattr(self.config.ai_service, "max_transcript_length", 100_000)
 
         if len(transcript) <= max_length:
             return transcript
@@ -275,15 +281,13 @@ class ReleaseRecordBuilder:
         Returns:
             Formatted prompt string
         """
-        from omegaconf import OmegaConf
-
-        # Get prompt template from config
-        prompts = getattr(self.config.ai_service, "prompts", {})
-        if hasattr(prompts, "_metadata"):
-            prompts = OmegaConf.to_container(prompts, resolve=True)
-
-        prompt_config = prompts.get("video_summary", {})
-        template = prompt_config.get("template", "")
+        # Get prompt template from config using dot notation
+        try:
+            prompts = self.config.ai_service.prompts
+            prompt_config = prompts.video_summary
+            template = prompt_config.template
+        except AttributeError as e:
+            raise ValueError("ai_service.prompts.video_summary.template not configured in config") from e
 
         # Prepare template variables
         speakers = ", ".join(request.speakers) if request.speakers else "Unknown"
@@ -298,17 +302,24 @@ class ReleaseRecordBuilder:
             was_processed = len(processed_transcript) < len(request.transcript_text)
 
             if was_processed:
-                transcript_template = prompt_config.get(
+                transcript_template = getattr(
+                    prompt_config,
                     "transcript_truncated",
                     "\n\nTRANSCRIPT (intelligently sampled for length):\n{transcript_text}\n",
                 )
             else:
-                transcript_template = prompt_config.get("transcript_with_data", "\n\nTRANSCRIPT:\n{transcript_text}")
+                transcript_template = getattr(
+                    prompt_config,
+                    "transcript_with_data",
+                    "\n\nTRANSCRIPT:\n{transcript_text}",
+                )
 
             transcript_section = transcript_template.format(transcript_text=processed_transcript)
         else:
-            transcript_section = prompt_config.get(
-                "no_transcript", "\n\n[No transcript available - base summary on abstract and description only]"
+            transcript_section = getattr(
+                prompt_config,
+                "no_transcript",
+                "\n\n[No transcript available - base summary on abstract and description only]",
             )
 
         # Format the prompt with constraints
@@ -395,7 +406,7 @@ class ReleaseRecordBuilder:
         all_keywords = list(set(ai_summaries.short.keywords + ai_summaries.long.keywords + ai_summaries.tags))
 
         summary_metadata = SummaryMetadata(
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             model=model_name,
             has_transcript=bool(transcript),
             transcript_length=len(transcript) if transcript else None,
