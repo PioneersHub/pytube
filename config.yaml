@@ -157,9 +157,27 @@ ai_service:
   # Maximum transcript length before truncation (characters)
   max_transcript_length: 50000
 
+  # Text length constraints for AI-generated content
+  constraints:
+    teaser_text:
+      max_chars: 140
+    short_text:
+      min_words: 150
+      max_words: 200
+    long_text:
+      min_words: 350
+      max_words: 400
+    social_text:
+      max_chars: 160
+    tags:
+      min_count: 10
+      max_count: 15
+    quotes:
+      count: 3
+
   # Anthropic Claude configuration
   anthropic:
-    # Models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-haiku-20240307
+    # Models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-haiku-20240307 claude-sonnet-4-5-20250929
     model: claude-3-5-sonnet-20241022
     temperature: 0.3  # Lower for more consistent output
     max_tokens: 2000
@@ -184,39 +202,56 @@ ai_service:
         Description: {description}
         {transcript_section}
 
-        Please generate the following content:
+        Please generate the following content for a conference talk video:
 
-        1. SHORT DESCRIPTION (200-400 words):
-        Write an engaging YouTube video description that:
-        - Summarizes the main topics and key points
-        - Highlights what viewers will learn
+        1. TEASER TEXT (max {teaser_max_chars} characters):
+        Write a compelling one-sentence hook that captures the essence of the talk.
+
+        2. SHORT TEXT ({short_min}-{short_max} words):
+        Write a concise summary that:
+        - Highlights the main topic and key points
         - Uses clear, accessible language
-        - Includes 2-3 key takeaways
         - Maintains a professional yet approachable tone
+        Also extract 5-8 relevant keywords from this summary.
 
-        2. TEASER (one sentence, max 200 characters):
-        Write a compelling one-sentence hook that captures the essence of the talk and makes people want to watch.
+        3. LONG TEXT ({long_min}-{long_max} words):
+        Write a comprehensive description that:
+        - Provides detailed context and background
+        - Explains what viewers will learn
+        - Includes specific examples or use cases mentioned
+        - Covers the main technical concepts
+        Also extract 10-15 relevant keywords from this description.
 
-        3. TAGS (10-15 relevant keywords):
-        List specific, relevant tags for YouTube that will help people find this video. Include:
-        - Technical topics covered
-        - Programming concepts
-        - Tools and libraries mentioned
+        4. SOCIAL TEXT (max {social_max_chars} characters):
+        Write a short, engaging post for social media that highlights the key value proposition.
+
+        5. TAGS ({tags_min}-{tags_max} keywords):
+        List specific, relevant YouTube tags including:
+        - Technical topics and concepts
+        - Programming languages and tools
         - Target audience level
+        - Conference/event name
 
-        4. KEY TAKEAWAYS (3-5 bullet points):
-        List the main learning points or insights from the talk.
-
-        5. TARGET AUDIENCE:
-        Specify who would benefit most from this talk (beginner/intermediate/advanced/all).
+        6. QUOTES ({quotes_count} impactful quotes):
+        Extract {quotes_count} memorable quotes from the transcript that:
+        - Capture key insights or interesting perspectives
+        - Are self-contained and understandable out of context
+        - Represent the speaker's voice and expertise
+        For each quote, provide: the exact quote text, speaker name, and brief context.
 
         IMPORTANT: You MUST respond with valid JSON in exactly this format:
         {{
-          "short_description": "...",
-          "teaser": "...",
+          "teaser_text": "...",
+          "short_text": "...",
+          "short_keywords": ["keyword1", "keyword2", ...],
+          "long_text": "...",
+          "long_keywords": ["keyword1", "keyword2", ...],
+          "social_text": "...",
           "tags": ["tag1", "tag2", ...],
-          "key_takeaways": ["takeaway1", "takeaway2", ...],
-          "target_audience": "beginner|intermediate|advanced|all"
+          "quotes": [
+            {{"text": "...", "speaker": "...", "context": "..."}},
+            ...
+          ]
         }}
 
       transcript_with_data: |
