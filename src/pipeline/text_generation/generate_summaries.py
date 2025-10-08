@@ -1,4 +1,16 @@
-"""Generate AI-powered summaries from transcripts and session data.
+"""DEPRECATED: Generate AI-powered summaries from transcripts and session data.
+
+⚠️  THIS MODULE IS DEPRECATED ⚠️
+
+Use `build_release_records.py` instead, which creates complete release records
+combining Pretalx data, YouTube metadata, transcripts, and AI summaries.
+
+This file is kept for reference only and will be removed in a future version.
+
+For the new implementation, see:
+    src/pipeline/text_generation/build_release_records.py
+
+---
 
 This module uses configurable AI providers to generate enhanced descriptions, tags, and
 summaries from video transcripts and Pretalx session data.
