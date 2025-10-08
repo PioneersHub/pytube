@@ -75,9 +75,10 @@ class ReleaseRecordBuilder:
         Raises:
             ValueError: If constraints are not configured
         """
-        constraints = getattr(self.config.ai_service, "constraints", None)
-        if not constraints:
-            raise ValueError("Text generation constraints not configured in ai_service.constraints")
+        try:
+            constraints = self.config.ai_service.constraints
+        except AttributeError as e:
+            raise ValueError("Text generation constraints not configured in ai_service.constraints") from e
 
         # Convert to plain dict
         if hasattr(constraints, "_metadata"):
@@ -110,16 +111,31 @@ class ReleaseRecordBuilder:
             raise ValueError("ai_service.provider is empty")
 
         # Get provider config using dot notation
-        try:
-            provider_config = getattr(ai_config, provider_name)
-        except AttributeError as e:
-            raise ValueError(f"ai_service.{provider_name} configuration not found in config") from e
+        if provider_name == "anthropic":
+            try:
+                provider_config_obj = ai_config.anthropic
+            except AttributeError as e:
+                raise ValueError("ai_service.anthropic configuration not found in config") from e
+        elif provider_name == "openai":
+            try:
+                provider_config_obj = ai_config.openai
+            except AttributeError as e:
+                raise ValueError("ai_service.openai configuration not found in config") from e
+        else:
+            raise ValueError(f"Unknown provider: {provider_name}")
 
         # Convert to dict for provider factory
-        if hasattr(provider_config, "_metadata"):
-            provider_config = OmegaConf.to_container(provider_config, resolve=True)
+        if hasattr(provider_config_obj, "_metadata"):
+            provider_config = OmegaConf.to_container(provider_config_obj, resolve=True)
+        else:
+            provider_config = provider_config_obj
 
-        model_name = provider_config.get("model", "default") if isinstance(provider_config, dict) else "default"
+        # Get model name using dot notation
+        try:
+            model_name = provider_config_obj.model
+        except AttributeError:
+            model_name = "default"
+
         logger.info("initializing_ai_provider", provider=provider_name, model=model_name)
 
         provider = ProviderFactory.create(provider_name, provider_config)
@@ -234,7 +250,10 @@ class ReleaseRecordBuilder:
         Returns:
             Processed transcript (original or intelligently chunked)
         """
-        max_length = getattr(self.config.ai_service, "max_transcript_length", 100_000)
+        try:
+            max_length = self.config.ai_service.max_transcript_length
+        except AttributeError:
+            max_length = 100_000
 
         if len(transcript) <= max_length:
             return transcript
@@ -302,25 +321,22 @@ class ReleaseRecordBuilder:
             was_processed = len(processed_transcript) < len(request.transcript_text)
 
             if was_processed:
-                transcript_template = getattr(
-                    prompt_config,
-                    "transcript_truncated",
-                    "\n\nTRANSCRIPT (intelligently sampled for length):\n{transcript_text}\n",
-                )
+                try:
+                    transcript_template = prompt_config.transcript_truncated
+                except AttributeError:
+                    transcript_template = "\n\nTRANSCRIPT (intelligently sampled for length):\n{transcript_text}\n"
             else:
-                transcript_template = getattr(
-                    prompt_config,
-                    "transcript_with_data",
-                    "\n\nTRANSCRIPT:\n{transcript_text}",
-                )
+                try:
+                    transcript_template = prompt_config.transcript_with_data
+                except AttributeError:
+                    transcript_template = "\n\nTRANSCRIPT:\n{transcript_text}"
 
             transcript_section = transcript_template.format(transcript_text=processed_transcript)
         else:
-            transcript_section = getattr(
-                prompt_config,
-                "no_transcript",
-                "\n\n[No transcript available - base summary on abstract and description only]",
-            )
+            try:
+                transcript_section = prompt_config.no_transcript
+            except AttributeError:
+                transcript_section = "\n\n[No transcript available - base summary on abstract and description only]"
 
         # Format the prompt with constraints
         prompt = template.format(
@@ -402,7 +418,10 @@ class ReleaseRecordBuilder:
         media_info = MediaInfo(youtube=youtube_metadata or {}, transcript=transcript)
 
         # Prepare metadata
-        model_name = getattr(self.provider, "model", "unknown")
+        try:
+            model_name = self.provider.model
+        except AttributeError:
+            model_name = "unknown"
         all_keywords = list(set(ai_summaries.short.keywords + ai_summaries.long.keywords + ai_summaries.tags))
 
         summary_metadata = SummaryMetadata(
