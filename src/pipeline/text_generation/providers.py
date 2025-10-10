@@ -320,22 +320,48 @@ class AnthropicProvider(AIProvider):
             raise AIProviderError(f"Unexpected Anthropic error: {e}") from e
 
     def estimate_cost(self) -> dict:
-        """Estimate Anthropic API costs.
+        """Estimate Anthropic API costs using pricing from config.
 
         Returns:
             Cost estimation dictionary
         """
-        # Anthropic pricing (as of late 2024)
-        # Model-specific pricing
-        pricing = {
-            "claude-3-5-sonnet": {"input": 3.0, "output": 15.0},  # per million tokens
-            "claude-3-opus": {"input": 15.0, "output": 75.0},
-            "claude-3-haiku": {"input": 0.25, "output": 1.25},
-        }
+        # Get pricing from config
+        pricing = self.config.get("pricing", {})
+        if not pricing:
+            logger.warning(
+                "anthropic_pricing_missing",
+                message="No pricing config found, cost estimation unavailable",
+            )
+            return {
+                "provider": "Anthropic",
+                "model": self.model,
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": self.total_output_tokens,
+                "input_cost_usd": None,
+                "output_cost_usd": None,
+                "total_cost_usd": None,
+            }
 
-        # Determine which pricing to use
-        model_base = self.model.rsplit("-", 1)[0]  # Remove date suffix
-        rates = pricing.get(model_base, pricing["claude-3-5-sonnet"])
+        # Determine which pricing to use (remove date suffix from model name)
+        model_base = self.model.rsplit("-", 1)[0]
+        rates = pricing.get(model_base)
+
+        if not rates:
+            logger.warning(
+                "anthropic_model_pricing_missing",
+                model=self.model,
+                model_base=model_base,
+                available_models=list(pricing.keys()),
+            )
+            return {
+                "provider": "Anthropic",
+                "model": self.model,
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": self.total_output_tokens,
+                "input_cost_usd": None,
+                "output_cost_usd": None,
+                "total_cost_usd": None,
+            }
 
         input_cost = (self.total_input_tokens / 1_000_000) * rates["input"]
         output_cost = (self.total_output_tokens / 1_000_000) * rates["output"]
@@ -449,22 +475,46 @@ class OpenAIProvider(AIProvider):
             raise AIProviderError(f"Unexpected OpenAI error: {e}") from e
 
     def estimate_cost(self) -> dict:
-        """Estimate OpenAI API costs.
+        """Estimate OpenAI API costs using pricing from config.
 
         Returns:
             Cost estimation dictionary
         """
-        # OpenAI pricing (as of late 2024)
-        pricing = {
-            "gpt-4o": {"input": 2.50, "output": 10.00},  # per million tokens
-            "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-            "gpt-4-turbo": {"input": 10.00, "output": 30.00},
-            "gpt-4": {"input": 30.00, "output": 60.00},
-            "gpt-3.5-turbo": {"input": 0.50, "output": 1.50},
-        }
+        # Get pricing from config
+        pricing = self.config.get("pricing", {})
+        if not pricing:
+            logger.warning(
+                "openai_pricing_missing",
+                message="No pricing config found, cost estimation unavailable",
+            )
+            return {
+                "provider": "OpenAI",
+                "model": self.model,
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": self.total_output_tokens,
+                "input_cost_usd": None,
+                "output_cost_usd": None,
+                "total_cost_usd": None,
+            }
 
-        # Find matching pricing
-        rates = pricing.get(self.model, pricing["gpt-4o-mini"])
+        # Find matching pricing for the model
+        rates = pricing.get(self.model)
+
+        if not rates:
+            logger.warning(
+                "openai_model_pricing_missing",
+                model=self.model,
+                available_models=list(pricing.keys()),
+            )
+            return {
+                "provider": "OpenAI",
+                "model": self.model,
+                "input_tokens": self.total_input_tokens,
+                "output_tokens": self.total_output_tokens,
+                "input_cost_usd": None,
+                "output_cost_usd": None,
+                "total_cost_usd": None,
+            }
 
         input_cost = (self.total_input_tokens / 1_000_000) * rates["input"]
         output_cost = (self.total_output_tokens / 1_000_000) * rates["output"]
