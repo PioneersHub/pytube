@@ -1,12 +1,17 @@
 """AI provider abstraction for multiple LLM providers."""
 
 import json
-import os
 import re
 from abc import ABC, abstractmethod
 
+import anthropic
+import openai
 import structlog
+from anthropic import Anthropic
+from openai import OpenAI
 from pydantic import ValidationError
+
+from .models import AIGeneratedResponse
 
 logger = structlog.get_logger()
 
@@ -106,9 +111,6 @@ class AIProvider(ABC):
             AIValidationError: If response doesn't match schema or violates constraints
         """
         try:
-            # Import here to avoid circular dependency
-            from .models import AIGeneratedResponse
-
             # Step 1: Validate schema with Pydantic
             try:
                 validated_response = AIGeneratedResponse(**response)
@@ -220,7 +222,7 @@ class AIProvider(ABC):
                 json_str = json_str.replace("\n", " ").replace("\\", "\\\\")
                 try:
                     return json.loads(json_str)
-                except:
+                except json.JSONDecodeError:
                     pass
 
         # Fallback: return empty structure
@@ -249,8 +251,6 @@ class AnthropicProvider(AIProvider):
         if not api_key:
             raise ValueError("api_key not found in ai_service.anthropic configuration")
 
-        from anthropic import Anthropic
-
         self.client = Anthropic(api_key=api_key)
 
         # Get model from config, with fallback
@@ -274,8 +274,6 @@ class AnthropicProvider(AIProvider):
             AIProviderError: For other API errors
         """
         try:
-            import anthropic
-
             message = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
@@ -370,8 +368,6 @@ class OpenAIProvider(AIProvider):
         if not api_key:
             raise ValueError("api_key not found in ai_service.openai configuration")
 
-        from openai import OpenAI
-
         self.client = OpenAI(api_key=api_key)
 
         # Get model from config, with fallback
@@ -395,8 +391,6 @@ class OpenAIProvider(AIProvider):
             AIProviderError: For other API errors
         """
         try:
-            import openai
-
             # Request JSON format explicitly
             response = self.client.chat.completions.create(
                 model=self.model,

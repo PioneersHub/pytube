@@ -1,6 +1,6 @@
 """Data models for AI-generated text content and release records."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -42,7 +42,7 @@ class AIGeneratedSummaries(BaseModel):
 class SummaryMetadata(BaseModel):
     """Metadata about summary generation."""
 
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Generation timestamp")
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC), description="Generation timestamp")
     model: str = Field(..., description="AI model used")
     has_transcript: bool = Field(..., description="Whether transcript was available")
     transcript_length: int | None = Field(None, description="Length of transcript in characters")

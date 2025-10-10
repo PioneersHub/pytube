@@ -222,7 +222,9 @@ class ReleaseRecordBuilder:
             return None
 
         if len(matching_dirs) > 1:
-            raise ValueError(f"Multiple transcript directories found for {pretalx_id}: {[d.name for d in matching_dirs]}")
+            raise ValueError(
+                f"Multiple transcript directories found for {pretalx_id}: {[d.name for d in matching_dirs]}"
+            )
 
         session_dir = matching_dirs[0]
         transcript_file = session_dir / "transcript_attributed.txt"
