@@ -1,6 +1,6 @@
 """YouTube-specific data models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -38,7 +38,7 @@ class UpdateMetadata(BaseModel):
     """Metadata about the update process."""
 
     pretalx_id: str = Field(..., description="Pretalx session ID")
-    prepared_at: datetime = Field(default_factory=datetime.utcnow)
+    prepared_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     template_version: str = Field("v1", description="Template version used")
     has_ai_summary: bool = Field(True, description="Whether AI summary was used")
 
@@ -59,7 +59,7 @@ class UpdateStatus(BaseModel):
     attempts: int = 0
     last_attempt: datetime | None = None
     error: str | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
 
 
@@ -80,7 +80,7 @@ class YouTubeMapping(BaseModel):
 
     mappings: dict[str, str] = Field(default_factory=dict, description="Dictionary mapping pretalx_id to youtube_id")
     total_count: int = 0
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source: str = Field("manual", description="How the mapping was created")
 
     def get_youtube_id(self, pretalx_id: str) -> str | None:

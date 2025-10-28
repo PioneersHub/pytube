@@ -1,7 +1,7 @@
 """Status tracking utilities for YouTube updates."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -63,15 +63,8 @@ class StatusTracker:
         """Save current status to file."""
         data = self._report.model_dump(mode="json")
 
-        # Convert datetime objects to ISO strings
-        if data.get("last_run"):
-            data["last_run"] = data["last_run"].isoformat() if data["last_run"] else None
-
-        for pretalx_id, status in data.get("videos", {}).items():
-            if isinstance(status, dict):
-                for field in ["last_attempt", "created_at", "completed_at"]:
-                    if field in status and status[field]:
-                        status[field] = status[field].isoformat()
+        # Note: model_dump(mode="json") already converts datetime to ISO strings
+        # so no additional conversion is needed
 
         with self.status_file.open("w") as f:
             json.dump(data, f, indent=2)
@@ -116,7 +109,7 @@ class StatusTracker:
 
         status.status = "processing"
         status.attempts += 1
-        status.last_attempt = datetime.utcnow()
+        status.last_attempt = datetime.now(UTC)
         self._update_counts()
         self.save()
 
@@ -131,10 +124,10 @@ class StatusTracker:
             raise ValueError(f"No status found for {pretalx_id}")
 
         status.status = "completed"
-        status.completed_at = datetime.utcnow()
+        status.completed_at = datetime.now(UTC)
         status.error = None
         self._update_counts()
-        self._report.last_run = datetime.utcnow()
+        self._report.last_run = datetime.now(UTC)
         self.save()
 
         logger.info("update_completed", pretalx_id=pretalx_id, attempts=status.attempts)
@@ -153,7 +146,7 @@ class StatusTracker:
         status.status = "failed"
         status.error = error
         self._update_counts()
-        self._report.last_run = datetime.utcnow()
+        self._report.last_run = datetime.now(UTC)
         self.save()
 
         logger.warning("update_failed", pretalx_id=pretalx_id, attempts=status.attempts, error=error)

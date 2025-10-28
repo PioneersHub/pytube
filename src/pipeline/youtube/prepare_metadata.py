@@ -8,7 +8,7 @@ import argparse
 import contextlib
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
@@ -284,7 +284,7 @@ class MetadataBuilder:
         # Create update metadata
         update_metadata = UpdateMetadata(
             pretalx_id=pretalx_id,
-            prepared_at=datetime.utcnow(),
+            prepared_at=datetime.now(UTC),
             template_version="v1",
             has_ai_summary=release_record is not None,
         )
