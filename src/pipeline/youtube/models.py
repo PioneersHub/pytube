@@ -66,11 +66,11 @@ class UpdateStatus(BaseModel):
 class UpdateStatusReport(BaseModel):
     """Overall status report for YouTube updates."""
 
-    total_videos: int
-    pending: int
-    processing: int
-    completed: int
-    failed: int
+    total_videos: int = 0
+    pending: int = 0
+    processing: int = 0
+    completed: int = 0
+    failed: int = 0
     last_run: datetime | None = None
     videos: dict[str, UpdateStatus] = Field(default_factory=dict)
 
