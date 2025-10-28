@@ -97,17 +97,23 @@ class StatusTracker:
         self._update_counts()
         self.save()
 
-    def set_processing(self, pretalx_id: str):
+    def set_processing(self, pretalx_id: str, youtube_id: str | None = None):
         """Mark a video as currently being processed.
 
         Args:
             pretalx_id: Pretalx session ID
+            youtube_id: YouTube video ID (required if status doesn't exist)
         """
         status = self.get_status(pretalx_id)
         if not status:
-            raise ValueError(f"No status found for {pretalx_id}")
+            if not youtube_id:
+                raise ValueError(f"No status found for {pretalx_id} and no youtube_id provided to create one")
+            # Create new status entry
+            status = UpdateStatus(pretalx_id=pretalx_id, youtube_id=youtube_id, status="processing")
+            self._report.videos[pretalx_id] = status
+        else:
+            status.status = "processing"
 
-        status.status = "processing"
         status.attempts += 1
         status.last_attempt = datetime.now(UTC)
         self._update_counts()
@@ -121,7 +127,8 @@ class StatusTracker:
         """
         status = self.get_status(pretalx_id)
         if not status:
-            raise ValueError(f"No status found for {pretalx_id}")
+            logger.warning("set_completed_without_status", pretalx_id=pretalx_id)
+            return
 
         status.status = "completed"
         status.completed_at = datetime.now(UTC)
@@ -141,7 +148,8 @@ class StatusTracker:
         """
         status = self.get_status(pretalx_id)
         if not status:
-            raise ValueError(f"No status found for {pretalx_id}")
+            logger.warning("set_failed_without_status", pretalx_id=pretalx_id, error=error)
+            return
 
         status.status = "failed"
         status.error = error

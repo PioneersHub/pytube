@@ -121,7 +121,7 @@ class YouTubeUpdater:
             return False
 
         # Mark as processing
-        self.status_tracker.set_processing(pretalx_id)
+        self.status_tracker.set_processing(pretalx_id, youtube_id)
 
         if self.dry_run:
             logger.info("dry_run_update", pretalx_id=pretalx_id, youtube_id=youtube_id, title=title_preview)
