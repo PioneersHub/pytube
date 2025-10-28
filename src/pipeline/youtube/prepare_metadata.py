@@ -5,6 +5,7 @@ to generate API-ready metadata files for review before sending to YouTube.
 """
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import datetime
@@ -17,7 +18,7 @@ from pipeline.config import load_config
 from pipeline.logger import setup_logging
 from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
-from pipeline.text_generation.models import Summary
+from pipeline.text_generation.models import ReleaseRecord
 
 from .models import (
     PreparedYouTubeUpdate,
@@ -126,36 +127,36 @@ class MetadataBuilder:
             logger.error("failed_to_load_pretalx_record", pretalx_id=pretalx_id, error=str(e))
             return None
 
-    def load_summary(self, pretalx_id: str) -> Summary | None:
-        """Load an AI-generated summary.
+    def load_release_record(self, pretalx_id: str) -> ReleaseRecord | None:
+        """Load a release record with AI-generated summaries.
 
         Args:
             pretalx_id: Pretalx session ID
 
         Returns:
-            Summary if found, None otherwise
+            ReleaseRecord if found, None otherwise
         """
-        summary_file = self.paths.event_dir / "summaries" / f"{pretalx_id}.json"
-        if not summary_file.exists():
-            logger.info("no_summary_found", pretalx_id=pretalx_id)
+        record_file = self.paths.event_dir / "release_records" / f"{pretalx_id}.json"
+        if not record_file.exists():
+            logger.info("no_release_record_found", pretalx_id=pretalx_id)
             return None
 
         try:
-            with summary_file.open() as f:
+            with record_file.open() as f:
                 data = json.load(f)
-            return Summary(**data)
+            return ReleaseRecord.model_validate(data)
         except Exception as e:
-            logger.error("failed_to_load_summary", pretalx_id=pretalx_id, error=str(e))
+            logger.error("failed_to_load_release_record", pretalx_id=pretalx_id, error=str(e))
             return None
 
     def render_description(
-        self, record: SessionRecord, summary: Summary | None, template_name: str = "youtube_2025.txt"
+        self, record: SessionRecord, release_record: ReleaseRecord | None, template_name: str = "youtube_2025.txt"
     ) -> str:
         """Render YouTube description from template.
 
         Args:
             record: Pretalx session record
-            summary: AI-generated summary (optional)
+            release_record: Release record with AI-generated summaries (optional)
             template_name: Template file name
 
         Returns:
@@ -166,7 +167,7 @@ class MetadataBuilder:
         except TemplateNotFound:
             logger.warning("template_not_found", template=template_name)
             # Fallback to basic description
-            return self._create_basic_description(record, summary)
+            return self._create_basic_description(record, release_record)
 
         # Prepare template context
         speakers = [s.name for s in record.speakers]
@@ -175,15 +176,13 @@ class MetadataBuilder:
         # Get recording date
         recorded_date = ""
         if record.slot and record.slot.start:
-            try:
+            with contextlib.suppress(ValueError, AttributeError):
                 recorded_date = record.slot.start.strftime("%B %d, %Y")
-            except (ValueError, AttributeError):
-                pass
 
-        # Get description and teaser from summary if available
-        if summary:
-            description_text = summary.short_description
-            teaser_text = summary.teaser
+        # Get description and teaser from release record if available
+        if release_record:
+            description_text = release_record.ai_summaries.short.text
+            teaser_text = release_record.ai_summaries.teaser_text
         else:
             description_text = record.abstract or record.description or ""
             teaser_text = ""
@@ -201,12 +200,12 @@ class MetadataBuilder:
             pydata=("pydata" in record.track.lower() if record.track else False),
         )
 
-    def _create_basic_description(self, record: SessionRecord, summary: Summary | None) -> str:
+    def _create_basic_description(self, record: SessionRecord, release_record: ReleaseRecord | None) -> str:
         """Create a basic description without template."""
         speakers = [s.name for s in record.speakers]
         speaker_names = ", ".join(speakers)
 
-        description = summary.short_description if summary else record.abstract
+        description = release_record.ai_summaries.short.text if release_record else record.abstract
 
         lines = [
             description,
@@ -245,14 +244,14 @@ class MetadataBuilder:
         if not record:
             return None
 
-        summary = self.load_summary(pretalx_id)
+        release_record = self.load_release_record(pretalx_id)
 
         # Render description
-        description = self.render_description(record, summary)
+        description = self.render_description(record, release_record)
 
         # Prepare tags
         base_tags = ["Python", "PyConDE", "PyData", "Conference", "Tech Talk"]
-        ai_tags = summary.tags if summary else []
+        ai_tags = release_record.ai_summaries.tags if release_record else []
 
         # Combine and deduplicate tags
         all_tags = base_tags + ai_tags
@@ -287,7 +286,7 @@ class MetadataBuilder:
             pretalx_id=pretalx_id,
             prepared_at=datetime.utcnow(),
             template_version="v1",
-            has_ai_summary=summary is not None,
+            has_ai_summary=release_record is not None,
         )
 
         # Create prepared update
@@ -304,7 +303,7 @@ class MetadataBuilder:
             "metadata_prepared",
             pretalx_id=pretalx_id,
             youtube_id=youtube_id,
-            has_summary=summary is not None,
+            has_summary=release_record is not None,
             file=str(pending_file),
         )
 
@@ -321,7 +320,7 @@ class MetadataBuilder:
         """
         stats = {"prepared": 0, "skipped": 0, "failed": 0}
 
-        for pretalx_id in self.mapping.mappings.keys():
+        for pretalx_id in self.mapping.mappings:
             try:
                 result = self.prepare_metadata(pretalx_id, force=force)
                 if result:
