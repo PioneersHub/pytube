@@ -18,7 +18,6 @@ summaries from video transcripts and Pretalx session data.
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime
@@ -372,14 +371,6 @@ class SummaryGenerator:
                 stats["failed"] += 1
 
         return stats
-
-    def estimate_cost(self) -> dict:
-        """Estimate API costs based on token usage.
-
-        Returns:
-            Cost estimation dictionary
-        """
-        return self.provider.estimate_cost()
 
 
 def main():

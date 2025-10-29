@@ -648,14 +648,6 @@ class ReleaseRecordBuilder:
 
         return stats
 
-    def estimate_cost(self) -> dict:
-        """Estimate API costs based on token usage.
-
-        Returns:
-            Cost estimation dictionary
-        """
-        return self.provider.estimate_cost()
-
 
 def main():
     """Main entry point."""
@@ -710,15 +702,9 @@ Examples:
             failed=stats["failed"],
         )
 
-        # Show cost estimate
-        cost = builder.estimate_cost()
         print(f"\n✅ Built {stats['built']} release records")
         if stats["failed"] > 0:
             print(f"⚠️  {stats['failed']} failed")
-        print(f"\nEstimated API cost ({cost['provider']} - {cost['model']}):")
-        print(f"  Input tokens:  {cost['input_tokens']:,}")
-        print(f"  Output tokens: {cost['output_tokens']:,}")
-        print(f"  Total cost:    ${cost['total_cost_usd']:.2f}")
 
     else:
         # Process specific IDs
@@ -731,10 +717,7 @@ Examples:
         logger.info("build_complete", requested=len(args.pretalx_ids), built=built)
 
         if built > 0:
-            cost = builder.estimate_cost()
             print(f"\n✅ Built {built} release records")
-            print(f"Provider: {cost['provider']} ({cost['model']})")
-            print(f"Estimated cost: ${cost['total_cost_usd']:.2f}")
 
     # Show next steps
     record_count = len(list(builder.release_records_dir.glob("*.json")))
