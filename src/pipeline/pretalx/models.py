@@ -79,4 +79,4 @@ class SessionRecord(BaseModel):
     speakers: list[SpeakerInfo]
     submission_type: str
     title: str
-    track: str
+    track: str | None = None

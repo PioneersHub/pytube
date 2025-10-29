@@ -1,5 +1,6 @@
 """Fetch session and speaker data from Pretalx."""
 
+from pytanis.config import Config, PretalxCfg
 from pytanis.pretalx import PretalxClient
 
 from ..config import load_config
@@ -40,11 +41,13 @@ def fetch_pretalx_data():
     paths = WorkPaths(config)
     paths.ensure_directories()
 
-    # Get Pretalx client
-    client = PretalxClient()
+    # Get Pretalx client with API key from config
+    pretalx_cfg = PretalxCfg(api_token=config.pretalx.api_key)
+    pytanis_config = Config(cfg_path="config_local.yaml", Pretalx=pretalx_cfg)
+    client = PretalxClient(config=pytanis_config)
     event_slug = config.pretalx.event_slug
 
-    logger.info("Starting Pretalx data fetch", event_slug=event_slug)
+    logger.info("Starting Pretalx data fetch", event_slug=event_slug, api_key_configured=True)
 
     # Create output directory
     paths.get_path("pretalx_records")
@@ -73,12 +76,17 @@ def fetch_pretalx_data():
 
         speakers = collect_speakers(config, session, speaker_map)
 
+        # Extract track name, handling None track
+        track_name = None
+        if session.track:
+            track_name = session.track.model_dump().get("name", {}).get("en")
+
         record = SessionRecord(
             code=session.code,
             title=session.title,
             abstract=markdown_to_text(session.abstract),
             description=markdown_to_text(session.description),
-            track=session.track.model_dump().get("name", {}).get("en"),
+            track=track_name,
             submission_type=session.submission_type.en.casefold(),
             do_not_record=session.do_not_record,
             slot=session.slot,
