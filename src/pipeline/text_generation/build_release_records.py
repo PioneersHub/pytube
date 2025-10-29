@@ -23,8 +23,8 @@ from omegaconf import OmegaConf
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
-from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+from pipeline.pretalx.models import SessionRecord
 
 from .models import (
     AIGeneratedSummaries,

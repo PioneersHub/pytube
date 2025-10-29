@@ -13,8 +13,8 @@ from pydantic import ValidationError
 from models.youtube_metadata import YouTubeMetadataDefaults
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
-from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+from pipeline.pretalx.models import SessionRecord
 
 
 def load_youtube_mapping(mapping_file: Path) -> dict[str, str]:

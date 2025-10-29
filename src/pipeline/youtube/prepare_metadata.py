@@ -16,8 +16,8 @@ from jinja2 import Environment, FileSystemLoader, TemplateNotFound
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
-from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+from pipeline.pretalx.models import SessionRecord
 from pipeline.text_generation.models import ReleaseRecord
 
 from .models import (

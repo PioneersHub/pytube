@@ -14,8 +14,8 @@ from anthropic import Anthropic
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
-from pipeline.models import SessionRecord
 from pipeline.paths import WorkPaths
+from pipeline.pretalx.models import SessionRecord
 
 # Claude 3.5 Sonnet model
 CLAUDE_MODEL = "claude-3-5-sonnet-20241022"

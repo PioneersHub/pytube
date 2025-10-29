@@ -1,12 +1,12 @@
 """Fetch session and speaker data from Pretalx."""
 
-from config import load_config
-from logger import setup_logging
-from paths import WorkPaths
 from pytanis.pretalx import PretalxClient
 
-from pipeline.models import Organization, SessionRecord, SpeakerInfo
-from pipeline.utils import get_answer_via_id, markdown_to_text
+from ..config import load_config
+from ..logger import setup_logging
+from ..paths import WorkPaths
+from ..utils import get_answer_via_id, markdown_to_text
+from .models import Organization, SessionRecord, SpeakerInfo
 
 
 def collect_speakers(config, session, speaker_map):
@@ -33,10 +33,10 @@ def collect_speakers(config, session, speaker_map):
 
 
 def fetch_pretalx_data():
-    """Fetch all data from Pretalx and save as YAML files."""
+    """Fetch all data from Pretalx and save as JSON files."""
     # Setup
     config = load_config()
-    logger = setup_logging(module_name="fetch_pretalx")
+    logger = setup_logging(module_name="pretalx.fetch_records")
     paths = WorkPaths(config)
     paths.ensure_directories()
 
