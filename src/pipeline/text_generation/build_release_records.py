@@ -606,7 +606,7 @@ class ReleaseRecordBuilder:
         Returns:
             Statistics dictionary
         """
-        stats = {"built": 0, "skipped": 0, "failed": 0}
+        stats = {"built": 0, "skipped": 0, "failed": 0, "built_ids": [], "failed_ids": []}
 
         # Get all session records
         records_dir = self.paths.get_path("pretalx_records")
@@ -635,8 +635,10 @@ class ReleaseRecordBuilder:
 
                 if result:
                     stats["built"] += 1
+                    stats["built_ids"].append(pretalx_id)
                 else:
                     stats["failed"] += 1
+                    stats["failed_ids"].append(pretalx_id)
 
                 # Rate limiting
                 if stats["built"] % 5 == 0:
@@ -645,6 +647,7 @@ class ReleaseRecordBuilder:
             except Exception as e:
                 logger.error("batch_build_error", pretalx_id=pretalx_id, error=str(e))
                 stats["failed"] += 1
+                stats["failed_ids"].append(pretalx_id)
 
         return stats
 
@@ -700,11 +703,14 @@ Examples:
             built=stats["built"],
             skipped=stats["skipped"],
             failed=stats["failed"],
+            failed_ids=stats["failed_ids"],
         )
 
         print(f"\n✅ Built {stats['built']} release records")
         if stats["failed"] > 0:
-            print(f"⚠️  {stats['failed']} failed")
+            print(f"⚠️  {stats['failed']} failed:")
+            for pretalx_id in stats["failed_ids"]:
+                print(f"    - {pretalx_id}")
 
     else:
         # Process specific IDs
@@ -724,7 +730,7 @@ Examples:
     if record_count > 0:
         print(f"\n📝 {record_count} release records available in release_records/")
         print("\nNext steps:")
-        print("  python -m src.pipeline.youtube.update_metadata --all")
+        print("  python -m src.pipeline.youtube.prepare_metadata --all")
 
     return 0
 
