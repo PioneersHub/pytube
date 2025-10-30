@@ -45,6 +45,33 @@ These files are kept for:
 - Migration of any missing functionality
 - Understanding the evolution of the codebase
 
+## Archived Text Generation Modules (2025-10-30)
+
+Located in `2025_10_30_summary_generation/`:
+
+- **prepare_summaries.py** → Replaced by `text_generation/build_release_records.py`
+- **fix_release_records_json.py** → No longer needed with new validation
+
+The new `text_generation/` module provides:
+- Proper Pydantic validation (eliminates malformed JSON issues)
+- Multi-provider support (Gemini, Claude, OpenAI)
+- Comprehensive error handling and retry logic
+- Better transcript processing for long content
+- Metadata tracking (tokens, generation stats)
+
+### Old Text Generation Workflow
+```bash
+python -m src.pipeline.prepare_summaries --all
+python -m src.pipeline.fix_release_records_json  # Fix malformed JSON
+```
+
+### New Text Generation Workflow
+```bash
+python -m src.pipeline.text_generation.build_release_records --all
+```
+
+See `2025_10_30_summary_generation/README.md` for detailed migration notes.
+
 ## Do Not Use
 
 These modules should not be imported or used in new code. Use the streamlined modules in:
