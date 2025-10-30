@@ -4,10 +4,11 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ..config import load_config
-from ..logger import setup_logging
-from ..paths import WorkPaths
-from ..youtube.auth import YouTubeAuth
+from src.pipeline.config import load_config
+from src.pipeline.logger import setup_logging
+from src.pipeline.paths import WorkPaths
+from src.pipeline.youtube.auth import YouTubeAuth
+
 from .models import PlaylistVideo
 
 
@@ -67,7 +68,7 @@ def fetch_all_playlists():
     paths.ensure_directories()
 
     # Create output directory
-    playlist_dir = paths.get_path("pretalx_youtube_map")
+    paths.get_path("pretalx_youtube_map")
 
     logger.info("Starting YouTube playlist fetch", event_slug=config.pretalx.event_slug)
 

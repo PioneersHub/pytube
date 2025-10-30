@@ -3,10 +3,11 @@
 from pytanis.config import Config, PretalxCfg
 from pytanis.pretalx import PretalxClient
 
-from ..config import load_config
-from ..logger import setup_logging
-from ..paths import WorkPaths
-from ..utils import get_answer_via_id, markdown_to_text
+from src.pipeline.config import load_config
+from src.pipeline.logger import setup_logging
+from src.pipeline.paths import WorkPaths
+from src.pipeline.utils import get_answer_via_id, markdown_to_text
+
 from .models import Organization, SessionRecord, SpeakerInfo
 
 

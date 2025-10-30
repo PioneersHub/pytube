@@ -6,11 +6,12 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ..config import load_config
-from ..logger import setup_logging
-from ..paths import WorkPaths
-from ..pretalx.models import SessionRecord
-from .models import MappingResult, PlaylistVideo, ValidationWarning, VideoMapping
+from src.pipeline.config import load_config
+from src.pipeline.logger import setup_logging
+from src.pipeline.paths import WorkPaths
+from src.pipeline.pretalx.models import SessionRecord
+
+from .models import MappingResult, PlaylistVideo, ValidationWarning
 
 
 def load_pretalx_records(paths: WorkPaths, logger) -> dict[str, SessionRecord]:
@@ -130,7 +131,7 @@ def create_mapping(filter_by_channel: str | None = None):
             title = video.title.strip()
             if len(title) < 6:
                 logger.warning(
-                    f"Video title too short to extract code",
+                    "Video title too short to extract code",
                     youtube_id=video.youtube_id,
                     title=title,
                     channel=channel_name,

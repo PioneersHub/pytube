@@ -243,7 +243,7 @@ output = "coverage.xml"
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["*.md"]
+extend-exclude = ["*.md", "src/pipeline/archived/**"]
 
 [tool.ruff.lint]
 select = [
@@ -262,8 +262,15 @@ select = [
 ]
 ignore = [
     "E501", # may cause conflicts with ruff formatter
-    "W191"
+    "W191", # tabs/spaces
+    "PLR0912", # too many branches (acceptable for main functions)
+    "PLR0915", # too many statements (acceptable for main functions)
+    "PLR2004", # magic value comparisons (acceptable for HTTP status codes, constants)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# YouTube API models must use mixedCase field names to match API
+"src/pipeline/youtube/models.py" = ["N815"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
