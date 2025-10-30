@@ -59,36 +59,24 @@ class MetadataBuilder:
 
     def _load_mapping(self) -> YouTubeMapping:
         """Load YouTube ID mapping."""
-        mapping_file = self.youtube_dir / "mapping.json"
+        # Single canonical location
+        mapping_file = self.paths.get_path("pretalx_youtube_map") / "mapping.json"
 
-        # Try new location first
         if not mapping_file.exists():
-            # Fallback to old location
-            old_mapping_file = self.paths.event_dir / "pretalx_yt_map.json"
-            if old_mapping_file.exists():
-                logger.info("using_legacy_mapping_file", path=str(old_mapping_file))
-                with old_mapping_file.open() as f:
-                    data = json.load(f)
-                mapping = YouTubeMapping(mappings=data, total_count=len(data))
-                # Save to new location
-                mapping_file.parent.mkdir(parents=True, exist_ok=True)
-                with mapping_file.open("w") as f:
-                    json.dump(mapping.model_dump(mode="json"), f, indent=2)
-                logger.info("migrated_mapping_to_new_location", path=str(mapping_file))
-                return mapping
+            raise FileNotFoundError(
+                f"YouTube mapping file not found: {mapping_file}\n"
+                f"Please run: python -m src.pipeline.pretalx_youtube_map.create_mapping"
+            )
 
-        if mapping_file.exists():
-            with mapping_file.open() as f:
-                data = json.load(f)
-            # Handle both old format (direct dict) and new format
-            if "mappings" in data:
-                return YouTubeMapping(**data)
-            else:
-                # Old format: direct dictionary
-                return YouTubeMapping(mappings=data, total_count=len(data))
+        with mapping_file.open() as f:
+            data = json.load(f)
+
+        # Handle both old format (direct dict) and new format
+        if "mappings" in data:
+            return YouTubeMapping(**data)
         else:
-            logger.warning("no_youtube_mapping_found")
-            return YouTubeMapping()
+            # Old format: direct dictionary
+            return YouTubeMapping(mappings=data, total_count=len(data))
 
     def _load_template(self) -> Environment:
         """Load Jinja2 template environment."""
