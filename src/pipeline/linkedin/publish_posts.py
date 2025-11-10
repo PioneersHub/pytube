@@ -327,7 +327,7 @@ Note:
     remaining = len(list(publisher.posts_dir.glob("*.yaml")))
     published_count = len(list(publisher.published_dir.glob("*.yaml")))
 
-    print(f"\n📊 Status:")
+    print("\n📊 Status:")
     print(f"   {remaining} posts pending")
     print(f"   {published_count} posts published")
 

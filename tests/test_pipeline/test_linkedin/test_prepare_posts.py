@@ -1,9 +1,8 @@
 """Tests for LinkedIn post preparation."""
 
 import json
-from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -356,7 +355,7 @@ class TestPreparePost:
         existing_metadata = {
             "pretalx_id": "ABC123",
             "yaml_path": str(yaml_file),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "published": False,
             "published_at": None,
             "post_url": None,

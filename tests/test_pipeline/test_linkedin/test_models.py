@@ -1,6 +1,6 @@
 """Tests for LinkedIn data models."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -100,8 +100,8 @@ class TestLinkedInPostMetadata:
 
     def test_create_metadata_fully_populated(self):
         """Test creating fully populated metadata."""
-        generated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        published_at = datetime(2025, 1, 2, 12, 0, 0, tzinfo=timezone.utc)
+        generated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+        published_at = datetime(2025, 1, 2, 12, 0, 0, tzinfo=UTC)
 
         metadata = LinkedInPostMetadata(
             pretalx_id="ABC123",

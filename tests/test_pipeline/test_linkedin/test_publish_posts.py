@@ -2,7 +2,7 @@
 
 import json
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -57,7 +57,7 @@ def setup_test_files(tmp_path, mock_work_paths):
     metadata_content = {
         "pretalx_id": "ABC123",
         "yaml_path": str(yaml_file),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "published": False,
         "published_at": None,
         "post_url": None,
