@@ -185,8 +185,8 @@ token_*.json
 # Code Assistant Files
 
 # Claude-specific
-CLAUDE.md
-CLAUDE.local.md
+# CLAUDE.md
+# CLAUDE.local.md
 .claude/
 
 # General hidden assistant metadata or tooling
