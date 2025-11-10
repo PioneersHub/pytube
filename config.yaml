@@ -105,10 +105,37 @@ youtube:
 # Active social media service - options: LinkedIn, twitter, mastodon, bluesky
 social_media_service: "linkedin"
 
-# LinkedIn
+# LinkedIn - Influent Integration
 linkedin:
-  # path to save yaml files to for posting on LinkedIn with comments
+  # Organization name for influent (must match influent config directory name)
+  organization_name: "pycon-de"
+
+  # Path where influent is configured (contains config/ and data/ directories)
+  # Leave empty to use default: {work_dir}/{event}/linkedin_posts/
   influent_path: ''
+
+  # Post template (Jinja2 format) for LinkedIn posts
+  post_template: |
+    ⭐️ New video release 📺
+
+    {{ title }}
+
+    {{ teaser_text }}
+
+    📺 Watch on YouTube: {{ youtube_url }}
+
+    {{ social_text }}
+
+    {% if hashtags %}{{ hashtags }}{% endif %}
+
+  # Hashtag configuration
+  hashtags:
+    enabled: true
+    default: ["Python", "PyConDE", "PyData"]
+    # Map track/channel to additional hashtags
+    track_map:
+      pydata: ["DataScience", "MachineLearning", "AI"]
+      pycon: ["PythonDev", "SoftwareEngineering", "Programming"]
 
 # Twitter/X Configuration
 twitter:

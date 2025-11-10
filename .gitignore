@@ -178,6 +178,11 @@ _data
 .work/
 .logs/
 
+# LinkedIn posting (influent integration)
+# Keep metadata for tracking, ignore pending/published posts
+**/linkedin_posts/posts/*.yaml
+**/linkedin_posts/published/
+
 # OAuth tokens (YouTube, etc.)
 token_*.json
 
