@@ -1,83 +1,56 @@
-# Scripts
+# Scripts (Deprecated)
 
-!!! warning "Legacy Documentation"
-    This page documents legacy script usage. **Please use the CLI commands instead.**
-    See [CLI Reference](cli-reference.md) for the modern approach.
+**This documentation describes removed functionality.**
 
-Scripts are Python modules in the `scripts` directory that can be run directly. However, all functionality is now available through the CLI.
+## Status
 
-## Pre-Processing Metadata to `Records`
+The `scripts` directory and legacy Python script usage patterns have been removed along with `src/manager/`.
 
-For each video a record is created containing all metadata.
+## Current Approach
 
-**Legacy approach** (deprecated):
-```python
-from pytube.handlers import Records
-from pytube import conf
+All functionality is now in modular pipeline components:
 
-r = Records(qmap=conf.pretalx_questions_map)
-r.load_all_confirmed_sessions()
-r.load_all_speakers()
-r.create_records()
-r.add_descriptions(replace=False)
-```
-
-**Modern CLI approach** (recommended):
 ```bash
-# Fetch all data from Pretalx and create records
-pytube records fetch
+# Fetch Pretalx data
+python -m src.pipeline.pretalx.fetch_records
 
-# Or use the interactive assistant
-pytube assistant
+# Fetch YouTube videos
+python -m src.pipeline.pretalx_youtube_map.fetch_playlists
+
+# Create mapping
+python -m src.pipeline.pretalx_youtube_map.create_mapping
+
+# Prepare metadata
+python -m src.pipeline.youtube.prepare_metadata
+
+# Send updates
+python -m src.pipeline.youtube.send_updates
 ```
 
-## Create Video Descriptions
+## Module Organization
 
-Video descriptions and metadata are prepared from records.
+### Pretalx Integration
+- `src.pipeline.pretalx.fetch_records` - Fetch sessions and speakers
+- `src.pipeline.pretalx.models` - Data models
 
-**Legacy approach** (deprecated):
-```python
-from manager.handlers.youtube import PrepareVideoMetadata
+### YouTube Integration
+- `src.pipeline.youtube.auth` - OAuth2 authentication
+- `src.pipeline.youtube.prepare_metadata` - Build metadata
+- `src.pipeline.youtube.send_updates` - Push to YouTube
+- `src.pipeline.youtube.status` - Track updates
 
-meta = PrepareVideoMetadata("template.txt", "Conference Name")
-meta.make_all_video_metadata()
-meta.update_publish_dates(...)
-meta.send_all_video_metadata(...)
-```
+### Mapping
+- `src.pipeline.pretalx_youtube_map.fetch_playlists` - Get YouTube videos
+- `src.pipeline.pretalx_youtube_map.create_mapping` - Match IDs
 
-**Modern CLI approach** (recommended):
-```bash
-# Map videos and update metadata
-pytube youtube map
-pytube youtube update
+### Text Generation
+- `src.pipeline.text_generation.providers` - AI providers (Claude/OpenAI/Gemini)
+- `src.pipeline.text_generation.build_release_records` - Generate summaries
 
-# Schedule publishing dates
-pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
-```
+## Documentation
 
-More about scheduling videos can be found [here](youtube.md#scheduling-videos).
+See [Pipeline README](../src/pipeline/README.md) for detailed module documentation.
 
-## Notify
+## Configuration
 
-Monitor published videos and send notifications.
-
-**Legacy approach** (deprecated):
-```bash
-python -m manager.scripts.notify
-```
-
-**Modern CLI approach** (recommended):
-```bash
-# Check for published videos and send notifications
-pytube notify check --auto-post
-```
-
-This command:
-1. Checks for recently published videos on YouTube
-2. Creates LinkedIn/social media posts for newly published videos
-3. Sends email notifications to speakers
-4. Updates status tracking
-
-## Other Scripts
-
-The `scripts` directory contains additional scripts for various tasks, feel free to explore them.
+All modules use `config_local.yaml` and save results to `.work/{event_slug}/`.
