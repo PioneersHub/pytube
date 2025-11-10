@@ -50,7 +50,16 @@ def mock_config() -> DictConfig:
             "track_to_channel": {"Python Basics": "main", "Advanced Topics": "secondary"},
         },
         "openai": {"api_key": "sk-test-key", "model": "gpt-4", "max_tokens": 1000},
-        "linkedin": {"access_token": "test-linkedin-token", "person_urn": "urn:li:person:test123"},
+        "linkedin": {
+            "organization_name": "test-organization",
+            "influent_path": "",
+            "post_template": "⭐️ {{ title }}\n\n{{ teaser_text }}\n\n{{ youtube_url }}\n\n{{ hashtags }}",
+            "hashtags": {
+                "enabled": True,
+                "default": ["Python", "Testing"],
+                "track_map": {"pydata": ["DataScience", "AI"], "pycon": ["Programming"]},
+            },
+        },
         "dirs": {
             "root": Path("/tmp/pytube-test"),
             "work_dir": Path("/tmp/pytube-test/_tmp"),
