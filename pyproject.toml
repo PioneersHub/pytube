@@ -276,8 +276,8 @@ quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
 
-[project.scripts]
-pytube = "manager.cli.main:main"
+# [project.scripts]
+# Old CLI removed - processing now done via pipeline modules
 
 [tool.setuptools.packages.find]
 where = ["src"]
