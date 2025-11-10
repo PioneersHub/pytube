@@ -1,13 +1,14 @@
+# Base directory for all video processing
+base_dir: "/Users/macmini/Downloads/videos/"
+
 # Input settings
 input:
-  # Single video file path (leave empty to use folder)
-  video_path: ""
-  # Folder containing videos to batch process (leave empty to use video_path)
-  folder: "/Volumes/DATA/_pyconde2025/videos/input"
-  # File extensions to process from input folder (comma-separated)
-  extensions: "mp4,mkv,avi,mov,webm"
-  # Filenammping mapping from Parquet
-  mapping_file: "/Volumes/DATA/_pyconde2025/videos/pyconde-pydata-2025_sessions_processed.parquet"
+  # Video extensions to process (comma-separated)
+  extensions: ".mp4"
+  # Subfolder under base_dir for input videos (relative path)
+  subfolder: "input"
+  # Mapping file name (will be in base_dir)
+  mapping_file: "berlin2025_sessions.parquet"
 
 
 # Video processing settings
@@ -19,16 +20,16 @@ video:
 
 # Break screen detection settings
 break_detection:
-  # Directory for break screen images (leave empty for auto-detection)
-  images_dir: "/Volumes/DATA/_pyconde2025/break_slides"
+  # Subfolder for break screen images (relative to base_dir)
+  images_subfolder: "break_slides"
   # Similarity threshold for break screen detection (0-1)
   threshold: 0.95
   # Comparison method: "template" or "histogram"
   comparison_method: "template"
   # Whether to auto-detect break screens if none provided
   auto_detect: true
-  # Directory to save detected break screens
-  detected_screens_dir: "/Volumes/DATA/_pyconde2025/break_screens_detected"
+  # Subfolder to save detected break screens (relative to base_dir)
+  detected_screens_subfolder: "break_screens_detected"
 
 # Presentation detection settings
 presentation_detection:
@@ -45,12 +46,12 @@ presentation_detection:
 
 # Output settings
 output:
-  # Base output folder for extracted presentations
-  folder: "/Volumes/DATA/_pyconde2025/videos/output"
+  # Subfolder for extracted presentations (relative to base_dir)
+  subfolder: "output"
   # Whether to make a processing plan: detect presentations in video and save to JSON
-  make_processing_plan: false
+  make_processing_plan: true
   # Whether to extract detected presentations as separate files
-  extract_presentations: true
+  extract_presentations: false
   # Whether to extract audio from presentations as MP3
   extract_audio: true
   # Whether to save presentation metadata as JSON
@@ -66,6 +67,3 @@ search:
   query: "PyCon"
   pattern: "2025"
   max_videos: 25
-
-save_to:
-  directory: "/Volumes/DATA/_pyconde2025/videos/input"

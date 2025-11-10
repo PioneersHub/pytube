@@ -16,7 +16,11 @@ from pathlib import Path
 import polars as pl
 from omegaconf import OmegaConf
 
-from src.manager import logger
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 
 
 def sanitize_filename(filename: str) -> str:
@@ -44,14 +48,24 @@ def sanitize_filename(filename: str) -> str:
 
 
 def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | Path) -> None:
-    # Load the session data from the Excel file
+    # Load the session data from JSON file
     logger.info("Loading session data...")
 
-    # Read the Excel file and cast all columns to string
-    df = pl.read_excel(input_file)
-
-    # Cast all columns to string type
-    df = df.with_columns([pl.col(col).cast(pl.String) for col in df.columns])
+    # Read the JSON file
+    df = pl.read_json(input_file)
+    
+    # Extract 'en' attribute from all struct/dict columns (Room and other multilingual fields)
+    for col_name, col_type in df.schema.items():
+        if isinstance(col_type, pl.Struct):
+            # Check if the struct has an 'en' field
+            struct_fields = {field.name for field in col_type.fields}
+            if 'en' in struct_fields:
+                df = df.with_columns(pl.col(col_name).struct.field("en").alias(col_name))
+    
+    # Cast columns to string type (skip list columns)
+    for col_name, col_type in df.schema.items():
+        if not isinstance(col_type, pl.List):
+            df = df.with_columns(pl.col(col_name).cast(pl.String))
 
     # logger.info some information about the data
     logger.info(f"Loaded {df.shape[0]} sessions")
@@ -243,7 +257,7 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
 
 if __name__ == "__main__":
     cfg = OmegaConf.load("config.yaml")
-    _input_file = "/Users/hendorf/Downloads/pyconde-pydata-2025_sessions.xlsx"
+    _input_file = "/Users/hendorf/Downloads/videos/pyconde-pydata-2025_sessions.json"
     _input_file = Path(_input_file)
     # Specify the directory containing the recordings
     _recordings_dir = "/Users/hendorf/code/pioneershub/py_tube/_data/videos/input"

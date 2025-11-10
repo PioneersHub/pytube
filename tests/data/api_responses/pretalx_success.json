@@ -1,0 +1,124 @@
+{
+    "count": 3,
+    "next": null,
+    "previous": null,
+    "results": [
+        {
+            "code": "ABC123",
+            "speakers": [
+                {
+                    "code": "SPKR001",
+                    "name": "Jane Developer",
+                    "biography": "Experienced Python developer and testing advocate.",
+                    "avatar": null
+                }
+            ],
+            "title": "Introduction to Python Testing",
+            "submission_type": {
+                "en": "Talk"
+            },
+            "track": {
+                "en": "Python Basics"
+            },
+            "state": "confirmed",
+            "abstract": "Learn the fundamentals of testing in Python using pytest.",
+            "description": "This comprehensive talk covers test-driven development, fixtures, mocking, and best practices.",
+            "duration": 30,
+            "slot": {
+                "room": {
+                    "en": "Main Hall"
+                },
+                "start": "2024-05-15T10:00:00+00:00",
+                "end": "2024-05-15T10:30:00+00:00"
+            },
+            "resources": [],
+            "is_featured": false,
+            "content_locale": "en",
+            "answers": [
+                {
+                    "id": 5678,
+                    "question": {
+                        "id": 1234,
+                        "question": {
+                            "en": "Company/Organization"
+                        }
+                    },
+                    "answer": "TechCorp Inc.",
+                    "answer_file": null,
+                    "options": []
+                }
+            ]
+        },
+        {
+            "code": "XYZ789",
+            "speakers": [
+                {
+                    "code": "SPKR002",
+                    "name": "John Coder",
+                    "biography": "Software architect specializing in test automation.",
+                    "avatar": null
+                }
+            ],
+            "title": "Advanced pytest Techniques",
+            "submission_type": {
+                "en": "Talk"
+            },
+            "track": {
+                "en": "Advanced Topics"
+            },
+            "state": "confirmed",
+            "abstract": "Deep dive into advanced pytest features and patterns.",
+            "description": "Explore parametrization, custom fixtures, plugins, and more.",
+            "duration": 45,
+            "slot": {
+                "room": {
+                    "en": "Room B"
+                },
+                "start": "2024-05-15T14:00:00+00:00",
+                "end": "2024-05-15T14:45:00+00:00"
+            },
+            "resources": [],
+            "is_featured": true,
+            "content_locale": "en",
+            "answers": []
+        },
+        {
+            "code": "WRK456",
+            "speakers": [
+                {
+                    "code": "SPKR001",
+                    "name": "Jane Developer",
+                    "biography": "Experienced Python developer and testing advocate.",
+                    "avatar": null
+                },
+                {
+                    "code": "SPKR003",
+                    "name": "Alice Pythonista",
+                    "biography": "Open source contributor and testing enthusiast.",
+                    "avatar": null
+                }
+            ],
+            "title": "Testing Workshop: Hands-on pytest",
+            "submission_type": {
+                "en": "Workshop"
+            },
+            "track": {
+                "en": "Python Basics"
+            },
+            "state": "confirmed",
+            "abstract": "Interactive workshop on Python testing.",
+            "description": "Bring your laptop and learn by doing!",
+            "duration": 180,
+            "slot": null,
+            "resources": [
+                {
+                    "resource": "https://github.com/example/workshop-materials",
+                    "description": "Workshop materials"
+                }
+            ],
+            "is_featured": false,
+            "content_locale": "en",
+            "answers": []
+        }
+    ]
+}

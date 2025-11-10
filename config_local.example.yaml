@@ -1,0 +1,132 @@
+# Local Configuration Example
+# Copy this file to config_local.yaml and add your API keys
+
+# ########################################
+# AI Service Configuration for Text Generation
+# ########################################
+
+ai_service:
+  # Choose your provider: anthropic or openai
+  provider: anthropic  # or openai
+
+  # Provider-specific settings (uncomment the one you use)
+
+  # For Anthropic Claude:
+  anthropic:
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.3
+    max_tokens: 2000
+    # Pricing in USD per million tokens (update as needed)
+    pricing:
+      claude-3-5-sonnet:
+        input: 3.0
+        output: 15.0
+      claude-3-opus:
+        input: 15.0
+        output: 75.0
+      claude-3-haiku:
+        input: 0.25
+        output: 1.25
+
+  # For OpenAI GPT:
+  # openai:
+  #   model: gpt-4o-mini  # Cheaper option
+  #   # model: gpt-4o     # Better quality, more expensive
+  #   temperature: 0.3
+  #   max_tokens: 2000
+  #   # Pricing in USD per million tokens (update as needed)
+  #   pricing:
+  #     gpt-4o:
+  #       input: 2.50
+  #       output: 10.00
+  #     gpt-4o-mini:
+  #       input: 0.15
+  #       output: 0.60
+  #     gpt-4-turbo:
+  #       input: 10.00
+  #       output: 30.00
+  #     gpt-4:
+  #       input: 30.00
+  #       output: 60.00
+  #     gpt-3.5-turbo:
+  #       input: 0.50
+  #       output: 1.50
+
+# ########################################
+# YouTube Configuration
+# ########################################
+
+youtube:
+  client_secrets_file: "client_secrets.json"
+  privacy_status: "unlisted"  # or "public", "private"
+
+# ########################################
+# Pretalx Configuration
+# ########################################
+
+pretalx:
+  event_slug: "pyconde-pydata-2025"
+
+# ########################################
+# Event Information
+# ########################################
+
+event:
+  name: "PyCon DE & PyData Berlin 2025"
+  url: "https://2025.pycon.de"
+  program_url: "https://2025.pycon.de/program/"
+
+# ########################################
+# Vimeo Configuration
+# ########################################
+
+vimeo:
+  # Authentication
+  # Option 1: Direct token in config (simple, keep config_local.yaml private!)
+  access_token: "your_vimeo_access_token_here"
+
+  # Option 2: Environment variable reference (more secure)
+  # access_token: ${VIMEO_ACCESS_TOKEN}
+
+  # Optional: Enhanced API access
+  # client_id: "your_client_id"
+  # client_secret: "your_client_secret"
+
+  # Optional: Your Vimeo user ID (uses 'me' if not provided)
+  # user_id: "123456"
+
+  # Selection strategy - EXACTLY ONE must be configured
+  selection:
+    # Option A: Folder-based (recommended)
+    folder_id: "25746204"  # Your Vimeo project/folder ID
+
+    # Option B: Pattern-based (comment out folder_id to use this)
+    # pattern:
+    #   title_contains: "PyCon DE 2025"  # Videos containing this text
+    #   # title_regex: "^PyCon.*2025$"   # Optional regex pattern
+
+  # Download settings
+  download:
+    output_dir: "downloads/vimeo"  # Relative to .work/{event}/
+    quality: "best"                 # "best", "1080p", "720p", "480p"
+    max_concurrent: 3               # Number of simultaneous downloads
+    skip_existing: true             # Skip already downloaded videos
+    verify_complete: true           # Verify download completeness
+
+# ########################################
+# Environment Variables Required
+# ########################################
+
+# Set these environment variables based on your services:
+#
+# For Anthropic:
+#   export ANTHROPIC_API_KEY=sk-ant-api03-xxxxx
+#
+# For OpenAI:
+#   export OPENAI_API_KEY=sk-xxxxx
+#
+# For Vimeo:
+#   export VIMEO_ACCESS_TOKEN=your_vimeo_token
+#
+# For Pretalx (using pytanis):
+#   Configure ~/.pytanis/credentials as per pytanis documentation

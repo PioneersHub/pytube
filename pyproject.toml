@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "video_manager"
-version = "3.0.1"
+version = "3.1.6"
 description = "Download videos from Vimeo to publish on YouTube, add metadata from pretalx."
 authors = [{ name = "Alexander CS Hendorf", email = "alexander@pioneershub.org" }]
 
@@ -12,10 +12,12 @@ readme = "README.md"
 license-files = [
     "LICENSE",
 ]
-requires-python = ">=3.13.1"
+requires-python = ">=3.12"
 
 dependencies = [
-    "pytanis>=0.8",
+    # "pytanis>=0.9",
+    # temp local update # TODO: remove once published
+    "pytanis", #
     "colorama>=0.4.6",
     "rich>=14.0.0",
     "structlog>=25.3.0",
@@ -29,17 +31,92 @@ dependencies = [
     "pandas>=2.0.0",
     "urllib3>=2.2.2",
     "protobuf>=6.31.1",
+    "google-auth-oauthlib>=1.2.2",
+    "pyyaml>=6.0.2",
+    "xlsxwriter>=3.2.5",
+    "markdown>=3.8.2",
+    "beautifulsoup4>=4.13.4",
+    "pydantic>=2.11.7",
+    "pillow>=10.4.0",
+    "pyvimeo>=1.1.2",
 ]
 
-[dependency-groups]
-dev = [
-    "bump2version>=1.0.1",
+[project.optional-dependencies]
+# Pipeline: Text Generation (AI summaries)
+text_generation = [
+    "anthropic>=0.39.0",  # Claude API for AI summaries
+    "structlog>=25.3.0",  # Structured logging
+    "pydantic>=2.11.7",  # Data models
+    "omegaconf>=2.3.0",  # Config management
+    "pytanis",  # Pretalx integration
+    "pyyaml>=6.0.2",  # YAML support
+    "markdown>=3.8.2",  # Markdown to text conversion
+    "beautifulsoup4>=4.13.4",  # HTML parsing for markdown
 ]
-tests = [
+
+# Pipeline: YouTube Module
+youtube = [
+    "google-api-python-client>=2.169.0",  # YouTube API
+    "google-auth-oauthlib>=1.2.2",  # OAuth2 authentication
+    "google-auth>=2.36.0",  # Google authentication
+    "oauth2client>=4.1.3",  # OAuth2 client (legacy support)
+    "jinja2>=3.1.4",  # Template rendering
+    "structlog>=25.3.0",  # Structured logging
+    "pydantic>=2.11.7",  # Data models
+    "omegaconf>=2.3.0",  # Config management
+    "pytanis",  # Pretalx integration
+    "pyyaml>=6.0.2",  # YAML support
+    "markdown>=3.8.2",  # Markdown to text conversion
+    "beautifulsoup4>=4.13.4",  # HTML parsing
+]
+
+# Combined pipeline dependencies (for running both modules)
+pipeline = [
+    "video_manager[text_generation]",
+    "video_manager[youtube]",
+]
+
+# Core test dependencies
+test = [
     "pytest>=8.4.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-asyncio>=0.21.0",
     "httpx>=0.28.1",
 ]
 
+# Additional test runners and tools
+test-runners = [
+    "pytest-xdist>=3.5.0",  # parallel execution
+    "pytest-watch>=4.2.0",   # watch mode
+    "pytest-sugar>=0.9.7",   # better output formatting
+    "pytest-benchmark>=4.0.0",  # performance testing
+]
+
+# All test dependencies combined
+test-all = [
+    "pytest>=8.4.1",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.2.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-watch>=4.2.0",
+    "pytest-sugar>=0.9.7",
+    "pytest-benchmark>=4.0.0",
+    "httpx>=0.28.1",
+]
+
+# Development tools
+dev = [
+    "bump2version>=1.0.1",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+
+# Documentation
 docs = [
     "mkdocs",
     "mkdocs-glightbox>=0.4.0",
@@ -47,6 +124,8 @@ docs = [
     "mkdocs-open-in-new-tab>=1.0.8",
     "pymdown-extensions>=10.15",
 ]
+
+# Video processing dependencies
 video_processor = [
     "numpy>=2.2.5",
     "opencv-python>=4.11.0.86",
@@ -56,54 +135,115 @@ video_processor = [
     "fastexcel>=0.14.0",
     "xlsxwriter>=3.2.3",
 ]
+
+# Vimeo integration
 vimeo = [
     "pyvimeo>=1.1.2"
+]
+
+# All optional dependencies
+all = [
+    "video_manager[test]",
+    "video_manager[dev]",
+    "video_manager[docs]",
+    "video_manager[video_processor]",
+    "video_manager[pipeline]",
 ]
 
 
 
 [tool.pytest.ini_options]
+# Test discovery
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Minimum pytest version
 minversion = "7.0"
-addopts = "-ra -q -s"
-testpaths = [
-    "tests",
+
+# Command line options
+addopts = [
+    "--strict-markers",
+    "-ra",  # show all test summary info
+    "-v",   # verbose output
+    "--showlocals",  # show local variables in tracebacks
+    "--tb=short",  # shorter traceback format
+    "--cov=src",  # coverage by default
+    "--cov-report=term-missing",  # show missing lines in terminal
+    "--cov-report=html",  # generate HTML coverage report
+    "--cov-branch",  # measure branch coverage
 ]
-exclude = [
-    ".bzr",
-    ".direnv",
-    ".eggs",
-    ".git",
-    ".git-rewrite",
-    ".hg",
-    ".ipynb_checkpoints",
-    ".mypy_cache",
-    ".nox",
-    ".pants.d",
-    ".pyenv",
-    ".pytest_cache",
-    ".pytype",
-    ".ruff_cache",
-    ".svn",
-    ".tox",
-    ".venv",
-    ".vscode",
-    "__pypackages__",
-    "_build",
-    "buck-out",
-    "build",
-    "dist",
-    "node_modules",
-    "site-packages",
-    "venv",
+
+# Custom markers
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring full setup",
+    "unit: marks tests as unit tests (fast, isolated)",
+    "requires_api: marks tests that require external API access",
+    "smoke: marks tests for smoke testing (critical path only)",
 ]
-line-length = 120
-indent-width = 4
-target-version = ['py313']
+
+# Test timeout configuration (requires pytest-timeout plugin)
+# timeout = 300
+# timeout_method = "thread"
+
+# Logging
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)s] %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# Output settings
+console_output_style = "progress"
+
+# Ignore warnings from specific libraries
+filterwarnings = [
+    "ignore::DeprecationWarning:google.*",
+    "ignore::DeprecationWarning:oauth2client.*",
+    "error::UserWarning",
+    "error::FutureWarning",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/conftest.py",
+    "*/test_*.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "@abstractmethod",
+]
+precision = 2
+show_missing = true
+skip_covered = false
+fail_under = 80
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
-extend-exclude = ["*.md"]
+target-version = "py311"
+extend-exclude = ["*.md", "src/pipeline/archived/**"]
 
 [tool.ruff.lint]
 select = [
@@ -122,15 +262,25 @@ select = [
 ]
 ignore = [
     "E501", # may cause conflicts with ruff formatter
-    "W191"
+    "W191", # tabs/spaces
+    "PLR0912", # too many branches (acceptable for main functions)
+    "PLR0915", # too many statements (acceptable for main functions)
+    "PLR2004", # magic value comparisons (acceptable for HTTP status codes, constants)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+# YouTube API models must use mixedCase field names to match API
+"src/pipeline/youtube/models.py" = ["N815"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
 
-[project.scripts]
-pytube = "manager.cli.main:main"
+# [project.scripts]
+# Old CLI removed - processing now done via pipeline modules
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# [tool.uv.sources]
+# pytanis = { path = "../pytanis" }

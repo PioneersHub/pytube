@@ -25,6 +25,9 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.direnv/
+.ruff_cache/
+.benchmarks
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -164,13 +167,49 @@ cython_debug/
 *.egg-info
 config_local.yml
 _tmp
-_secret
+.secrets
 .idea
 ,pixi
 config_local.yaml
 
 _data
 
+# Pipeline work directories
+.work/
+.logs/
+
+# OAuth tokens (YouTube, etc.)
+token_*.json
+
 .DS_Store
-CLAUDE.md
-.claude
+# Code Assistant Files
+
+# Claude-specific
+# CLAUDE.md
+# CLAUDE.local.md
+.claude/
+
+# General hidden assistant metadata or tooling
+.augementcode/
+.roo/
+.gpt/
+.gptconfig/
+.gpt-logs/
+.codegpt/
+.codeassistant/
+.chatgpt/
+.chatgpt.md
+.chatgpt.local.md
+.windsurf/
+
+# VS Code assistant plugins (like CodeGPT, Continue, etc.)
+.vscode/continue/
+.vscode/Continue.json
+.vscode/codegpt.json
+.vscode/.continue/
+
+# Generic markdown/chat log patterns
+*.assistant.md
+*.chat.md
+*conversation*.md
+*chatlog*.md

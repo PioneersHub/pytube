@@ -5,14 +5,39 @@
 # ########################################
 ---
 vimeo:
+  # Authentication (override in config_local.yaml with environment variables)
+  access_token: ""
   client_id: ""
   client_secret: ""
-  access_token: ""
+  user_id: ""
+
+  # Selection strategy - EXACTLY ONE must be configured
+  selection:
+    # Option A: Folder-based (recommended)
+    folder_id: ""  # Your Vimeo project/folder ID
+
+    # Option B: Pattern-based (uncomment and set in config_local.yaml)
+    # pattern:
+    #   title_contains: ""
+    #   title_regex: ""
+
+  # Download settings
+  download:
+    output_dir: "downloads/vimeo"  # Relative to .work/{event}/
+    quality: "best"                 # "best", "1080p", "720p", "480p"
+    max_concurrent: 3               # Number of simultaneous downloads
+    skip_existing: true             # Skip already downloaded videos
+    verify_complete: true           # Verify download completeness
 # ########################################
 # ########################################
 dirs:
   work_dir: "._tmp"
   video_dir: "./_tmp/videos"
+  # Optional: Override pipeline subdirectory names
+  # pipeline:
+  #   pretalx_records: "pretalx_records"
+  #   youtube_metadata: "youtube_metadata"
+  #   # ... etc
 # ########################################
 # # GOOGLE SHEETS
 # ########################################
@@ -41,6 +66,20 @@ pretalx:
     # attributes must exist in SpeakerInfo data class
     some_attribute: 0
 # ########################################
+# Claude API for heuristic matching
+claude:
+  prompt: |
+    You are an assistant that decides whether a conference talk should be on the **PyCon DE** channel or the **PyData** channel, based on its title and abstract.
+
+    **PyCon DE (Python Conference DE)** sessions cover Python software engineering topics: Python development, DevOps/MLOps in Python, updates in the Python language and libraries, web development (e.g. Django), testing, security, community, and general programming use-cases in Python.
+
+    **PyData** sessions cover data-centric topics: data science, analytics, machine learning, deep learning, artificial intelligence, visualization, and related tools or business use-cases in these areas (using Python).
+
+    **Task:** Read the talk title and abstract below. Decide which category the talk falls into (PyCon DE or PyData) based on its content focus, *then output only the single category name* (exactly "PyCon DE" or "PyData") with no additional text.
+
+    Title: {title}
+    Abstract: {abstract}
+# ########################################
 # Event
 event:
   name: "PyCon DE & PyData Berlin 2024"
@@ -54,25 +93,22 @@ session_images: ""
 # YouTube
 # ########################################
 youtube:
-  client_secrets_file: "client_secrets.json"
+  client_secrets_file: "~/code/pioneershub/py_tube/_secret/client_secrets.json"
   api_key: ""
   max_description_length: 5000
-  token_path: "./_secret/youtube_token.json"
+  token_path: "~/code/pioneershub/py_tube/_secret/youtube_token.json"
 # ########################################
 # Social Media Configuration
 # For API setup instructions, see: docs/api-credentials.md
 # ########################################
 
-# Active social media service - options: linkedin, twitter, mastodon, bluesky
+# Active social media service - options: LinkedIn, twitter, mastodon, bluesky
 social_media_service: "linkedin"
 
 # LinkedIn
 linkedin:
-  access_token: ""
-  refresh_token: ""
-  client_id: ""
-  client_secret: ""
-  company_id: ""
+  # path to save yaml files to for posting on LinkedIn with comments
+  influent_path: ''
 
 # Twitter/X Configuration
 twitter:
@@ -109,58 +145,129 @@ prompts:
     Avoid the verb “delve.”
     Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
 # ########################################
-# AI Service Configuration
+# AI Service Configuration for Text Generation
 # Configure your preferred AI service in config_local.yaml
 # For setup instructions, see: docs/api-credentials.md
-# Quick start guide: docs/quick-setup-services.md
 # ########################################
 
-# Active AI service - options: openai, anthropic, google, cohere
-ai_service: "openai"
+ai_service:
+  # Provider selection: anthropic or openai
+  provider: anthropic
 
-# OpenAI Configuration
-openai:
-  api_key: ""
-  # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
-  model: "gpt-3.5-turbo"
-  # Temperature settings for different tasks
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Optional: Organization ID
-  organization: ""
+  # Maximum transcript length before intelligent chunking (characters)
+  # 100,000 chars supports ~120 minute talks (~18,000 words, ~24,000 tokens)
+  max_transcript_length: 100000
 
-# Anthropic Claude Configuration
-anthropic:
-  api_key: ""
-  # Models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
-  model: "claude-3-sonnet-20240229"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Max tokens for Claude (different from OpenAI)
-  max_tokens: 1000
+  # Text length constraints for AI-generated content
+  constraints:
+    teaser_text:
+      max_chars: 150  # Allow some flexibility
+    short_text:
+      min_words: 80   # Adjusted based on actual AI output
+      max_words: 250
+    long_text:
+      min_words: 200  # Adjusted based on actual AI output
+      max_words: 500
+    social_text:
+      max_chars: 180  # Allow some flexibility for hashtags
+    tags:
+      min_count: 10
+      max_count: 15
+    quotes:
+      count: 3
 
-# Google Gemini Configuration
-google:
-  api_key: ""
-  # Models: gemini-pro, gemini-pro-vision
-  model: "gemini-pro"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Safety settings
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+  # Anthropic Claude configuration
+  anthropic:
+    # Models: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-haiku-20240307 claude-sonnet-4-5-20250929
+    model: claude-3-5-sonnet-20241022
+    temperature: 0.3  # Lower for more consistent output
+    max_tokens: 2000
 
-# Cohere Configuration
-cohere:
-  api_key: ""
-  # Models: command, command-light, command-nightly
-  model: "command"
-  temperature:
-    teaser: 0.7
-    description: 0.9
+  # OpenAI GPT configuration
+  openai:
+    # Models: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo
+    model: gpt-4o-mini
+    temperature: 0.3
+    max_tokens: 2000
+
+  # Prompt templates for video summaries
+  prompts:
+    video_summary:
+      system: "You are creating metadata for a conference talk video that will be published on YouTube."
+
+      template: |
+        TALK INFORMATION:
+        Title: {title}
+        Speakers: {speakers}
+        Abstract: {abstract}
+        Description: {description}
+        {transcript_section}
+
+        Please generate the following content for a conference talk video:
+
+        1. TEASER TEXT (max {teaser_max_chars} characters):
+        Write a compelling one-sentence hook that captures the essence of the talk.
+
+        2. SHORT TEXT ({short_min}-{short_max} words):
+        Write a concise summary that:
+        - Highlights the main topic and key points
+        - Uses clear, accessible language
+        - Maintains a professional yet approachable tone
+        Also extract 5-8 relevant keywords from this summary.
+
+        3. LONG TEXT ({long_min}-{long_max} words):
+        Write a comprehensive description that:
+        - Provides detailed context and background
+        - Explains what viewers will learn
+        - Includes specific examples or use cases mentioned
+        - Covers the main technical concepts
+        Also extract 10-15 relevant keywords from this description.
+
+        4. SOCIAL TEXT (max {social_max_chars} characters):
+        Write a short, engaging post for social media that highlights the key value proposition.
+
+        5. TAGS ({tags_min}-{tags_max} keywords):
+        List specific, relevant YouTube tags including:
+        - Technical topics and concepts
+        - Programming languages and tools
+        - Target audience level
+        - Conference/event name
+
+        6. QUOTES ({quotes_count} impactful quotes):
+        Extract {quotes_count} memorable quotes from the transcript that:
+        - Capture key insights or interesting perspectives
+        - Are self-contained and understandable out of context
+        - Represent the speaker's voice and expertise
+        For each quote, provide: the exact quote text, speaker name, and brief context.
+
+        IMPORTANT: You MUST respond with valid JSON in exactly this format:
+        {{
+          "teaser_text": "...",
+          "short_text": "...",
+          "short_keywords": ["keyword1", "keyword2", ...],
+          "long_text": "...",
+          "long_keywords": ["keyword1", "keyword2", ...],
+          "social_text": "...",
+          "tags": ["tag1", "tag2", ...],
+          "quotes": [
+            {{"text": "...", "speaker": "...", "context": "..."}},
+            ...
+          ]
+        }}
+
+      transcript_with_data: |
+
+        TRANSCRIPT:
+        {transcript_text}
+
+      transcript_truncated: |
+
+        TRANSCRIPT (truncated for length):
+        {transcript_text}
+        [... transcript truncated ...]
+
+      no_transcript: |
+
+        [No transcript available - base summary on abstract and description only]
 
 # ########################################
