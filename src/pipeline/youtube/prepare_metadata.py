@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import Environment, FileSystemLoader, Template, TemplateNotFound
 
 from pipeline.config import load_config
 from pipeline.logger import setup_logging
@@ -52,7 +52,7 @@ class MetadataBuilder:
         self.mapping = self._load_mapping()
 
         # Load template
-        self.template_env = self._load_template()
+        self.template_env, self.event_template = self._load_template()
 
         # Initialize status tracker
         self.status_tracker = StatusTracker(self.youtube_dir / "status.json")
@@ -78,9 +78,29 @@ class MetadataBuilder:
             # Old format: direct dictionary
             return YouTubeMapping(mappings=data, total_count=len(data))
 
-    def _load_template(self) -> Environment:
-        """Load Jinja2 template environment."""
-        # Try multiple template locations
+    def _load_template(self) -> tuple[Environment, Template | None]:
+        """Load Jinja2 template environment and event-specific template if available.
+
+        Returns:
+            Tuple of (Environment, event_template)
+            - Environment: Jinja2 environment for fallback templates
+            - event_template: Event-specific template if found, None otherwise
+        """
+        # Check for event-specific template first (highest priority)
+        # Try both locations: event_dir root and event_dir/youtube
+        event_template_file = self.paths.event_dir / "youtube_template.txt"
+        if not event_template_file.exists():
+            event_template_file = self.youtube_dir / "youtube_template.txt"
+        if event_template_file.exists():
+            logger.info("using_event_specific_template", path=str(event_template_file))
+            with event_template_file.open() as f:
+                template_content = f.read()
+            event_template = Template(template_content)
+        else:
+            logger.info("no_event_specific_template_found", checked_path=str(event_template_file))
+            event_template = None
+
+        # Load template directory environment for fallback
         template_dirs = [
             Path(__file__).parent.parent.parent / "manager" / "templates",
             self.paths.root / "templates",
@@ -88,11 +108,11 @@ class MetadataBuilder:
 
         for template_dir in template_dirs:
             if template_dir.exists():
-                logger.info("using_template_dir", path=str(template_dir))
-                return Environment(loader=FileSystemLoader(template_dir))
+                logger.info("using_template_dir_fallback", path=str(template_dir))
+                return Environment(loader=FileSystemLoader(template_dir)), event_template
 
         logger.warning("no_template_directory_found")
-        return Environment(loader=FileSystemLoader("."))
+        return Environment(loader=FileSystemLoader(".")), event_template
 
     def load_pretalx_record(self, pretalx_id: str) -> SessionRecord | None:
         """Load a Pretalx record.
@@ -145,17 +165,24 @@ class MetadataBuilder:
         Args:
             record: Pretalx session record
             release_record: Release record with AI-generated summaries (optional)
-            template_name: Template file name
+            template_name: Template file name (only used if no event-specific template)
 
         Returns:
             Rendered description text
         """
-        try:
-            template = self.template_env.get_template(template_name)
-        except TemplateNotFound:
-            logger.warning("template_not_found", template=template_name)
-            # Fallback to basic description
-            return self._create_basic_description(record, release_record)
+        # Use event-specific template if available (highest priority)
+        if self.event_template:
+            template = self.event_template
+            logger.debug("using_event_specific_template_for_render")
+        else:
+            # Fall back to template directory
+            try:
+                template = self.template_env.get_template(template_name)
+                logger.debug("using_fallback_template", template=template_name)
+            except TemplateNotFound:
+                logger.warning("template_not_found", template=template_name)
+                # Fallback to basic description
+                return self._create_basic_description(record, release_record)
 
         # Prepare template context
         speakers = [s.name for s in record.speakers]
