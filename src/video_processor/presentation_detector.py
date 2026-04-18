@@ -91,6 +91,11 @@ class VideoPresenterDetector:
         self._detection_ref_arrays: list[np.ndarray] = []
         self._stats_frame_reads: int = 0
         self._stats_compare_calls: int = 0
+        # Set by detect_all_presentations per video; prepended to in-flight detection logs.
+        self._current_video: str | None = None
+
+    def _tag(self) -> str:
+        return f"[{self._current_video}] " if self._current_video else ""
 
     @classmethod
     def get_video_files(cls, folder: Path, extensions: str) -> list[Path]:
@@ -369,7 +374,12 @@ class VideoPresenterDetector:
         return frame
 
     def load_break_images(self, break_images_dir: str, video_path: str | None = None) -> list[np.ndarray]:
-        """Load break images from a directory. Optionally restrict to filenames matching the recording room."""
+        """Load break images from a directory.
+
+        When ``video_path`` is set and ``break_detection.filter_refs_by_room`` is true,
+        only images for that video's room (plus shared refs) are loaded, reducing
+        template-matching work substantially.
+        """
         if not break_images_dir:
             logger.info("No break images directory provided")
             return []
@@ -393,6 +403,7 @@ class VideoPresenterDetector:
         break_images = []
 
         for img_path in image_files:
+            name = img_path.name
             img = cv2.imread(str(img_path))
             if img is not None:
                 # Only resize if enabled
@@ -401,7 +412,7 @@ class VideoPresenterDetector:
                     img = cv2.resize(img, (width, height))
 
                 break_images.append(img)
-                logger.info(f"  Loaded: {Path(img_path).name}")
+                logger.info(f"  Loaded: {name}")
 
         logger.info(f"✅ Loaded {len(break_images)} break images")
         return break_images
@@ -712,12 +723,13 @@ class VideoPresenterDetector:
         """
         chunk_size = float(self.cfg.presentation_detection.chunk_size)
 
+        tag = self._tag()
         logger.info(f"{'=' * 80}")
-        logger.info(f"Searching for next presentation starting from {timedelta(seconds=int(current_time))}")
+        logger.info(f"{tag}Searching for next presentation starting from {timedelta(seconds=int(current_time))}")
         logger.info(f"{'=' * 80}")
 
         if current_time >= video_duration - chunk_size / 2:
-            logger.info("Reached end of video, no more presentations to find")
+            logger.info(f"{tag}Reached end of video, no more presentations to find")
             return None
 
         search_time = current_time
@@ -725,22 +737,22 @@ class VideoPresenterDetector:
         is_break, score, break_type = self.is_break_screen(start_frame, break_references)
 
         logger.info(
-            f"Current position at {timedelta(seconds=int(search_time))} is "
+            f"{tag}Current position at {timedelta(seconds=int(search_time))} is "
             + f"{'BREAK' if is_break else 'PRESENTATION'} "
             + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
         )
 
         if not is_break:
-            logger.info("Currently in a presentation, finding its end first...")
+            logger.info(f"{tag}Currently in a presentation, finding its end first...")
             bracket = self._gallop_first_state_change(
                 cap, break_references, search_time, video_duration, start_is_break=False
             )
             if bracket is None:
-                logger.info("Reached end of video during initial search")
+                logger.info(f"{tag}Reached end of video during initial search")
                 return None
             prev_t, next_t = bracket
             logger.info(
-                f"Found potential end of current presentation around {timedelta(seconds=int(next_t))}"
+                f"{tag}Found potential end of current presentation around {timedelta(seconds=int(next_t))}"
             )
             presentation_end, end_break_type = self.binary_search_transition(
                 cap, break_references, prev_t, next_t, True
@@ -836,6 +848,9 @@ class VideoPresenterDetector:
         start_time = time.time()
         self._stats_frame_reads = 0
         self._stats_compare_calls = 0
+
+        video_name = Path(plan["input_video"]).name
+        self._current_video = video_name
 
         # Load video
         try:
