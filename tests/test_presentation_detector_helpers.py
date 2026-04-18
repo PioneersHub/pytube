@@ -160,6 +160,40 @@ def test_evaluate_detection_quality_passes_matching_segments(
     assert report["checks"]["count_match"]["ok"] is True
 
 
+def test_evaluate_detection_quality_skips_max_duration_for_single_full_file_talk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """One scheduled row may span the entire multi-hour recording (half-day track)."""
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {
+                "max_presentation_duration_min": 90,
+                "detection_quality": {
+                    "enabled": True,
+                    "fail_on_count_mismatch": True,
+                    "max_segment_duration_min": 120,
+                    "fail_single_segment_max_video_fraction": 0.72,
+                },
+            },
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    plan = {"presentations": [{"title": "track"}]}
+    # 3 hours — would fail max_segment without the single-row exception
+    segments = [(0.0, 3 * 3600.0)]
+    passed, report = det.evaluate_detection_quality(plan, segments, 3 * 3600.0)
+    assert passed is True
+    assert report["checks"]["max_segment_duration"]["skipped_single_full_file"] is True
+    assert report["checks"]["max_segment_duration"]["ok"] is True
+
+
 def test_collect_video_paths_empty_dir(tmp_path: Path) -> None:
     missing = tmp_path / "not_a_dir"
     assert collect_video_paths(missing, "mp4") == []

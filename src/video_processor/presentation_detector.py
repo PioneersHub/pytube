@@ -154,6 +154,8 @@ class VideoPresenterDetector:
         self._current_video: str | None = None
         # Last video duration (seconds) from detect_all_presentations — used for detection_quality.
         self._last_detected_video_duration_sec: float = 0.0
+        # Max time for seeks (last frame), set in load_video — must match get_frame_at_time clamp.
+        self._video_duration_scan: float = 0.0
 
     def _tag(self) -> str:
         return f"[{self._current_video}] " if self._current_video else ""
@@ -188,6 +190,11 @@ class VideoPresenterDetector:
         fps = float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = total_frames / fps if fps else 0.0
+        # Last readable frame time (matches get_frame_at_time clamp). Using nominal duration caused
+        # seeks past the last frame → read failures treated as false "break" and bogus EOF cuts.
+        self._video_duration_scan = (
+            max(0.01, float(total_frames - 1) / fps) if total_frames > 0 and fps else float(duration or 0.0)
+        )
 
         self._video_fps = fps
         self._video_total_frames = total_frames
@@ -380,10 +387,18 @@ class VideoPresenterDetector:
     def generate_processing_plan(self) -> list[dict]:
         """Generate and persist the processing plan for every raw video paired with its sessions."""
         self._load_mapping_data()
-        input_folder = Path(self.cfg.input.folder)
-        video_files = self.get_video_files(input_folder, self.cfg.input.extensions)
+        single = OmegaConf.select(self.cfg.input, "video_path", default="")
+        if single and str(single).strip():
+            p = Path(str(single).strip()).expanduser().resolve()
+            if not p.is_file():
+                raise FileNotFoundError(f"input.video_path is not a file: {p}")
+            video_files = [str(p)]
+            logger.info(f"Single-video mode: processing only {p.name}")
+        else:
+            input_folder = Path(self.cfg.input.folder)
+            video_files = self.get_video_files(input_folder, self.cfg.input.extensions)
         if not video_files:
-            raise RuntimeError(f"No video files found in {input_folder}")
+            raise RuntimeError("No video files found (set input.folder or input.video_path)")
 
         processing_plan = []
         for video_path in video_files:
@@ -844,7 +859,8 @@ class VideoPresenterDetector:
         threshold = self._threshold_for_break_purpose(purpose)
 
         if frame is None:
-            return True, 1.0, -1  # Default to break if frame couldn't be read
+            # Do not classify read failures as break — that created false transitions at EOF/garbled seeks.
+            return False, 0.0, -1
 
         best_score = 0.0
         best_index = -1
@@ -891,6 +907,27 @@ class VideoPresenterDetector:
         is_break = best_score > threshold
         return is_break, best_score, best_index
 
+    def _advance_to_pre_session_if_needed(self, cap: cv2.VideoCapture, t0: float, scan_end: float) -> float:
+        """
+        After an End-Stream, interstitial may show Logo/Welcome before Pre-Session. For ``start_break``
+        gallop we must not treat "not Pre-Session yet" as "already in talk" — scan forward until
+        Pre-Session is visible, or return ``t0`` if we should fall back to ``any_break``.
+        """
+        if not self.break_references_start:
+            return t0
+        chunk = float(self.cfg.presentation_detection.chunk_size)
+        t = float(t0)
+        while t < scan_end - 1e-6:
+            fr = self.get_frame_at_time(cap, t)
+            pre, _, _ = self.is_break_screen(fr, "start_break")
+            any_br, _, _ = self.is_break_screen(fr, "any_break")
+            if pre:
+                return t
+            if not any_br:
+                return t0
+            t += chunk
+        return t0
+
     def _gallop_first_state_change(
         self,
         cap: cv2.VideoCapture,
@@ -904,25 +941,47 @@ class VideoPresenterDetector:
 
         ``scan_end`` is typically ``video_duration`` or a schedule-derived bound (first plausible End-Stream).
 
-        When ``start_is_break`` is True, the break state uses ``start_break`` (Pre-Session only) if
-        configured, so the transition is "Pre-Session graphic no longer visible" → talk content.
+        When ``start_is_break`` is True and Pre-Session refs exist, we advance to the first frame where
+        Pre-Session is visible (skipping Logo/Welcome-only interstitial), then gallop until Pre-Session
+        is gone. If no Pre-Session appears before ``any_break`` goes false, fall back to ``any_break``.
         """
-        purpose = (
-            ("start_break" if self.break_references_start else "any_break")
-            if start_is_break
-            else "end_break"
-        )
+        purpose: str
+        t0 = float(t_start)
+        if start_is_break and self.break_references_start:
+            t_sync = self._advance_to_pre_session_if_needed(cap, t0, scan_end)
+            fr0 = self.get_frame_at_time(cap, t_sync)
+            pre0, _, _ = self.is_break_screen(fr0, "start_break")
+            any0, _, _ = self.is_break_screen(fr0, "any_break")
+            if pre0:
+                purpose = "start_break"
+                t0 = t_sync
+            elif not any0:
+                purpose = "any_break"
+            else:
+                purpose = "any_break"
+        elif start_is_break:
+            purpose = "any_break"
+        else:
+            purpose = "end_break"
         chunk = float(self.cfg.presentation_detection.chunk_size)
         raw_max = float(OmegaConf.select(self.cfg, "presentation_detection.gallop_max_step", default=3600.0))
         # If max_step <= chunk, min(step*2, max_step) never exceeds chunk → degenerates to a fixed chunk scan.
         max_step = max(raw_max, chunk * 2.0)
-        prev = float(t_start)
+        prev = float(t0)
         step = chunk
+        expected_state = start_is_break
+        # For start_break, "in break" means Pre-Session visible (True); gallop expects that at prev.
+        if purpose == "start_break":
+            frs = self.get_frame_at_time(cap, prev)
+            start_in_ps, _, _ = self.is_break_screen(frs, "start_break")
+            if not start_in_ps:
+                return None
+            expected_state = True
         while prev < scan_end - 1e-9:
             nxt = min(prev + step, scan_end)
             fr = self.get_frame_at_time(cap, nxt)
             is_br, _, _ = self.is_break_screen(fr, purpose)
-            if is_br != start_is_break:
+            if is_br != expected_state:
                 return (prev, nxt)
             prev = nxt
             step = min(step * 2.0, max_step)
@@ -1057,8 +1116,12 @@ class VideoPresenterDetector:
             failure_reasons.append(msg)
 
         # --- Per-segment duration cap (absolute)
+        # One scheduled row covering the whole file (e.g. half-day track) may exceed a nominal cap.
         seg_dur_ok = True
+        skip_cap = expected == 1 and got == 1 and len(segments) == 1
         for i, (start, end) in enumerate(segments):
+            if skip_cap:
+                continue
             dur_min = (end - start) / 60.0
             if dur_min > max_seg_min + 1e-6:
                 seg_dur_ok = False
@@ -1067,7 +1130,11 @@ class VideoPresenterDetector:
                     f"detection_quality.max_segment_duration_min ({max_seg_min:.0f} min)"
                 )
                 failure_reasons.append(msg)
-        checks["max_segment_duration"] = {"ok": seg_dur_ok, "limit_min": max_seg_min}
+        checks["max_segment_duration"] = {
+            "ok": seg_dur_ok,
+            "limit_min": max_seg_min,
+            "skipped_single_full_file": skip_cap,
+        }
 
         # --- Multiple sessions scheduled but one huge segment (merged talks / missed End-Stream)
         merge_ok = True
@@ -1227,6 +1294,19 @@ class VideoPresenterDetector:
             logger.info(f"{tag}Currently in a presentation, finding its end first...")
             bracket = self._gallop_first_state_change(cap, search_time, video_duration, start_is_break=False)
             if bracket is None:
+                if bool(
+                    OmegaConf.select(
+                        self.cfg,
+                        "presentation_detection.fallback_segment_if_no_end_stream",
+                        default=True,
+                    )
+                ):
+                    logger.warning(
+                        f"{tag}No End-Stream transition found before EOF (threshold/refs may miss slides, "
+                        f"or file is one continuous talk). Using single segment "
+                        f"{timedelta(seconds=int(search_time))} → {timedelta(seconds=int(video_duration))}."
+                    )
+                    return (search_time, video_duration, -1, -1)
                 logger.info(f"{tag}Reached end of video during initial search")
                 return None
             prev_t, next_t = bracket
@@ -1495,7 +1575,8 @@ class VideoPresenterDetector:
             self._last_detected_video_duration_sec = 0.0
             return []
 
-        self._last_detected_video_duration_sec = float(duration)
+        scan_dur = float(self._video_duration_scan)
+        self._last_detected_video_duration_sec = scan_dur
 
         # Try to load provided break images first (room-filtered when mapping/config provides room names)
         break_images_dir = self.cfg.break_detection.images_dir
@@ -1511,7 +1592,7 @@ class VideoPresenterDetector:
         if not self.break_references:
             logger.info("Error: No break screens detected or provided. Cannot continue.")
             cap.release()
-            self._last_detected_video_duration_sec = float(duration)
+            self._last_detected_video_duration_sec = scan_dur
             return []
 
         self._refresh_break_detection_refs()
@@ -1524,7 +1605,7 @@ class VideoPresenterDetector:
 
         while True:
             row = pres_rows[len(presentations)] if len(presentations) < len(pres_rows) else None
-            result = self.find_next_presentation(cap, current_time, duration, expected_session=row)
+            result = self.find_next_presentation(cap, current_time, scan_dur, expected_session=row)
 
             if result is None:
                 break
@@ -1838,6 +1919,13 @@ class VideoPresenterDetector:
             plan["success"] = success
             results.append(plan)
 
+        # Persist success (process_video's update_processing_plan ran before success was set).
+        with self.processing_plan_path.open("w") as f:
+            f.write("# Generated by presentation_detector.py — do not hand-edit while a run is in progress.\n\n")
+            yaml.safe_dump(
+                results, f, sort_keys=False, allow_unicode=True, default_flow_style=False
+            )
+
         logger.info(f"BATCH PROCESSING COMPLETE - {len(processing_plan)} videos")
 
         success_count = sum(1 for p in results if p.get("success"))
@@ -1917,6 +2005,16 @@ def main():  # noqa: PLR0912, PLR0915
         help="Extract audio from presentations as MP3 (override config)",
     )
     parser.add_argument("--input-folder", "-i", help="Process all videos in the specified folder")
+    parser.add_argument(
+        "--video",
+        metavar="PATH",
+        help="Process only this video file (sets input.video_path; use with --detect-only to validate one file)",
+    )
+    parser.add_argument(
+        "--fail-on-detect-mismatch",
+        action="store_true",
+        help="With --detect-only, exit with code 1 if any video fails detection_quality or process_video",
+    )
     parser.add_argument(
         "--probe-video",
         metavar="PATH",
@@ -2041,6 +2139,8 @@ def main():  # noqa: PLR0912, PLR0915
         cfg.output.extract_audio = True
     if args.input_folder:
         cfg.input.folder = args.input_folder
+    if args.video:
+        cfg.input.video_path = str(Path(args.video).expanduser().resolve())
 
     # Initialize detector
     detector = VideoPresenterDetector(cfg)
@@ -2055,6 +2155,21 @@ def main():  # noqa: PLR0912, PLR0915
 
     if args.detect_only:
         detector.make_processing_plan()
+        if args.fail_on_detect_mismatch:
+            detector.load_processing_plan()
+            bad = [
+                p
+                for p in detector.processing_plan
+                if p.get("presentations")
+                and (
+                    not p.get("success")
+                    or not (p.get("detection_quality") or {}).get("passed", False)
+                )
+            ]
+            if bad:
+                for p in bad:
+                    logger.error(f"Detect mismatch / quality fail: {p.get('input_video')}")
+                raise SystemExit(1)
         return
 
     if args.probe_video:

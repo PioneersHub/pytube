@@ -70,6 +70,9 @@ presentation_detection:
   gallop_max_step: 3600
   # Seconds after presentation start before searching for presentation→break (avoid instant false end)
   end_search_after_start_sec: 300
+  # If no presentation→End-Stream edge is found before EOF, treat the remainder as one talk (continuous
+  # recording or missing End-Stream refs). Set false to fail when no edge is detected.
+  fallback_segment_if_no_end_stream: true
   # Use each plan row's Pretalx ``Duration`` to bound End-Stream search (asymmetric slack by slot).
   use_schedule_duration_for_end_search: true
   # Optional override of default late/early slack (minutes) per standard slot. Values: [late, early].
