@@ -9,12 +9,30 @@ Supports batch processing of multiple videos from an input folder.
 import argparse
 import glob
 import json
+import re
 import subprocess
 import time
 import traceback
 from collections import defaultdict
 from datetime import timedelta
 from pathlib import Path
+
+# Extracts the room token from a break-image filename like
+# "Welcome-Dynamicum-PyConDE-26.png" -> "Dynamicum". Images whose filename
+# contains "all-rooms" (case-insensitive) are treated as shared and always
+# included regardless of room match.
+_BREAK_IMAGE_ROOM_RE = re.compile(r"-([A-Z][A-Za-z]+)-PyConDE", re.IGNORECASE)
+
+
+def _is_relevant_break_image(image_filename: str, video_filename: str) -> bool:
+    lower = image_filename.lower()
+    if "all-rooms" in lower or "all_rooms" in lower:
+        return True
+    match = _BREAK_IMAGE_ROOM_RE.search(image_filename)
+    if not match:
+        # Unknown naming pattern — include so a user-added image isn't silently dropped.
+        return True
+    return match.group(1).lower() in video_filename.lower()
 
 import cv2
 import numpy as np
@@ -82,6 +100,11 @@ class VideoPresenterDetector:
         self.video_output_folder.mkdir(parents=True, exist_ok=True)
         self.processing_plan_path = self.video_output_folder / "processing_plan.yaml"
         self.processing_plan = []
+        # Set by detect_all_presentations per video; prepended to in-flight detection logs.
+        self._current_video: str | None = None
+
+    def _tag(self) -> str:
+        return f"[{self._current_video}] " if self._current_video else ""
 
     @classmethod
     def get_video_files(cls, folder: Path, extensions: str) -> list[Path]:
@@ -259,8 +282,13 @@ class VideoPresenterDetector:
 
         return frame
 
-    def load_break_images(self, break_images_dir: str) -> list[np.ndarray]:
-        """Load break images from a directory"""
+    def load_break_images(self, break_images_dir: str, video_filename: str | None = None) -> list[np.ndarray]:
+        """Load break images from a directory.
+
+        When ``video_filename`` is provided, only images relevant to that
+        video's room (plus shared "All-Rooms" images) are loaded. This cuts
+        template-matching work by the per-room/shared ratio — typically 6-7x.
+        """
         if not break_images_dir:
             logger.info("No break images directory provided")
             return []
@@ -284,6 +312,9 @@ class VideoPresenterDetector:
         break_images = []
 
         for img_path in image_files:
+            name = Path(img_path).name
+            if video_filename and not _is_relevant_break_image(name, video_filename):
+                continue
             img = cv2.imread(img_path)
             if img is not None:
                 # Only resize if enabled
@@ -292,7 +323,7 @@ class VideoPresenterDetector:
                     img = cv2.resize(img, (width, height))
 
                 break_images.append(img)
-                logger.info(f"  Loaded: {Path(img_path).name}")
+                logger.info(f"  Loaded: {name}")
 
         logger.info(f"✅ Loaded {len(break_images)} break images")
         return break_images
@@ -534,13 +565,14 @@ class VideoPresenterDetector:
         threshold = self.cfg.break_detection.threshold
         chunk_size = self.cfg.presentation_detection.chunk_size
 
+        tag = self._tag()
         logger.info(f"{'=' * 80}")
-        logger.info(f"Searching for next presentation starting from {timedelta(seconds=int(current_time))}")
+        logger.info(f"{tag}Searching for next presentation starting from {timedelta(seconds=int(current_time))}")
         logger.info(f"{'=' * 80}")
 
         # Check if we're already at the end of the video
         if current_time >= video_duration - chunk_size / 2:
-            logger.info("Reached end of video, no more presentations to find")
+            logger.info(f"{tag}Reached end of video, no more presentations to find")
             return None
 
         # Step 1: Find the next break→presentation transition (start of presentation)
@@ -550,14 +582,14 @@ class VideoPresenterDetector:
         is_break, score, break_type = self.is_break_screen(start_frame, break_references)
 
         logger.info(
-            f"Current position at {timedelta(seconds=int(search_time))} is "
+            f"{tag}Current position at {timedelta(seconds=int(search_time))} is "
             + f"{'BREAK' if is_break else 'PRESENTATION'} "
             + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
         )
 
         # If we're already in a presentation, we need to find the next break first
         if not is_break:
-            logger.info("Currently in a presentation, finding its end first...")
+            logger.info(f"{tag}Currently in a presentation, finding its end first...")
             while search_time < video_duration:
                 search_time += chunk_size
                 if search_time >= video_duration:
@@ -681,6 +713,9 @@ class VideoPresenterDetector:
         # Start timing
         start_time = time.time()
 
+        video_name = Path(plan["input_video"]).name
+        self._current_video = video_name
+
         # Load video
         try:
             cap, fps, total_frames, duration = self.load_video(plan["input_video"])
@@ -688,9 +723,9 @@ class VideoPresenterDetector:
             logger.info(f"Error loading video: {str(e)}")
             return []
 
-        # Try to load provided break images first
+        # Try to load provided break images first (filtered to this video's room)
         break_images_dir = self.cfg.break_detection.images_dir
-        self.break_references = self.load_break_images(break_images_dir)
+        self.break_references = self.load_break_images(break_images_dir, video_filename=video_name)
 
         # If no break images provided or found, and auto-detect is enabled, detect them automatically
         if not self.break_references and self.cfg.break_detection.auto_detect:
