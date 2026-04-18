@@ -494,6 +494,9 @@ class VideoPresenterDetector:
             plan["detection_quality"] = dq_report
 
             session_report = self.build_session_report(plan, len(presentations_index), passed)
+            session_report["quality_failure_codes"] = dq_report.get("failure_codes", [])
+            session_report["quality_failure_reasons"] = dq_report.get("failure_reasons", [])
+            session_report["quality_limits"] = dq_report.get("limits", {})
             plan["session_report"] = session_report
             self._log_session_report(session_report)
             self._append_session_report_jsonl(session_report)
@@ -912,6 +915,12 @@ class VideoPresenterDetector:
         logger.info(f"  Sessions missed (vs schedule):    {report['sessions_missed']}")
         logger.info(f"  Segments over schedule (surplus):   {report['segments_surplus_vs_schedule']}")
         logger.info(f"  Quality gate:                       {qstr}")
+        codes = report.get("quality_failure_codes")
+        reasons = report.get("quality_failure_reasons")
+        if qp is False and reasons:
+            logger.info(f"  Failure codes:                      {codes}")
+            for line in reasons:
+                logger.info(f"    · {line}")
         logger.info(sep)
 
     def _append_session_report_jsonl(self, report: dict) -> None:
@@ -921,7 +930,7 @@ class VideoPresenterDetector:
         with path.open("a", encoding="utf-8") as f:
             f.write(line)
 
-    def evaluate_detection_quality(
+    def evaluate_detection_quality(  # noqa: PLR0912, PLR0915
         self,
         plan: dict,
         segments: list[tuple[float, float]],
@@ -1015,11 +1024,31 @@ class VideoPresenterDetector:
                     f"(limit {frac_limit * 100:.0f}%) — likely missed End-Stream cuts; tune break_detection"
                 )
 
+        failure_codes: list[str] = []
+        if fail_count and not count_ok:
+            failure_codes.append("count_mismatch")
+        if not seg_dur_ok:
+            failure_codes.append("max_segment_duration")
+        if expected > 1 and got == 1 and segments and not merge_ok:
+            failure_codes.append("single_segment_covers_file")
+
         passed = not failure_reasons
         report["passed"] = passed
+        report["failure_codes"] = failure_codes
+        report["limits"] = {
+            "max_segment_duration_min": max_seg_min,
+            "fail_single_segment_max_video_fraction": frac_limit,
+        }
         if not passed:
             for msg in failure_reasons:
                 logger.error(f"DETECTION QUALITY FAIL: {msg}")
+            logger.error(
+                f"DETECTION QUALITY summary: codes={failure_codes} — "
+                "these gates fire when the detector output does not match the schedule. "
+                "Most often: End-Stream / break slides are not matched between talks "
+                "(see break_detection.threshold, end_ref_substrings, template vs histogram, room-filtered refs). "
+                "count_mismatch alone means fewer (or more) cuts than scheduled rows."
+            )
         else:
             logger.info(
                 f"Detection quality OK: {got} segment(s), expected {expected}, "

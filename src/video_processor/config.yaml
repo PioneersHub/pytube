@@ -90,7 +90,14 @@ presentation_detection:
   # Does not change cut points — validation only.
   expected_talk_lengths_min: [30, 45, 60, 90]
   duration_validation_tolerance_min: 7
-  # Hard gates before any FFmpeg extract (see detection_quality in processing_plan.yaml).
+  # Hard gates before any FFmpeg extract (see detection_quality + session_report in processing_plan.yaml).
+  # When the gate fails, logs and YAML include failure_codes:
+  #   count_mismatch — detector produced a different number of (start,end) segments than scheduled rows
+  #     (almost always: missed End-Stream cuts between talks, or wrong mapping row count).
+  #   max_segment_duration — one segment longer than max_segment_duration_min (merged talks / no cut).
+  #   single_segment_covers_file — multiple sessions scheduled but only one segment covering most of the file.
+  # Fix detection first (break_detection.threshold, End-Stream PNGs, comparison_method, room filter); do not
+  # disable quality to "pass" bad cuts. Set fail_on_count_mismatch: false only for experiments.
   detection_quality:
     enabled: true
     # Fail when len(detected segments) != len(scheduled session rows).
