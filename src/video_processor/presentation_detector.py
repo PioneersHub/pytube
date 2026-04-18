@@ -7,8 +7,8 @@ Supports batch processing of multiple videos from an input folder.
 """
 
 import argparse
-import glob
 import json
+import re
 import subprocess
 import time
 import traceback
@@ -23,6 +23,27 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from manager import logger
+
+# Strip bracketed room annotations (same as process_talk_list / map_recordings).
+_ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
+
+
+def collect_video_paths(folder: Path, extensions: str) -> list[Path]:
+    """Return sorted unique video paths for comma-separated extensions (case-insensitive)."""
+    if not folder.is_dir():
+        return []
+    exts = [e.strip().lstrip(".").lower() for e in extensions.split(",") if e.strip()]
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for ext in exts:
+        for pattern in (f"*.{ext}", f"*.{ext.upper()}"):
+            for p in folder.glob(pattern):
+                rp = p.resolve()
+                if rp not in seen:
+                    seen.add(rp)
+                    out.append(p)
+    out.sort(key=lambda p: p.as_posix().lower())
+    return out
 
 
 def get_video_files(input_folder: str, extensions: str) -> list[str]:
@@ -41,25 +62,8 @@ def get_video_files(input_folder: str, extensions: str) -> list[str]:
         logger.info(f"Error: Input folder does not exist: {input_folder}")
         return []
 
-    # Parse extensions
-    ext_list = [ext.strip() for ext in extensions.split(",")]
-
-    # Get all matching files
-    video_files = []
-    for ext in ext_list:
-        # Make sure extension has dot prefix
-        if not ext.startswith("."):
-            ext = f".{ext}"
-
-        pattern = str(input_path / f"*{ext}")
-        video_files.extend(glob.glob(pattern))
-
-        # Also try uppercase extension
-        pattern = str(input_path / f"*{ext.upper()}")
-        video_files.extend(glob.glob(pattern))
-
-    # Sort files for consistent processing order
-    video_files.sort()
+    paths = collect_video_paths(input_path, extensions)
+    video_files = [str(p) for p in paths]
 
     if not video_files:
         logger.info(f"No video files found in {input_folder} with extensions {extensions}")
@@ -82,6 +86,11 @@ class VideoPresenterDetector:
         self.video_output_folder.mkdir(parents=True, exist_ok=True)
         self.processing_plan_path = self.video_output_folder / "processing_plan.yaml"
         self.processing_plan = []
+        self._video_fps: float | None = None
+        self._video_total_frames: int | None = None
+        self._detection_ref_arrays: list[np.ndarray] = []
+        self._stats_frame_reads: int = 0
+        self._stats_compare_calls: int = 0
 
     @classmethod
     def get_video_files(cls, folder: Path, extensions: str) -> list[Path]:
@@ -95,13 +104,7 @@ class VideoPresenterDetector:
         Returns:
             List of video file paths
         """
-        video_files = []
-        ext_list = extensions.split(",")
-        for ext in ext_list:
-            video_files.extend(folder.glob(f"*{ext}"))
-
-        # Sort files for consistent processing order
-        video_files.sort()
+        video_files = collect_video_paths(folder, extensions)
 
         if not video_files:
             logger.info(f"No video files found in {folder} with extensions {extensions}")
@@ -116,15 +119,116 @@ class VideoPresenterDetector:
         if not cap.isOpened():
             raise ValueError(f"Error: Could not open video {video_path}.")
 
-        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps = float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps
+        duration = total_frames / fps if fps else 0.0
+
+        self._video_fps = fps
+        self._video_total_frames = total_frames
 
         logger.info(f"Video loaded: {video_path}")
         logger.info(f"Duration: {timedelta(seconds=int(duration))}, FPS: {fps}")
         logger.info(f"Total frames: {total_frames}")
 
         return cap, fps, total_frames, duration
+
+    def _detection_size_wh(self) -> tuple[int, int]:
+        cfg = self.cfg.video
+        ds = OmegaConf.select(cfg, "detection_size", default=None)
+        if ds is not None:
+            return int(ds[0]), int(ds[1])
+        ps = cfg.processing_size
+        return int(ps[0]), int(ps[1])
+
+    def _use_detection_resize(self) -> bool:
+        return bool(OmegaConf.select(self.cfg.video, "detection_resize", default=True))
+
+    def _ensure_detection_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Resize frame for break comparison when detection_resize is enabled."""
+        if not self._use_detection_resize():
+            return frame
+        w, h = self._detection_size_wh()
+        if frame.shape[1] == w and frame.shape[0] == h:
+            return frame
+        return cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+
+    def _refresh_break_detection_refs(self) -> None:
+        """Precompute per-reference arrays for fast is_break_screen (grayscale for template)."""
+        self._detection_ref_arrays = []
+        method = str(self.cfg.break_detection.comparison_method)
+        for ref in self.break_references:
+            small = self._ensure_detection_frame(ref)
+            match method:
+                case "template":
+                    self._detection_ref_arrays.append(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
+                case "histogram":
+                    self._detection_ref_arrays.append(small)
+                case _:
+                    self._detection_ref_arrays.append(small)
+
+    def _room_names_longest_first(self) -> list[str]:
+        """Room strings for matching video filenames (longest first, like map_recordings)."""
+        rooms: list[str] = []
+        if self.mapping_data is not None and len(self.mapping_data) > 0:
+            try:
+                if "Room" in self.mapping_data.columns:
+                    raw = self.mapping_data.get_column("Room").drop_nulls().unique().to_list()
+                    rooms = [_ROOM_ANNOTATION_RE.sub("", str(r)).strip() for r in raw if r]
+                    rooms = sorted(set(rooms), key=len, reverse=True)
+            except Exception as e:
+                logger.info(f"Could not load rooms from mapping: {e}")
+        if not rooms:
+            extra = OmegaConf.select(self.cfg.break_detection, "room_names", default=None)
+            if extra:
+                rooms = sorted({str(x).strip() for x in list(extra) if str(x).strip()}, key=len, reverse=True)
+        return rooms
+
+    def _room_token_from_video_path(self, video_path: str) -> str | None:
+        """Match longest room name contained in the recording path or stem."""
+        stem = Path(video_path).stem
+        hay = f"{video_path} {stem}".lower()
+        for room in self._room_names_longest_first():
+            r = room.strip()
+            if not r:
+                continue
+            if r.lower() in hay:
+                return r
+        return None
+
+    def _filter_break_image_paths_by_room(self, paths: list[Path], video_path: str | None) -> list[Path]:
+        if not paths or not video_path:
+            return paths
+        if not bool(OmegaConf.select(self.cfg.break_detection, "filter_refs_by_room", default=True)):
+            return paths
+        room = self._room_token_from_video_path(video_path)
+        if not room:
+            logger.warning(
+                "filter_refs_by_room: no room matched in video path; using all break images. "
+                "Set break_detection.room_names or ensure input.mapping_file lists Room names."
+            )
+            return paths
+        shared = list(
+            OmegaConf.select(
+                self.cfg.break_detection,
+                "shared_ref_substrings",
+                default=["All-Rooms", "Pre-Session-Graphic-All-Rooms"],
+            )
+        )
+        kept: list[Path] = []
+        for p in paths:
+            name = p.name
+            if any(s in name for s in shared):
+                kept.append(p)
+                continue
+            if room.lower() in name.lower():
+                kept.append(p)
+        if not kept:
+            logger.warning(
+                f"filter_refs_by_room: no images matched room {room!r}; using all {len(paths)} break images"
+            )
+            return paths
+        logger.info(f"Room filter ({room}): using {len(kept)} of {len(paths)} break images")
+        return kept
 
     def generate_processing_plan(self) -> list[dict]:
         """Generate and persist the processing plan for every raw video paired with its sessions."""
@@ -238,29 +342,34 @@ class VideoPresenterDetector:
 
         except Exception as e:
             logger.info(f"Error processing video {plan.get('input_video')}: {str(e)}")
-            import traceback
-
             traceback.print_exc()
             return False
 
     def get_frame_at_time(self, cap: cv2.VideoCapture, time_sec: float) -> np.ndarray | None:
         """Get a frame at a specific time in the video"""
-        frame_pos = int(time_sec * cap.get(cv2.CAP_PROP_FPS))
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
+        self._stats_frame_reads += 1
+        fps = self._video_fps if self._video_fps is not None else float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
+        use_msec = bool(OmegaConf.select(self.cfg.video, "seek_use_pos_msec", default=False))
+        if use_msec:
+            cap.set(cv2.CAP_PROP_POS_MSEC, float(time_sec) * 1000.0)
+        else:
+            frame_pos = int(float(time_sec) * fps)
+            if self._video_total_frames is not None:
+                frame_pos = max(0, min(frame_pos, self._video_total_frames - 1))
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_pos)
         ret, frame = cap.read()
         if not ret:
             logger.info(f"WARNING: Could not read frame at {time_sec}s")
             return None
 
-        # Only resize if enabled in config
         if self.cfg.video.enable_resize:
             width, height = self.cfg.video.processing_size
             return cv2.resize(frame, (width, height))
 
         return frame
 
-    def load_break_images(self, break_images_dir: str) -> list[np.ndarray]:
-        """Load break images from a directory"""
+    def load_break_images(self, break_images_dir: str, video_path: str | None = None) -> list[np.ndarray]:
+        """Load break images from a directory. Optionally restrict to filenames matching the recording room."""
         if not break_images_dir:
             logger.info("No break images directory provided")
             return []
@@ -271,11 +380,11 @@ class VideoPresenterDetector:
             return []
 
         logger.info(f"Loading break images from {break_images_dir}...")
-        image_files = (
-            glob.glob(str(break_images_path / "*.jpg"))
-            + glob.glob(str(break_images_path / "*.png"))
-            + glob.glob(str(break_images_path / "*.jpeg"))
-        )
+        image_files: list[Path] = []
+        for pattern in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
+            image_files.extend(break_images_path.glob(pattern))
+        image_files = sorted({p.resolve(): p for p in image_files}.values(), key=lambda p: p.name.lower())
+        image_files = self._filter_break_image_paths_by_room(image_files, video_path)
 
         if not image_files:
             logger.info(f"No images found in {break_images_dir}")
@@ -284,7 +393,7 @@ class VideoPresenterDetector:
         break_images = []
 
         for img_path in image_files:
-            img = cv2.imread(img_path)
+            img = cv2.imread(str(img_path))
             if img is not None:
                 # Only resize if enabled
                 if self.cfg.video.enable_resize:
@@ -297,7 +406,7 @@ class VideoPresenterDetector:
         logger.info(f"✅ Loaded {len(break_images)} break images")
         return break_images
 
-    def detect_break_screens(self, cap: cv2.VideoCapture, fps: float, duration: float) -> list[np.ndarray]:
+    def detect_break_screens(self, cap: cv2.VideoCapture, _fps: float, duration: float) -> list[np.ndarray]:
         """
         Detect multiple possible break screens by sampling the video
         and clustering similar frames
@@ -344,8 +453,9 @@ class VideoPresenterDetector:
         break_candidates = []
         cluster_stats = []
 
+        min_cluster_size = 3
         for cluster_id, frame_indices in clusters.items():
-            if len(frame_indices) < 3:
+            if len(frame_indices) < min_cluster_size:
                 # Skip small clusters (likely not break screens)
                 continue
 
@@ -403,7 +513,7 @@ class VideoPresenterDetector:
 
         return top_break_screens
 
-    def _estimate_cluster_duration(self, frame_indices: list[int], sample_times: list[float], interval: float) -> float:
+    def _estimate_cluster_duration(self, frame_indices: list[int], _sample_times: list[float], interval: float) -> float:
         """Estimate the average duration of frames in a cluster"""
         if len(frame_indices) <= 1:
             return 0
@@ -427,40 +537,111 @@ class VideoPresenterDetector:
 
     def compare_frames(self, frame1: np.ndarray, frame2: np.ndarray) -> float:
         """Compare two frames and return similarity score (0-1)"""
-        method = self.cfg.break_detection.comparison_method
+        self._stats_compare_calls += 1
+        a = self._ensure_detection_frame(frame1)
+        b = self._ensure_detection_frame(frame2)
+        method = str(self.cfg.break_detection.comparison_method)
+        match method:
+            case "template":
+                g1 = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY)
+                g2 = cv2.cvtColor(b, cv2.COLOR_BGR2GRAY)
+                result = cv2.matchTemplate(g1, g2, cv2.TM_CCOEFF_NORMED)
+                return float(np.max(result))
+            case "histogram":
+                hist1 = cv2.calcHist([a], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+                hist1 = cv2.normalize(hist1, hist1).flatten()
+                hist2 = cv2.calcHist([b], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+                hist2 = cv2.normalize(hist2, hist2).flatten()
+                return float(cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL))
+            case _:
+                raise ValueError(f"Unknown comparison method: {method}")
 
-        if method == "template":
-            result = cv2.matchTemplate(frame1, frame2, cv2.TM_CCOEFF_NORMED)
-            return np.max(result)
-        elif method == "histogram":
-            hist1 = cv2.calcHist([frame1], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
-            hist1 = cv2.normalize(hist1, hist1).flatten()
-            hist2 = cv2.calcHist([frame2], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
-            hist2 = cv2.normalize(hist2, hist2).flatten()
-            return cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-        else:
-            raise ValueError(f"Unknown comparison method: {method}")
-
-    def is_break_screen(self, frame: np.ndarray | None, break_references: list[np.ndarray]) -> tuple[bool, float, int]:
+    def is_break_screen(  # noqa: PLR0911, PLR0912
+        self, frame: np.ndarray | None, break_references: list[np.ndarray]
+    ) -> tuple[bool, float, int]:
         """
         Check if a frame is a break screen by comparing to multiple references
         """
-        threshold = self.cfg.break_detection.threshold
+        threshold = float(self.cfg.break_detection.threshold)
 
         if frame is None:
             return True, 1.0, -1  # Default to break if frame couldn't be read
 
-        best_score = 0
+        best_score = 0.0
         best_index = -1
+
+        if self._detection_ref_arrays and len(self._detection_ref_arrays) == len(break_references):
+            small = self._ensure_detection_frame(frame)
+            method = str(self.cfg.break_detection.comparison_method)
+            match method:
+                case "template":
+                    g = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                    for i, refg in enumerate(self._detection_ref_arrays):
+                        result = cv2.matchTemplate(g, refg, cv2.TM_CCOEFF_NORMED)
+                        score = float(np.max(result))
+                        if score > threshold:
+                            return True, score, i
+                        if score > best_score:
+                            best_score = score
+                            best_index = i
+                    return False, best_score, best_index
+                case "histogram":
+                    for i, ref_small in enumerate(self._detection_ref_arrays):
+                        hist1 = cv2.calcHist([small], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+                        hist1 = cv2.normalize(hist1, hist1).flatten()
+                        hist2 = cv2.calcHist([ref_small], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+                        hist2 = cv2.normalize(hist2, hist2).flatten()
+                        score = float(cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL))
+                        if score > threshold:
+                            return True, score, i
+                        if score > best_score:
+                            best_score = score
+                            best_index = i
+                    return False, best_score, best_index
+                case _:
+                    pass
 
         for i, ref in enumerate(break_references):
             similarity = self.compare_frames(frame, ref)
+            if similarity > threshold:
+                return True, similarity, i
             if similarity > best_score:
                 best_score = similarity
                 best_index = i
 
         is_break = best_score > threshold
         return is_break, best_score, best_index
+
+    def _gallop_first_state_change(
+        self,
+        cap: cv2.VideoCapture,
+        break_references: list[np.ndarray],
+        t_start: float,
+        video_duration: float,
+        start_is_break: bool,
+    ) -> tuple[float, float] | None:
+        """
+        From t_start (inclusive) where break-state is start_is_break, advance until the state flips
+        or the end of the file. Returns (prev_time, next_time) with the same state at prev_time and
+        a different state at next_time, bracketing one transition.
+        """
+        chunk = float(self.cfg.presentation_detection.chunk_size)
+        raw_max = float(OmegaConf.select(self.cfg, "presentation_detection.gallop_max_step", default=3600.0))
+        # If max_step <= chunk, min(step*2, max_step) never exceeds chunk → degenerates to a fixed chunk scan.
+        max_step = max(raw_max, chunk * 2.0)
+        prev = float(t_start)
+        step = chunk
+        while prev < video_duration - 1e-9:
+            nxt = min(prev + step, video_duration)
+            fr = self.get_frame_at_time(cap, nxt)
+            is_br, _, _ = self.is_break_screen(fr, break_references)
+            if is_br != start_is_break:
+                return (prev, nxt)
+            prev = nxt
+            step = min(step * 2.0, max_step)
+            if nxt >= video_duration - 1e-9:
+                break
+        return None
 
     def binary_search_transition(
         self,
@@ -474,7 +655,6 @@ class VideoPresenterDetector:
         Binary search to find transition point between break and presentation
         """
         min_interval = self.cfg.presentation_detection.min_interval
-        threshold = self.cfg.break_detection.threshold
 
         current_start = start_time
         current_end = end_time
@@ -520,7 +700,7 @@ class VideoPresenterDetector:
         )
         return result, best_match_overall
 
-    def find_next_presentation(
+    def find_next_presentation(  # noqa: PLR0915
         self,
         cap: cv2.VideoCapture,
         break_references: list[np.ndarray],
@@ -530,21 +710,16 @@ class VideoPresenterDetector:
         """
         Find the next presentation in the video
         """
-        min_interval = self.cfg.presentation_detection.min_interval
-        threshold = self.cfg.break_detection.threshold
-        chunk_size = self.cfg.presentation_detection.chunk_size
+        chunk_size = float(self.cfg.presentation_detection.chunk_size)
 
         logger.info(f"{'=' * 80}")
         logger.info(f"Searching for next presentation starting from {timedelta(seconds=int(current_time))}")
         logger.info(f"{'=' * 80}")
 
-        # Check if we're already at the end of the video
         if current_time >= video_duration - chunk_size / 2:
             logger.info("Reached end of video, no more presentations to find")
             return None
 
-        # Step 1: Find the next break→presentation transition (start of presentation)
-        # First do a coarse search in chunk_size intervals
         search_time = current_time
         start_frame = self.get_frame_at_time(cap, search_time)
         is_break, score, break_type = self.is_break_screen(start_frame, break_references)
@@ -555,121 +730,100 @@ class VideoPresenterDetector:
             + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
         )
 
-        # If we're already in a presentation, we need to find the next break first
         if not is_break:
             logger.info("Currently in a presentation, finding its end first...")
-            while search_time < video_duration:
-                search_time += chunk_size
-                if search_time >= video_duration:
-                    logger.info("Reached end of video during initial search")
-                    return None
+            bracket = self._gallop_first_state_change(
+                cap, break_references, search_time, video_duration, start_is_break=False
+            )
+            if bracket is None:
+                logger.info("Reached end of video during initial search")
+                return None
+            prev_t, next_t = bracket
+            logger.info(
+                f"Found potential end of current presentation around {timedelta(seconds=int(next_t))}"
+            )
+            presentation_end, end_break_type = self.binary_search_transition(
+                cap, break_references, prev_t, next_t, True
+            )
+            search_time = presentation_end
+            is_break = True
+            break_type = end_break_type
 
-                search_frame = self.get_frame_at_time(cap, search_time)
-                is_break, score, break_type = self.is_break_screen(search_frame, break_references)
-
-                logger.info(
-                    f"Checking {timedelta(seconds=int(search_time))}: "
-                    + f"{'BREAK' if is_break else 'PRESENTATION'} "
-                    + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
-                )
-
-                if is_break:
-                    logger.info(
-                        f"Found potential end of current presentation around {timedelta(seconds=int(search_time))}"
-                    )
-                    # Now refine this with binary search
-                    presentation_end, end_break_type = self.binary_search_transition(
-                        cap, break_references, search_time - chunk_size, search_time, True
-                    )
-
-                    search_time = presentation_end
-                    is_break = True
-                    break
-
-        # Find start of next presentation (break→presentation transition)
         if is_break:
             logger.info("Searching for start of next presentation...")
             start_break_type = break_type
 
-            # Coarse search in chunk_size intervals
-            while search_time < video_duration:
-                search_time += chunk_size
-                if search_time >= video_duration:
-                    logger.info("Reached end of video during initial search")
-                    return None
+            bracket = self._gallop_first_state_change(
+                cap, break_references, search_time, video_duration, start_is_break=True
+            )
+            if bracket is None:
+                logger.info("Reached end of video during initial search")
+                return None
+            prev_t, next_t = bracket
+            search_frame = self.get_frame_at_time(cap, next_t)
+            is_br_next, score, break_type = self.is_break_screen(search_frame, break_references)
+            logger.info(
+                f"Checking {timedelta(seconds=int(next_t))}: "
+                + f"{'BREAK' if is_br_next else 'PRESENTATION'} "
+                + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
+            )
 
-                search_frame = self.get_frame_at_time(cap, search_time)
-                is_break, score, break_type = self.is_break_screen(search_frame, break_references)
+            logger.info(f"Found potential start of presentation around {timedelta(seconds=int(next_t))}")
+            presentation_start, start_break_type = self.binary_search_transition(
+                cap, break_references, prev_t, next_t, False
+            )
 
-                logger.info(
-                    f"Checking {timedelta(seconds=int(search_time))}: "
-                    + f"{'BREAK' if is_break else 'PRESENTATION'} "
-                    + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
+            logger.info("Searching for end of presentation...")
+            end_offset = float(
+                OmegaConf.select(self.cfg, "presentation_detection.end_search_after_start_sec", default=300.0)
+            )
+            end_search_start = presentation_start + end_offset
+
+            fr_end = self.get_frame_at_time(cap, end_search_start)
+            is_break_end, score_end, break_type_end = self.is_break_screen(fr_end, break_references)
+            logger.info(
+                f"Checking {timedelta(seconds=int(end_search_start))}: "
+                + f"{'BREAK' if is_break_end else 'PRESENTATION'} "
+                + f"(score: {score_end:.3f}, ref: {break_type_end + 1 if break_type_end >= 0 else 'N/A'})"
+            )
+
+            if is_break_end:
+                lo = max(0.0, end_search_start - chunk_size)
+                presentation_end, end_break_type = self.binary_search_transition(
+                    cap, break_references, lo, end_search_start, True
+                )
+            else:
+                bracket_end = self._gallop_first_state_change(
+                    cap, break_references, end_search_start, video_duration, start_is_break=False
+                )
+                if bracket_end is None:
+                    logger.info("Presentation continues until the end of video")
+                    logger.info(
+                        f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
+                        + f"END OF VIDEO (Duration: {timedelta(seconds=int(video_duration - presentation_start))})"
+                    )
+                    return (presentation_start, video_duration, start_break_type, -1)
+                prev_e, next_e = bracket_end
+                presentation_end, end_break_type = self.binary_search_transition(
+                    cap, break_references, prev_e, next_e, True
                 )
 
-                if not is_break:
-                    logger.info(f"Found potential start of presentation around {timedelta(seconds=int(search_time))}")
-                    # Refine with binary search
-                    presentation_start, start_break_type = self.binary_search_transition(
-                        cap, break_references, search_time - chunk_size, search_time, False
-                    )
+            logger.info(
+                f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
+                + f"{timedelta(seconds=int(presentation_end))}"
+                + f" (Duration: {timedelta(seconds=int(presentation_end - presentation_start))})"
+            )
+            logger.info(
+                f"Break screen types: Start={start_break_type + 1 if start_break_type >= 0 else 'Unknown'}, "
+                + f"End={end_break_type + 1 if end_break_type >= 0 else 'Unknown'}"
+            )
 
-                    # Step 2: Find the end of this presentation (presentation→break transition)
-                    logger.info("Searching for end of presentation...")
-
-                    # Start searching 20 minutes after the start
-                    end_search_start = presentation_start + 1200  # 20 minutes in seconds
-
-                    # Coarse search for end of presentation
-                    search_time = end_search_start
-                    while search_time < video_duration:
-                        search_frame = self.get_frame_at_time(cap, search_time)
-                        is_break, score, break_type = self.is_break_screen(search_frame, break_references)
-
-                        logger.info(
-                            f"Checking {timedelta(seconds=int(search_time))}: "
-                            + f"{'BREAK' if is_break else 'PRESENTATION'} "
-                            + f"(score: {score:.3f}, ref: {break_type + 1 if break_type >= 0 else 'N/A'})"
-                        )
-
-                        if is_break:
-                            logger.info(
-                                f"Found potential end of presentation around {timedelta(seconds=int(search_time))}"
-                            )
-                            # Refine with binary search
-                            presentation_end, end_break_type = self.binary_search_transition(
-                                cap, break_references, search_time - chunk_size, search_time, True
-                            )
-
-                            # Success! Return the presentation interval
-                            logger.info(
-                                f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
-                                + f"{timedelta(seconds=int(presentation_end))}"
-                                + f" (Duration: {timedelta(seconds=int(presentation_end - presentation_start))})"
-                            )
-                            logger.info(
-                                f"Break screen types: Start={start_break_type + 1 if start_break_type >= 0 else 'Unknown'}, "
-                                + f"End={end_break_type + 1 if end_break_type >= 0 else 'Unknown'}"
-                            )
-
-                            return (
-                                presentation_start,
-                                presentation_end,
-                                start_break_type,
-                                end_break_type,
-                            )
-
-                        search_time += chunk_size
-                        if search_time >= video_duration:
-                            # Presentation goes until the end of the video
-                            logger.info("Presentation continues until the end of video")
-                            logger.info(
-                                f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
-                                + f"END OF VIDEO (Duration: {timedelta(seconds=int(video_duration - presentation_start))})"
-                            )
-                            return (presentation_start, video_duration, start_break_type, -1)
-
-                # No presentation found in this chunk, continue searching
+            return (
+                presentation_start,
+                presentation_end,
+                start_break_type,
+                end_break_type,
+            )
 
         logger.info("No more presentations found")
         return None
@@ -680,6 +834,8 @@ class VideoPresenterDetector:
         """
         # Start timing
         start_time = time.time()
+        self._stats_frame_reads = 0
+        self._stats_compare_calls = 0
 
         # Load video
         try:
@@ -688,9 +844,9 @@ class VideoPresenterDetector:
             logger.info(f"Error loading video: {str(e)}")
             return []
 
-        # Try to load provided break images first
+        # Try to load provided break images first (room-filtered when mapping/config provides room names)
         break_images_dir = self.cfg.break_detection.images_dir
-        self.break_references = self.load_break_images(break_images_dir)
+        self.break_references = self.load_break_images(break_images_dir, video_path=plan["input_video"])
 
         # If no break images provided or found, and auto-detect is enabled, detect them automatically
         if not self.break_references and self.cfg.break_detection.auto_detect:
@@ -702,6 +858,8 @@ class VideoPresenterDetector:
             logger.info("Error: No break screens detected or provided. Cannot continue.")
             cap.release()
             return []
+
+        self._refresh_break_detection_refs()
 
         # Find all presentations
         presentations = []
@@ -732,6 +890,9 @@ class VideoPresenterDetector:
 
         logger.info(f"ANALYSIS COMPLETE: Found {len(presentations)} presentations")
         logger.info(f"Processing time: {processing_time:.1f} seconds")
+        logger.info(
+            f"Detection stats: frame_reads={self._stats_frame_reads}, compare_frames_calls={self._stats_compare_calls}"
+        )
 
         for i, (start, end) in enumerate(presentations):
             start_str = str(timedelta(seconds=int(start)))
@@ -753,7 +914,69 @@ class VideoPresenterDetector:
 
         return presentations
 
-    def extract_presentations(
+    def probe_break_scores(
+        self,
+        video_path: str,
+        times_sec: list[float] | None = None,
+        grid_step_sec: float | None = None,
+        save_frames_dir: Path | None = None,
+    ) -> None:
+        """Print is_break, score, and best ref at timestamps — use to tune break_detection.threshold."""
+        cap, fps, total_frames, duration = self.load_video(video_path)
+        try:
+            break_dir = self.cfg.break_detection.images_dir
+            self.break_references = self.load_break_images(break_dir, video_path=video_path)
+            if not self.break_references and self.cfg.break_detection.auto_detect:
+                logger.info("No break images; auto-detecting break screens for probe...")
+                self.break_references = self.detect_break_screens(cap, fps, duration)
+            if not self.break_references:
+                logger.error("No break references — set break_detection.images_dir or enable auto_detect.")
+                return
+
+            self._refresh_break_detection_refs()
+
+            th = float(self.cfg.break_detection.threshold)
+            method = str(self.cfg.break_detection.comparison_method)
+            dw, dh = self._detection_size_wh()
+            room_note = ""
+            if bool(OmegaConf.select(self.cfg.break_detection, "filter_refs_by_room", default=True)):
+                tok = self._room_token_from_video_path(video_path)
+                room_note = f" room_filter={tok!r}" if tok else " room_filter=none"
+            logger.info(
+                f"Probe: threshold={th} method={method} detection_size={dw}x{dh} "
+                f"detection_resize={self._use_detection_resize()}{room_note}"
+            )
+
+            if times_sec is None:
+                step = float(grid_step_sec) if grid_step_sec is not None else float(
+                    self.cfg.presentation_detection.chunk_size
+                )
+                times_sec = [float(t) for t in np.arange(0.0, duration, step)]
+
+            out_dir: Path | None = None
+            if save_frames_dir is not None:
+                out_dir = Path(save_frames_dir).resolve()
+                out_dir.mkdir(parents=True, exist_ok=True)
+
+            stem = Path(video_path).stem
+            for t in times_sec:
+                if t < 0 or t > duration:
+                    continue
+                fr = self.get_frame_at_time(cap, t)
+                is_br, score, best = self.is_break_screen(fr, self.break_references)
+                ref_label = best + 1 if best >= 0 else "N/A"
+                flag = "BREAK" if is_br else "presentation"
+                logger.info(
+                    f"  t={str(timedelta(seconds=int(t)))} score={score:.4f} best_ref={ref_label} → {flag}"
+                )
+                if out_dir is not None and fr is not None:
+                    fp = out_dir / f"{stem}_{int(t)}s.jpg"
+                    cv2.imwrite(str(fp), fr)
+                    logger.info(f"    saved frame → {fp}")
+        finally:
+            cap.release()
+
+    def extract_presentations(  # noqa: PLR0912
         self,
         plan: dict,
     ) -> None:
@@ -775,7 +998,7 @@ class VideoPresenterDetector:
         cuts = len(plan["presentations_index"]) - len(plan["presentations"])
         if cuts > 0:
             logger.info(
-                "Warning: {cuts} more presentations detected than expected. Extracting all detected presentations."
+                f"Warning: {cuts} more presentations detected than expected. Extracting all detected presentations."
             )
             for i in range(len(plan["presentations"]), len(plan["presentations_index"])):
                 plan["presentations"].append(
@@ -795,19 +1018,33 @@ class VideoPresenterDetector:
             duration = end - start
 
             logger.info(f"Extracting presentation {i + 1} video...")
-            # FFmpeg command for video extraction without re-encoding
-            video_cmd = [
-                "ffmpeg",
-                "-i",
-                plan["input_video"],
-                "-ss",
-                str(int(start)),
-                "-t",
-                str(int(duration)),
-                "-c",
-                "copy",
-                output_video,
-            ]
+            fast_seek = bool(OmegaConf.select(self.cfg.output, "fast_input_seek", default=False))
+            if fast_seek:
+                video_cmd = [
+                    "ffmpeg",
+                    "-ss",
+                    str(int(start)),
+                    "-i",
+                    plan["input_video"],
+                    "-t",
+                    str(int(duration)),
+                    "-c",
+                    "copy",
+                    str(output_video),
+                ]
+            else:
+                video_cmd = [
+                    "ffmpeg",
+                    "-i",
+                    plan["input_video"],
+                    "-ss",
+                    str(int(start)),
+                    "-t",
+                    str(int(duration)),
+                    "-c",
+                    "copy",
+                    str(output_video),
+                ]
             logger.info(f"Command: {' '.join(video_cmd)}")
             result = subprocess.run(video_cmd, capture_output=True, text=True, check=False)
             if result.returncode != 0:
@@ -848,6 +1085,11 @@ class VideoPresenterDetector:
         segments without this, and silently continuing produced confusing
         'No videos to process' no-ops.
         """
+        if bool(OmegaConf.select(self.cfg.input, "allow_missing_mapping", default=False)):
+            self.mapping_data = None
+            logger.info("input.allow_missing_mapping: skipping Parquet load (probe / tooling only)")
+            return
+
         mapping_file = self.cfg.input.mapping_file
         if not mapping_file:
             raise ValueError(
@@ -941,7 +1183,13 @@ class VideoPresenterDetector:
 _DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
 
-def main():
+def _parse_probe_times(s: str | None) -> list[float] | None:
+    if not s or not str(s).strip():
+        return None
+    return [float(x.strip()) for x in str(s).split(",") if x.strip()]
+
+
+def main():  # noqa: PLR0912
     """Main function with command line interface"""
     parser = argparse.ArgumentParser(description="Process conference videos")
     parser.add_argument(
@@ -969,6 +1217,32 @@ def main():
         help="Extract audio from presentations as MP3 (override config)",
     )
     parser.add_argument("--input-folder", "-i", help="Process all videos in the specified folder")
+    parser.add_argument(
+        "--probe-video",
+        metavar="PATH",
+        help="Log break scores vs references at timestamps, then exit (tune threshold)",
+    )
+    parser.add_argument(
+        "--probe-times",
+        metavar="SEC_LIST",
+        help="Comma-separated times in seconds (e.g. 0,300,900). Default: grid from --probe-every or chunk_size",
+    )
+    parser.add_argument(
+        "--probe-every",
+        type=float,
+        metavar="SEC",
+        help="Sample every SEC seconds from 0 to end of file (overrides --probe-times if set)",
+    )
+    parser.add_argument(
+        "--probe-save-frames",
+        metavar="DIR",
+        help="Save full-resolution JPEGs at each probe timestamp",
+    )
+    parser.add_argument(
+        "--probe-skip-mapping",
+        action="store_true",
+        help="Do not load input.mapping_file Parquet (for probe without session mapping)",
+    )
 
     args = parser.parse_args()
 
@@ -979,18 +1253,35 @@ def main():
         logger.info("Creating default config file...")
         default_cfg = OmegaConf.create(
             {
-                "input": {"video_path": "", "folder": "", "extensions": "mp4,mkv,avi,mov,webm"},
-                "video": {"enable_resize": False, "processing_size": [320, 180]},
+                "input": {
+                    "video_path": "",
+                    "folder": "",
+                    "extensions": "mp4,mkv,avi,mov,webm",
+                    "mapping_file": "",
+                    "allow_missing_mapping": False,
+                },
+                "video": {
+                    "enable_resize": False,
+                    "processing_size": [320, 180],
+                    "detection_resize": True,
+                    "detection_size": [640, 360],
+                    "seek_use_pos_msec": False,
+                },
                 "break_detection": {
                     "images_dir": "",
-                    "threshold": 0.92,
+                    "threshold": 0.38,
                     "comparison_method": "template",
                     "auto_detect": True,
                     "detected_screens_dir": "detected_break_screens",
+                    "filter_refs_by_room": True,
+                    "shared_ref_substrings": ["All-Rooms", "Pre-Session-Graphic-All-Rooms"],
+                    "room_names": [],
                 },
                 "presentation_detection": {
                     "min_interval": 5,
                     "chunk_size": 300,
+                    "gallop_max_step": 3600,
+                    "end_search_after_start_sec": 300,
                     "sampling_interval": 30,
                     "max_samples": 200,
                     "cluster_threshold": 0.90,
@@ -1000,6 +1291,7 @@ def main():
                     "extract_presentations": False,
                     "extract_audio": True,
                     "save_metadata": True,
+                    "fast_input_seek": False,
                 },
                 "event": {
                     "lunch_break_cut": 13,
@@ -1010,6 +1302,9 @@ def main():
 
     # Load the configuration
     cfg = OmegaConf.load(args.config)
+
+    if args.probe_skip_mapping:
+        cfg = OmegaConf.merge(cfg, OmegaConf.create({"input": {"allow_missing_mapping": True}}))
 
     # Override with command line arguments if provided
     if args.output:
@@ -1025,6 +1320,32 @@ def main():
 
     # Initialize detector
     detector = VideoPresenterDetector(cfg)
+
+    if args.probe_video:
+        times = _parse_probe_times(args.probe_times)
+        save_dir = Path(args.probe_save_frames) if args.probe_save_frames else None
+        if args.probe_every is not None:
+            detector.probe_break_scores(
+                args.probe_video,
+                times_sec=None,
+                grid_step_sec=float(args.probe_every),
+                save_frames_dir=save_dir,
+            )
+        elif times is not None:
+            detector.probe_break_scores(
+                args.probe_video,
+                times_sec=times,
+                grid_step_sec=None,
+                save_frames_dir=save_dir,
+            )
+        else:
+            detector.probe_break_scores(
+                args.probe_video,
+                times_sec=None,
+                grid_step_sec=float(cfg.presentation_detection.chunk_size),
+                save_frames_dir=save_dir,
+            )
+        return
 
     if cfg.output.make_processing_plan:
         detector.make_processing_plan()

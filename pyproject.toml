@@ -12,7 +12,7 @@ readme = "README.md"
 license-files = [
     "LICENSE",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 
 dependencies = [
     #    "pytanis>=0.9",
@@ -34,6 +34,9 @@ dependencies = [
     "google-auth-oauthlib>=1.2.2",
     "pyyaml>=6.0.2",
     "xlsxwriter>=3.2.5",
+    "numpy>=2.2.5",
+    "opencv-python>=4.11.0.86",
+    "polars>=1.29.0",
 ]
 
 [project.optional-dependencies]
@@ -86,13 +89,9 @@ docs = [
     "pymdown-extensions>=10.15",
 ]
 
-# Video processing dependencies
+# Video processing dependencies (numpy/opencv/polars are core deps; extras for spreadsheets)
 video_processor = [
-    "numpy>=2.2.5",
-    "opencv-python>=4.11.0.86",
-    "pyyaml>=6.0.2",
     "python-dotenv>=0.9.9",
-    "polars>=1.29.0",
     "fastexcel>=0.14.0",
     "xlsxwriter>=3.2.3",
 ]
@@ -202,7 +201,7 @@ output = "coverage.xml"
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py313"
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]

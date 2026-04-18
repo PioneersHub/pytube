@@ -71,7 +71,14 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | Path) -> None:
+def main(
+    input_file: str | Path,
+    output_file: str | Path,
+    recordings_dir: str | Path,
+    cfg: OmegaConf | None = None,
+) -> None:
+    if cfg is None:
+        cfg = _load_config()
     mapping_yaml = OmegaConf.select(cfg, "pretalx.recording_mapping_yaml", default="")
     if not mapping_yaml:
         raise ValueError(
@@ -215,17 +222,29 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
     # Group by recording and add sequential numbers
     df = df.with_columns([pl.int_range(pl.len()).over("Recording").alias("_seq")])
 
-    # Output directory
+    # Room without bracket annotations for folder names (e.g. "Europium [3rd Floor]" -> "Europium")
+    df = df.with_columns(
+        [
+            pl.col("Room")
+            .map_elements(
+                lambda r: _ROOM_ANNOTATION_RE.sub("", str(r)).strip() if r is not None else None,
+                return_dtype=pl.String,
+            )
+            .alias("_room_clean"),
+        ]
+    )
+
+    # Output directory: Room-Day-TimePeriod (sanitized)
     df = df.with_columns(
         [
             pl.when(pl.col("Recording").is_not_null())
             .then(
                 pl.concat_str(
+                    pl.col("_room_clean"),
+                    pl.lit("-"),
                     pl.col("Day"),
                     pl.lit("-"),
                     pl.col("TimePeriod"),
-                    pl.lit("-"),
-                    pl.col("Room"),
                 )
             )
             .otherwise(None)
@@ -233,6 +252,7 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
             .alias("Output_Folder")
         ]
     )
+    df = df.drop("_room_clean")
     # Create sequential filenames
     df = df.with_columns(
         [
@@ -344,4 +364,4 @@ if __name__ == "__main__":
 
     _output_file = _input_file.parent / f"{_input_file.stem}_processed{_input_file.suffix}"
 
-    main(_input_file, _output_file, _recordings_dir)
+    main(_input_file, _output_file, _recordings_dir, cfg)

@@ -8,6 +8,8 @@ input:
   extensions: "mp4,mkv,avi,mov,webm"
   # File mapping from Parquet
   mapping_file: "/Volumes/DATA4T/2026/pyconde-pydata-2026_sessions_processed.parquet"
+  # When true, Parquet is not loaded (use with: python presentation_detector.py --probe-video ... --probe-skip-mapping)
+  allow_missing_mapping: false
 
 
 # Video processing settings
@@ -16,19 +18,35 @@ video:
   enable_resize: false
   # If resize is enabled, dimensions to use (width, height)
   processing_size: [320, 180]
+  # Resize frames/refs for break comparison (template/histogram); strongly recommended for speed
+  detection_resize: true
+  # Size used when detection_resize is true (width, height). Larger = better match, slower (e.g. 640x360).
+  detection_size: [640, 360]
+  # If true, seek with CAP_PROP_POS_MSEC instead of frame index (backend-dependent; try if seeks are slow)
+  seek_use_pos_msec: false
 
 # Break screen detection settings
 break_detection:
   # Directory for break screen images (leave empty for auto-detection)
   images_dir: "/Volumes/DATA4T/2026/break_slides"
-  # Similarity threshold for break screen detection (0-1)
-  threshold: 0.95
+  # Similarity threshold (0-1). Template scores on resized frames are often 0.15-0.45 for talks;
+  # full-screen break graphics often peak higher. Run: --probe-video PATH --probe-every 300
+  # Raise threshold if you get false breaks; lower if you get 0 presentations (try histogram too).
+  threshold: 0.38
   # Comparison method: "template" or "histogram"
   comparison_method: "template"
   # Whether to auto-detect break screens if none provided
   auto_detect: true
   # Directory to save detected break screens
   detected_screens_dir: "/Volumes/DATA4T/2026/break_slides/break_screens_detected"
+  # If true, only load PNGs whose filename contains the room matched from the video path (plus shared slides)
+  filter_refs_by_room: true
+  # Filenames containing any of these substrings are always kept (multi-room / pre-session graphics)
+  shared_ref_substrings:
+    - "All-Rooms"
+    - "Pre-Session-Graphic-All-Rooms"
+  # Optional fallback room list when mapping Parquet has no Room column (longest match wins in filename)
+  room_names: []
 
 # Presentation detection settings
 presentation_detection:
@@ -36,6 +54,10 @@ presentation_detection:
   min_interval: 2
   # Size of initial search chunks in seconds (default 5 minutes)
   chunk_size: 300
+  # Max step (seconds) when galloping; must be > chunk_size or exponential search collapses to fixed steps
+  gallop_max_step: 3600
+  # Seconds after presentation start before searching for presentation→break (avoid instant false end)
+  end_search_after_start_sec: 300
   # Sampling interval for break screen detection in seconds
   sampling_interval: 30
   # Maximum number of samples to take for break screen detection
@@ -59,6 +81,8 @@ output:
   extract_audio: true
   # Whether to save presentation metadata as JSON
   save_metadata: true
+  # If true, FFmpeg uses -ss before -i for faster stream-copy (less frame-accurate than -ss after -i)
+  fast_input_seek: false
 
 # Event info like lunch break
 event:

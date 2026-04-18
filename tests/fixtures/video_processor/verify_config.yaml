@@ -1,0 +1,35 @@
+# Minimal config for scripts/verify_presentation_detector_probe.sh + CI (not for production paths).
+input:
+  video_path: ""
+  folder: ""
+  extensions: "mp4"
+  mapping_file: ""
+  allow_missing_mapping: false
+video:
+  enable_resize: false
+  processing_size: [320, 180]
+  detection_resize: true
+  detection_size: [320, 180]
+  seek_use_pos_msec: false
+break_detection:
+  images_dir: "tests/fixtures/video_processor/breaks"
+  threshold: 0.38
+  comparison_method: "template"
+  auto_detect: false
+  detected_screens_dir: "tests/fixtures/video_processor/detected_breaks"
+presentation_detection:
+  min_interval: 2
+  chunk_size: 300
+  gallop_max_step: 3600
+  sampling_interval: 30
+  max_samples: 50
+  cluster_threshold: 0.90
+output:
+  folder: "tests/fixtures/video_processor/out"
+  make_processing_plan: false
+  extract_presentations: false
+  extract_audio: false
+  save_metadata: false
+  fast_input_seek: false
+event:
+  lunch_break_cut: 13
