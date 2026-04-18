@@ -311,6 +311,36 @@ def test_assign_end_refs_substrings(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert len(det.break_references_end) == 1
 
 
+def test_assign_start_refs_pre_session(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Session-start subset uses Pre-Session-Graphic; end subset uses End-Stream."""
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": False, "processing_size": [32, 32]},
+            "break_detection": {
+                "end_ref_substrings": ["End-Stream"],
+                "start_ref_substrings": ["Pre-Session-Graphic-All-Rooms"],
+            },
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    paths = [
+        Path("Pre-Session-Graphic-All-Rooms-PyConDE-26.png"),
+        Path("End-Stream-Dynamicum-PyConDE-26.png"),
+        Path("Welcome-Dynamicum-PyConDE-26.png"),
+    ]
+    imgs = [np.zeros((10, 10, 3), dtype=np.uint8) for _ in paths]
+    det._assign_break_reference_subsets(paths, imgs)
+    assert len(det.break_references) == 3  # noqa: PLR2004
+    assert len(det.break_references_end) == 1  # noqa: PLR2004
+    assert len(det.break_references_start) == 1  # noqa: PLR2004
+
+
 def test_room_strings_for_image_match_parenthetical(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     cfg = OmegaConf.create(
         {

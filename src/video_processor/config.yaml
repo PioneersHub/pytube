@@ -46,12 +46,17 @@ break_detection:
   shared_ref_substrings:
     - "All-Rooms"
     - "Pre-Session-Graphic-All-Rooms"
+  # Session *start*: match Pre-Session-Graphic until it is no longer on screen → that edge is talk start.
+  # Default when key omitted: ["Pre-Session-Graphic-All-Rooms"]. Set to [] to use all refs for talk start (legacy).
+  start_ref_substrings:
+    - "Pre-Session-Graphic-All-Rooms"
+  # Optional: stricter/softer threshold for Pre-Session (if End-Stream needs different sensitivity, use end_threshold).
+  # start_threshold: 0.35
+  # end_threshold: 0.38
   # Optional fallback room list when mapping Parquet has no Room column (longest match wins in filename)
   room_names: []
   # PyConDE-26-style slides use prefixes like Welcome-, Talk-Starting-, Logo-, Lunch-, End-Stream-{Room}-.
-  # Shared: Pre-Session-Graphic-All-Rooms-*.png (see shared_ref_substrings).
-  # Filenames containing any of these substrings are used ONLY to detect the *end* of a talk
-  # (presentation → break). Other loaded images are used for break→presentation and generic break.
+  # Filenames containing any of these substrings are used ONLY for presentation→break (room End-Stream, etc.).
   end_ref_substrings:
     - "End-Stream"
 
