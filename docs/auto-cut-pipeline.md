@@ -190,21 +190,30 @@ event:
   lunch_break_cut: 13
 ```
 
-### Map recording filenames to (room, day, period)
-
-Scan the raw filenames and write the YAML the next step consumes:
+### Run it
 
 ```bash
-pytube video map-recordings            # writes recording_mapping_yaml
-pytube video map-recordings --dry-run  # print without writing
-pytube video map-recordings --force    # overwrite existing YAML
+uv run --extra video_processor python src/video_processor/process_talk_list.py
 ```
 
-The scanner looks for a known weekday, a room name from `sessions_csv`, and
-an `AM`/`PM`/`Morning`/`Afternoon` token in each filename. Anything it can't
-classify is logged as a warning and emitted as a commented placeholder at
-the bottom of the YAML. **Hand-edit the YAML to fix typos** (e.g. a
-recording titled `Wedesday` needs `day: Wednesday`) or unusual filenames.
+The script runs in two phases — it stops between them so you can
+hand-edit the mapping before the Parquet is produced.
+
+**Step 1: filename → (room, day, period) mapping.** If
+`recording_mapping_yaml` doesn't exist, the script scans the raw filenames
+for `{day, room, AM|PM|Morning|Afternoon}` tokens, writes the YAML, and
+**exits**. Anything it can't classify is emitted as a commented
+placeholder at the bottom. Hand-edit to fix typos (e.g. a recording titled
+`Wedesday` needs `day: Wednesday`) or unusual filenames, then re-run.
+
+If the YAML already exists and you run in an interactive terminal, the
+script prompts before regenerating (`[y/N]`, default `N`). Non-interactive
+runs keep the existing file unconditionally — use
+`pytube video map-recordings --force` to explicitly regenerate.
+
+**Step 2: session → recording match.** Once the YAML exists (and you've
+re-run), the script matches each Pretalx session against it and writes
+the outputs below.
 
 Example mapping YAML:
 
@@ -220,17 +229,17 @@ recordings:
     period: Afternoon
 ```
 
-### Run it
-
-```bash
-uv run --extra video_processor python src/video_processor/process_talk_list.py
-```
-
 For each session the script looks up the recording by `(Room, Day,
 Morning|Afternoon)` in the mapping YAML. Bracketed room annotations from
-Pretalx (e.g. `Europium [3rd Floor]`) are stripped before lookup. The
-output Parquet is written next to the input CSV as
-`{sessions_csv_stem}_processed.parquet`.
+Pretalx (e.g. `Europium [3rd Floor]`) are stripped before lookup. Two
+output files are written next to the input CSV:
+
+- `{sessions_csv_stem}_processed.parquet` — the main exchange file with
+  `Recording` / `Output_Folder` / `Sequential_Filename` columns.
+- `{sessions_csv_stem}_processed_missing.yaml` — every session whose
+  `Recording` came back null, with its ID, title, Room, Day, TimePeriod,
+  and original Pretalx date/time. Open this to see what to add or fix in
+  `recording_mapping_yaml`.
 
 ### Verify Stage 2
 

@@ -7,7 +7,7 @@ input:
   # File extensions to process from input folder (comma-separated)
   extensions: "mp4,mkv,avi,mov,webm"
   # File mapping from Parquet
-  mapping_file: "/Volumes/DATA4T/vimeo-downloads/pyconde-pydata-2026_sessions_processed.parquet"
+  mapping_file: "/Volumes/DATA4T/2026/pyconde-pydata-2026_sessions_processed.parquet"
 
 
 # Video processing settings

@@ -11,6 +11,7 @@ Output: pycondepydata2025_sessions_with_recordings.parquet (Original data with r
 """
 
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import yaml
 from omegaconf import OmegaConf
 
 from manager import logger
+from video_processor import map_recordings
 
 # Matches a bracketed annotation at the end of a room name, e.g. " [3rd Floor]".
 _ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
@@ -74,9 +76,36 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
     if not mapping_yaml:
         raise ValueError(
             "pretalx.recording_mapping_yaml is not set. "
-            "Add it to config.yaml / config_local.yaml and run `pytube video map-recordings` to generate it."
+            "Add it to config.yaml / config_local.yaml."
         )
-    recording_by_triple = _load_recording_mapping(Path(mapping_yaml))
+    mapping_path = Path(mapping_yaml)
+    if not mapping_path.exists():
+        logger.info(f"Step 1/2: No mapping YAML at {mapping_path} — generating from filenames.")
+        map_recordings.run(dry_run=False, force=False)
+        logger.info(
+            f"Mapping written to {mapping_path}. Review and hand-edit for typos / unclassified "
+            "entries, then re-run this script to produce the session Parquet."
+        )
+        return
+    if sys.stdin.isatty():
+        answer = input(
+            f"Step 1/2: Mapping YAML already exists at {mapping_path}.\n"
+            "Regenerate? Hand edits WILL be lost. [y/N]: "
+        ).strip().lower()
+        if answer in ("y", "yes"):
+            map_recordings.run(dry_run=False, force=True)
+            logger.info(
+                f"Mapping regenerated at {mapping_path}. Review and hand-edit, then re-run."
+            )
+            return
+        logger.info("Step 1/2: Keeping existing mapping.")
+    else:
+        logger.info(
+            f"Step 1/2: Using existing mapping at {mapping_path}. "
+            "Run `pytube video map-recordings --force` to regenerate."
+        )
+    logger.info("Step 2/2: Matching sessions against mapping and writing Parquet.")
+    recording_by_triple = _load_recording_mapping(mapping_path)
 
     logger.info("Loading session data...")
 
@@ -235,6 +264,38 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
     parquet_file = output_file.with_suffix(".parquet")
     df.write_parquet(parquet_file)
     logger.info(f"Results also saved as Parquet to {parquet_file}")
+
+    # Write a human-readable YAML of sessions that couldn't be matched to a recording.
+    # Each entry lists what (Room, Day, TimePeriod) the matcher looked for — use this
+    # to find the entry to add/fix in recording_mapping_yaml.
+    missing_df = (
+        df.filter(pl.col("Recording").is_null())
+        .select(["ID", "Proposal title", "Room", "Day", "TimePeriod", "Start (date)", "Start (time)"])
+        .sort(["Day", "TimePeriod", "Room", "Start (time)"])
+    )
+    missing_entries = [
+        {
+            "id": row["ID"],
+            "title": row["Proposal title"],
+            "room": row["Room"],
+            "day": row["Day"],
+            "period": row["TimePeriod"],
+            "start_date": row["Start (date)"],
+            "start_time": row["Start (time)"],
+        }
+        for row in missing_df.iter_rows(named=True)
+    ]
+    missing_yaml = output_file.with_name(f"{output_file.stem}_missing.yaml")
+    with missing_yaml.open("w") as f:
+        f.write(
+            f"# {len(missing_entries)} sessions without a matching recording.\n"
+            "# Hand-edit recording_mapping_yaml to fix (typos, unclassified entries),\n"
+            "# then re-run process_talk_list.py.\n\n"
+        )
+        yaml.safe_dump(
+            {"missing": missing_entries}, f, sort_keys=False, allow_unicode=True, default_flow_style=False
+        )
+    logger.info(f"Unmatched sessions written to {missing_yaml} ({len(missing_entries)} rows)")
 
     # logger.info some stats
     matched = df.filter(pl.col("Recording").is_not_null()).height
