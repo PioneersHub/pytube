@@ -79,6 +79,9 @@ presentation_detection:
   fallback_segment_if_no_end_stream: true
   # Use each plan row's Pretalx ``Duration`` to bound End-Stream search (asymmetric slack by slot).
   use_schedule_duration_for_end_search: true
+  # After each Pre-Session→talk edge at time t, resume scanning for the next edge at t + that row's
+  # ``Duration`` (faster than stepping across whole talks). Requires two-phase + plan rows.
+  use_schedule_duration_for_presession_scan: true
   # Optional override of default late/early slack (minutes) per standard slot. Values: [late, early].
   # Defaults: 30→[5,10], 45→[5,15], 60→[10,15], 90→[10,15].
   # schedule_slack_by_slot_min:

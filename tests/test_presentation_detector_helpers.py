@@ -15,7 +15,15 @@ from video_processor.presentation_detector import (
     duration_nearest_slot_gap_min,
     nearest_slot_minutes,
     parse_pretalx_duration_to_seconds,
+    presession_scan_jump_time,
 )
+
+
+def test_presession_scan_jump_time_snaps_to_grid() -> None:
+    """After a leave at t, next scan is refined + Duration aligned to presession step."""
+    assert presession_scan_jump_time(100.0, 30 * 60.0, 5.0, 100000.0) == 100.0 + 30 * 60.0
+    expected_snapped = 3 * 5.0  # ceil((3+10)/5)*5
+    assert presession_scan_jump_time(3.0, 10.0, 5.0, 100000.0) == expected_snapped
 
 
 def test_align_presession_starts_to_schedule() -> None:

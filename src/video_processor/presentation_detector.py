@@ -18,6 +18,7 @@ Supports batch processing of multiple videos from an input folder.
 
 import argparse
 import json
+import math
 import re
 import subprocess
 import time
@@ -89,6 +90,14 @@ def parse_pretalx_duration_to_seconds(value: str | None) -> float | None:  # noq
     except ValueError:
         pass
     return None
+
+
+def presession_scan_jump_time(
+    refined_leave_sec: float, duration_sec: float, edge_step: float, scan_to: float
+) -> float:
+    """Next grid sample time after a Pre-Session→talk edge: ``refined + Duration``, snapped to ``edge_step``."""
+    step = max(2.0, float(edge_step))
+    return min(float(scan_to), math.ceil((float(refined_leave_sec) + float(duration_sec)) / step) * step)
 
 
 def align_presession_starts_to_schedule(
@@ -1044,6 +1053,13 @@ class VideoPresenterDetector:
     def _two_phase_detection_enabled(self) -> bool:
         return bool(OmegaConf.select(self.cfg, "presentation_detection.two_phase_detection", default=True))
 
+    def _use_schedule_duration_for_presession_scan(self) -> bool:
+        return bool(
+            OmegaConf.select(
+                self.cfg, "presentation_detection.use_schedule_duration_for_presession_scan", default=True
+            )
+        )
+
     def build_session_report(
         self,
         plan: dict,
@@ -1621,11 +1637,15 @@ class VideoPresenterDetector:
         return presentation_end
 
     def _collect_all_presession_to_talk_edges(
-        self, cap: cv2.VideoCapture, scan_dur: float
+        self, cap: cv2.VideoCapture, scan_dur: float, plan: dict | None = None
     ) -> list[float]:
         """
         Dense forward scan over ``[0, scan_dur)`` for every Pre-Session → talk transition
         (``start_break`` True → False), refined with ``binary_search_transition``.
+
+        When ``use_schedule_duration_for_presession_scan`` is true and ``plan`` has ``presentations``,
+        after each edge at ``refined`` the scan jumps to ``refined + Duration`` (row ``i`` for the
+        ``i``-th edge) instead of stepping in 5s increments across the talk.
         """
         if not self.break_references_start:
             return []
@@ -1640,6 +1660,9 @@ class VideoPresenterDetector:
         scan_to = float(scan_dur)
         min_interval = float(self.cfg.presentation_detection.min_interval)
         tag = self._tag()
+
+        use_jump = self._use_schedule_duration_for_presession_scan() and plan is not None
+        rows: list[dict] = list((plan or {}).get("presentations") or []) if use_jump else []
 
         t0 = self.get_frame_at_time(cap, 0.0)
         prev_pre, _, _ = self.is_break_screen(t0, "start_break")
@@ -1657,6 +1680,21 @@ class VideoPresenterDetector:
                     logger.info(
                         f"{tag}Pre-Session→talk edge #{len(hits)} at {timedelta(seconds=int(refined))}"
                     )
+                    idx = len(hits) - 1
+                    if rows and idx < len(rows):
+                        ds = parse_pretalx_duration_to_seconds(rows[idx].get("Duration"))
+                        if ds and ds > 0:
+                            t_next = presession_scan_jump_time(refined, ds, edge_step, scan_to)
+                            if t_next > t:
+                                logger.info(
+                                    f"{tag}Pre-Session scan jump to {timedelta(seconds=int(t_next))} "
+                                    f"(edge + scheduled Duration≈{ds / 60.0:.1f} min)"
+                                )
+                                t = t_next
+                                pt = max(0.0, t - edge_step)
+                                prev_fr = self.get_frame_at_time(cap, pt)
+                                prev_pre, _, _ = self.is_break_screen(prev_fr, "start_break")
+                                continue
             prev_pre = cur_pre
             t += edge_step
         return hits
@@ -1768,7 +1806,7 @@ class VideoPresenterDetector:
 
         f0 = self.get_frame_at_time(cap, 0.0)
         opens_in_talk = not self.is_break_screen(f0, "any_break")[0]
-        raw = self._collect_all_presession_to_talk_edges(cap, scan_dur)
+        raw = self._collect_all_presession_to_talk_edges(cap, scan_dur, plan)
         starts = align_presession_starts_to_schedule(raw, n, opens_in_talk)
         if starts is None:
             need = n - 1 if opens_in_talk else n
@@ -2542,6 +2580,7 @@ def main():  # noqa: PLR0912, PLR0915
                     "gallop_max_step": 3600,
                     "end_search_after_start_sec": 300,
                     "use_schedule_duration_for_end_search": True,
+                    "use_schedule_duration_for_presession_scan": True,
                     "sampling_interval": 30,
                     "max_samples": 200,
                     "cluster_threshold": 0.90,
