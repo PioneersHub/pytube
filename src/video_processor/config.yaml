@@ -90,18 +90,28 @@ presentation_detection:
   # Does not change cut points — validation only.
   expected_talk_lengths_min: [30, 45, 60, 90]
   duration_validation_tolerance_min: 7
+  # Hard gates before any FFmpeg extract (see detection_quality in processing_plan.yaml).
+  detection_quality:
+    enabled: true
+    # Fail when len(detected segments) != len(scheduled session rows).
+    fail_on_count_mismatch: true
+    # Reject any single segment longer than this (minutes). Prevents bogus multi-hour "one talk" merges.
+    max_segment_duration_min: 120
+    # When multiple sessions are scheduled but only one segment is found, fail if it covers more than
+    # this fraction of the file (missed End-Stream between talks).
+    fail_single_segment_max_video_fraction: 0.72
 
 # Output settings
 output:
   # Base output folder for extracted presentations
   folder: "/Volumes/DATA4T/2026/output"
   # When true, runs detection WITHOUT extracting clips — writes
-  # processing_plan.json only. Useful for reviewing detected cut timestamps
-  # before committing to FFmpeg extraction. When false (default), detection
-  # runs automatically the first time `extract_presentations: true` is used;
-  # subsequent runs reuse the existing plan.
+  # processing_plan.yaml with detection_quality. Review before cutting.
   make_processing_plan: false
-  # Whether to extract detected presentations as separate files
+  # If false (recommended), `extract_presentations` does NOT auto-run detection when the plan
+  # lacks timings — run `presentation_detector.py --detect-only`, then `--extract-only`.
+  auto_detect_on_extract: false
+  # Whether to extract detected presentations as separate files (FFmpeg; requires valid plan).
   extract_presentations: true
   # Whether to extract audio from presentations as MP3
   extract_audio: true

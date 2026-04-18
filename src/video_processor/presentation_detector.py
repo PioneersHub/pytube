@@ -149,6 +149,8 @@ class VideoPresenterDetector:
         self._detection_ref_arrays_end: list[np.ndarray] = []
         # Set by detect_all_presentations per video; prepended to in-flight detection logs.
         self._current_video: str | None = None
+        # Last video duration (seconds) from detect_all_presentations — used for detection_quality.
+        self._last_detected_video_duration_sec: float = 0.0
 
     def _tag(self) -> str:
         return f"[{self._current_video}] " if self._current_video else ""
@@ -392,28 +394,76 @@ class VideoPresenterDetector:
                 processing_plan, f, sort_keys=False, allow_unicode=True, default_flow_style=False
             )
 
-    def extract_presentations_from_plan(self) -> None:
-        """Extract clips using the processing plan.
+    def extract_presentations_from_plan(self, *, extract_only: bool = False) -> None:
+        """Extract clips using ``processing_plan.yaml`` (FFmpeg), only when detection passed quality gates.
 
-        Reads `processing_plan.yaml` from disk and runs FFmpeg extraction for each
-        video's detected segments. When the plan file is missing, runs detection
-        first so a cold-start `--extract` is a full pipeline run. Set
-        `make_processing_plan: true` + `extract_presentations: false` in the
-        config for an inspect-before-cut dry run.
+        **Recommended workflow:** run detection first (``--detect-only`` or ``output.make_processing_plan``),
+        inspect ``detection_quality`` in the plan file, then run ``--extract-only`` or enable
+        ``output.extract_presentations`` separately.
+
+        When ``extract_only`` is True, this never runs detection or generates a plan — it only reads
+        the existing YAML and extracts. When ``output.auto_detect_on_extract`` is false (default),
+        missing ``presentations_index`` or failed ``detection_quality`` skips extraction with an error
+        instead of silently re-running detection.
         """
         if not self.processing_plan_path.exists():
-            logger.info(f"No processing plan at {self.processing_plan_path} — generating.")
+            if extract_only:
+                raise FileNotFoundError(
+                    f"No processing plan at {self.processing_plan_path}. "
+                    "Run detection first, e.g. `python presentation_detector.py --detect-only`."
+                )
+            logger.info(f"No processing plan at {self.processing_plan_path} — generating skeleton from mapping.")
             self.generate_processing_plan()
 
         self.load_processing_plan()
+        auto_detect = bool(OmegaConf.select(self.cfg, "output.auto_detect_on_extract", default=False))
+
         for plan in self.processing_plan:
-            if not plan["presentations"]:
+            if not plan.get("presentations"):
                 continue
-            if "presentations_index" not in plan:
-                logger.info(f"Detecting presentations in {plan['input_video']}")
+
+            idx = plan.get("presentations_index")
+            dq = plan.get("detection_quality") or {}
+
+            if not idx:
+                if extract_only or not auto_detect:
+                    logger.error(
+                        f"Skipping {plan.get('input_video')}: no presentations_index in plan. "
+                        "Run detection first (`--detect-only`), or set output.auto_detect_on_extract: true to allow "
+                        "auto-detection from this step (not recommended)."
+                    )
+                    continue
+                logger.info(f"Detecting presentations in {plan['input_video']} (auto_detect_on_extract=true)...")
                 if not self.process_video(plan):
                     logger.warning(f"Detection failed for {plan['input_video']}; skipping.")
                     continue
+                idx = plan.get("presentations_index")
+                dq = plan.get("detection_quality") or {}
+
+            if not idx:
+                logger.error(f"Skipping {plan.get('input_video')}: no presentations_index after detection step.")
+                continue
+
+            if dq.get("passed") is False:
+                logger.error(
+                    f"Skipping {plan.get('input_video')}: detection_quality.passed is false — "
+                    "fix break detection and re-run detection before FFmpeg extract."
+                )
+                continue
+
+            if dq.get("passed") is None:
+                vdur = float(plan.get("video_duration_sec") or 0.0)
+                passed, new_dq = self.evaluate_detection_quality(plan, idx, vdur)
+                if not passed:
+                    new_dq["candidate_segments"] = [[float(s), float(e)] for s, e in idx]
+                plan["detection_quality"] = new_dq
+                self.update_processing_plan(plan)
+                if not passed:
+                    logger.error(
+                        f"Skipping extract for {plan.get('input_video')}: legacy plan fails detection_quality re-check."
+                    )
+                    continue
+
             logger.info(f"Extracting presentations from {plan['input_video']}...")
             self.extract_presentations(plan)
 
@@ -433,13 +483,25 @@ class VideoPresenterDetector:
 
             # Detect presentations
             presentations_index = self.detect_all_presentations(plan)
-            logger.info(f"Found {len(presentations_index)} presentations")
-            if len(presentations_index) != len(plan["presentations"]):
-                logger.warning(
-                    f"MISMATCH: Expected {len(plan['presentations'])} presentations, got {len(presentations_index)} indexes."
-                )
+            video_dur = float(self._last_detected_video_duration_sec)
+            plan["video_duration_sec"] = video_dur
 
-            # Update processing plan with detected presentations
+            logger.info(f"Found {len(presentations_index)} presentation segment(s) (scheduled rows: {len(plan['presentations'])})")
+
+            passed, dq_report = self.evaluate_detection_quality(plan, presentations_index, video_dur)
+            if not passed:
+                dq_report["candidate_segments"] = [[float(s), float(e)] for s, e in presentations_index]
+            plan["detection_quality"] = dq_report
+
+            if not passed:
+                plan.pop("presentations_index", None)
+                self.update_processing_plan(plan)
+                logger.error(
+                    f"Processing aborted for {plan.get('input_video')}: detection quality gate failed "
+                    f"(see detection_quality in {self.processing_plan_path}). No FFmpeg extract will run until fixed."
+                )
+                return False
+
             plan["presentations_index"] = presentations_index
             self.update_processing_plan(plan)
 
@@ -795,6 +857,112 @@ class VideoPresenterDetector:
         return bool(
             OmegaConf.select(self.cfg, "presentation_detection.use_schedule_duration_for_end_search", default=True)
         )
+
+    def evaluate_detection_quality(
+        self,
+        plan: dict,
+        segments: list[tuple[float, float]],
+        video_duration_sec: float,
+    ) -> tuple[bool, dict]:
+        """
+        Hard quality gate before any FFmpeg extract. Returns (passed, report) with YAML-safe dict.
+
+        Fails obviously broken runs (e.g. one 3h segment when three sessions are scheduled).
+        """
+        dq = OmegaConf.select(self.cfg, "presentation_detection.detection_quality", default=None)
+        if dq is None:
+            dq = OmegaConf.create({})
+        enabled = bool(OmegaConf.select(dq, "enabled", default=True))
+        expected = len(plan.get("presentations") or [])
+        got = len(segments)
+        failure_reasons: list[str] = []
+        checks: dict[str, object] = {}
+
+        report: dict = {
+            "passed": True,
+            "expected_sessions": expected,
+            "detected_segments": got,
+            "video_duration_sec": round(float(video_duration_sec), 3) if video_duration_sec > 0 else None,
+            "failure_reasons": failure_reasons,
+            "checks": checks,
+        }
+
+        if not enabled:
+            report["passed"] = True
+            report["skipped"] = True
+            return True, report
+
+        fail_count = bool(OmegaConf.select(dq, "fail_on_count_mismatch", default=True))
+        max_seg_min = float(
+            OmegaConf.select(
+                dq,
+                "max_segment_duration_min",
+                default=float(
+                    OmegaConf.select(self.cfg, "presentation_detection.max_presentation_duration_min", default=90.0)
+                )
+                + 30.0,
+            )
+        )
+        frac_limit = float(OmegaConf.select(dq, "fail_single_segment_max_video_fraction", default=0.72))
+
+        # --- Count
+        count_ok = expected == got
+        checks["count_match"] = {
+            "ok": count_ok,
+            "expected": expected,
+            "got": got,
+        }
+        if fail_count and not count_ok:
+            msg = f"session count mismatch: expected {expected} scheduled row(s), detector produced {got} segment(s)"
+            failure_reasons.append(msg)
+
+        # --- Per-segment duration cap (absolute)
+        seg_dur_ok = True
+        for i, (start, end) in enumerate(segments):
+            dur_min = (end - start) / 60.0
+            if dur_min > max_seg_min + 1e-6:
+                seg_dur_ok = False
+                msg = (
+                    f"segment {i + 1} length {dur_min:.1f} min exceeds "
+                    f"detection_quality.max_segment_duration_min ({max_seg_min:.0f} min)"
+                )
+                failure_reasons.append(msg)
+        checks["max_segment_duration"] = {"ok": seg_dur_ok, "limit_min": max_seg_min}
+
+        # --- Multiple sessions scheduled but one huge segment (merged talks / missed End-Stream)
+        merge_ok = True
+        if (
+            expected > 1
+            and got == 1
+            and segments
+            and video_duration_sec > 60.0  # noqa: PLR2004
+            and frac_limit > 0.0
+        ):
+            span = segments[0][1] - segments[0][0]
+            frac = span / video_duration_sec
+            merge_ok = frac <= frac_limit
+            checks["single_segment_vs_multi_expected"] = {
+                "ok": merge_ok,
+                "segment_fraction_of_file": round(frac, 4),
+                "limit": frac_limit,
+            }
+            if not merge_ok:
+                failure_reasons.append(
+                    f"expected {expected} sessions but only 1 segment covering {frac * 100:.1f}% of the file "
+                    f"(limit {frac_limit * 100:.0f}%) — likely missed End-Stream cuts; tune break_detection"
+                )
+
+        passed = not failure_reasons
+        report["passed"] = passed
+        if not passed:
+            for msg in failure_reasons:
+                logger.error(f"DETECTION QUALITY FAIL: {msg}")
+        else:
+            logger.info(
+                f"Detection quality OK: {got} segment(s), expected {expected}, "
+                f"max_segment_cap={max_seg_min:.0f} min"
+            )
+        return passed, report
 
     def binary_search_transition(
         self,
@@ -1155,7 +1323,10 @@ class VideoPresenterDetector:
             cap, fps, total_frames, duration = self.load_video(plan["input_video"])
         except Exception as e:
             logger.info(f"Error loading video: {str(e)}")
+            self._last_detected_video_duration_sec = 0.0
             return []
+
+        self._last_detected_video_duration_sec = float(duration)
 
         # Try to load provided break images first (room-filtered when mapping/config provides room names)
         break_images_dir = self.cfg.break_detection.images_dir
@@ -1171,6 +1342,7 @@ class VideoPresenterDetector:
         if not self.break_references:
             logger.info("Error: No break screens detected or provided. Cannot continue.")
             cap.release()
+            self._last_detected_video_duration_sec = float(duration)
             return []
 
         self._refresh_break_detection_refs()
@@ -1304,6 +1476,19 @@ class VideoPresenterDetector:
 
         if not plan["presentations"]:
             logger.info("No presentations to extract")
+            return
+
+        dq = plan.get("detection_quality") or {}
+        if dq.get("passed") is False:
+            logger.error(
+                f"Refusing FFmpeg extract for {plan.get('input_video')}: detection_quality.passed is false. "
+                f"Reasons: {dq.get('failure_reasons', [])}"
+            )
+            return
+
+        idx_check = plan.get("presentations_index")
+        if not idx_check:
+            logger.error(f"Refusing FFmpeg extract for {plan.get('input_video')}: no presentations_index.")
             return
 
         logger.info("Extracting presentations...")
@@ -1509,7 +1694,7 @@ def _parse_probe_times(s: str | None) -> list[float] | None:
     return [float(x.strip()) for x in str(s).split(",") if x.strip()]
 
 
-def main():  # noqa: PLR0912
+def main():  # noqa: PLR0912, PLR0915
     """Main function with command line interface"""
     parser = argparse.ArgumentParser(description="Process conference videos")
     parser.add_argument(
@@ -1563,6 +1748,16 @@ def main():  # noqa: PLR0912
         action="store_true",
         help="Do not load input.mapping_file Parquet (for probe without session mapping)",
     )
+    parser.add_argument(
+        "--detect-only",
+        action="store_true",
+        help="Run session mapping + detection only; write processing_plan.yaml with detection_quality (no FFmpeg).",
+    )
+    parser.add_argument(
+        "--extract-only",
+        action="store_true",
+        help="FFmpeg extract only from existing processing_plan.yaml (requires prior successful detection).",
+    )
 
     args = parser.parse_args()
 
@@ -1611,6 +1806,12 @@ def main():  # noqa: PLR0912
                     "duration_validation_tolerance_min": 7,
                     "max_presentation_duration_min": 90,
                     "oversized_segment_scan_step_sec": 120,
+                    "detection_quality": {
+                        "enabled": True,
+                        "fail_on_count_mismatch": True,
+                        "max_segment_duration_min": 120,
+                        "fail_single_segment_max_video_fraction": 0.72,
+                    },
                 },
                 "output": {
                     "folder": "extracted_presentations",
@@ -1618,6 +1819,7 @@ def main():  # noqa: PLR0912
                     "extract_audio": True,
                     "save_metadata": True,
                     "fast_input_seek": False,
+                    "auto_detect_on_extract": False,
                 },
                 "event": {
                     "lunch_break_cut": 13,
@@ -1646,6 +1848,18 @@ def main():  # noqa: PLR0912
 
     # Initialize detector
     detector = VideoPresenterDetector(cfg)
+
+    if args.extract_only and args.detect_only:
+        logger.error("Use only one of --extract-only or --detect-only.")
+        return
+
+    if args.extract_only:
+        detector.extract_presentations_from_plan(extract_only=True)
+        return
+
+    if args.detect_only:
+        detector.make_processing_plan()
+        return
 
     if args.probe_video:
         times = _parse_probe_times(args.probe_times)
@@ -1676,10 +1890,9 @@ def main():  # noqa: PLR0912
     if cfg.output.make_processing_plan:
         detector.make_processing_plan()
 
-    # If extraction is requested, run the extraction step
     if cfg.output.extract_presentations:
-        logger.info("Starting extraction of presentations...")
-        detector.extract_presentations_from_plan()
+        logger.info("Starting extraction of presentations (from processing_plan.yaml)...")
+        detector.extract_presentations_from_plan(extract_only=False)
 
 
 if __name__ == "__main__":

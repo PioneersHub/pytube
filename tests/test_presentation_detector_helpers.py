@@ -69,6 +69,72 @@ def test_get_schedule_slack_minutes_defaults(
     assert det._get_schedule_slack_minutes(slot) == (late, early)
 
 
+def test_evaluate_detection_quality_fails_mismatch_and_huge_segment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Three scheduled rows but one ~3h segment must fail (count + duration + merged-talk heuristics)."""
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {
+                "max_presentation_duration_min": 90,
+                "detection_quality": {
+                    "enabled": True,
+                    "fail_on_count_mismatch": True,
+                    "max_segment_duration_min": 120,
+                    "fail_single_segment_max_video_fraction": 0.72,
+                },
+            },
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    plan = {"presentations": [{"x": 1}, {"x": 2}, {"x": 3}]}
+    start = 41.0
+    talk_sec = 3 * 3600 + 2 * 60 + 51  # 3:02:51 — same scale as bogus single-segment runs
+    segments = [(start, start + talk_sec)]
+    video_dur = start + talk_sec + 50.0
+    passed, report = det.evaluate_detection_quality(plan, segments, video_dur)
+    assert passed is False
+    assert len(report["failure_reasons"]) >= 1  # noqa: PLR2004
+
+
+def test_evaluate_detection_quality_passes_matching_segments(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {
+                "max_presentation_duration_min": 90,
+                "detection_quality": {
+                    "enabled": True,
+                    "fail_on_count_mismatch": True,
+                    "max_segment_duration_min": 120,
+                    "fail_single_segment_max_video_fraction": 0.72,
+                },
+            },
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    plan = {"presentations": [{"a": 1}, {"b": 2}, {"c": 3}]}
+    segments = [(100.0, 100.0 + 30 * 60), (4000.0, 4000.0 + 45 * 60), (9000.0, 9000.0 + 60 * 60)]
+    passed, report = det.evaluate_detection_quality(plan, segments, 12000.0)
+    assert passed is True
+    assert report["checks"]["count_match"]["ok"] is True
+
+
 def test_collect_video_paths_empty_dir(tmp_path: Path) -> None:
     missing = tmp_path / "not_a_dir"
     assert collect_video_paths(missing, "mp4") == []
