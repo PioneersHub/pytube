@@ -104,6 +104,31 @@ def test_evaluate_detection_quality_fails_mismatch_and_huge_segment(
     assert len(report["failure_reasons"]) >= 1  # noqa: PLR2004
 
 
+def test_build_session_report_counts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    plan = {"input_video": "/recordings/Room-A.mp4", "presentations": [{"a": 1}, {"b": 2}, {"c": 3}]}
+    r = det.build_session_report(plan, 1, False)
+    assert r["sessions_expected"] == 3  # noqa: PLR2004
+    assert r["segments_found"] == 1  # noqa: PLR2004
+    assert r["sessions_missed"] == 2  # noqa: PLR2004
+    assert r["segments_surplus_vs_schedule"] == 0  # noqa: PLR2004
+    r2 = det.build_session_report(plan, 5, True)
+    assert r2["segments_surplus_vs_schedule"] == 2  # noqa: PLR2004
+    assert r2["sessions_missed"] == 0  # noqa: PLR2004
+
+
 def test_evaluate_detection_quality_passes_matching_segments(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

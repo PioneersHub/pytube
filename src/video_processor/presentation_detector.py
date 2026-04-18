@@ -493,6 +493,11 @@ class VideoPresenterDetector:
                 dq_report["candidate_segments"] = [[float(s), float(e)] for s, e in presentations_index]
             plan["detection_quality"] = dq_report
 
+            session_report = self.build_session_report(plan, len(presentations_index), passed)
+            plan["session_report"] = session_report
+            self._log_session_report(session_report)
+            self._append_session_report_jsonl(session_report)
+
             if not passed:
                 plan.pop("presentations_index", None)
                 self.update_processing_plan(plan)
@@ -513,6 +518,18 @@ class VideoPresenterDetector:
         except Exception as e:
             logger.info(f"Error processing video {plan.get('input_video')}: {str(e)}")
             traceback.print_exc()
+            try:
+                sr = self.build_session_report(plan, 0, False)
+                plan["session_report"] = sr
+                plan["detection_quality"] = plan.get("detection_quality") or {
+                    "passed": False,
+                    "failure_reasons": [f"exception: {e}"],
+                }
+                self._log_session_report(sr)
+                self._append_session_report_jsonl(sr)
+                self.update_processing_plan(plan)
+            except Exception:
+                pass
             return False
 
     def get_frame_at_time(self, cap: cv2.VideoCapture, time_sec: float) -> np.ndarray | None:
@@ -857,6 +874,52 @@ class VideoPresenterDetector:
         return bool(
             OmegaConf.select(self.cfg, "presentation_detection.use_schedule_duration_for_end_search", default=True)
         )
+
+    def build_session_report(
+        self,
+        plan: dict,
+        segments_found: int,
+        quality_passed: bool | None,
+    ) -> dict:
+        """
+        Per-video session counts vs the schedule (``plan['presentations']``).
+
+        *sessions_missed* = max(0, expected − found). *segments_surplus* = max(0, found − expected).
+        """
+        expected = len(plan.get("presentations") or [])
+        found = int(segments_found)
+        missed = max(0, expected - found)
+        surplus = max(0, found - expected)
+        return {
+            "file": Path(plan["input_video"]).name,
+            "input_video": plan["input_video"],
+            "sessions_expected": expected,
+            "segments_found": found,
+            "sessions_missed": missed,
+            "segments_surplus_vs_schedule": surplus,
+            "quality_passed": quality_passed,
+        }
+
+    def _log_session_report(self, report: dict) -> None:
+        """Emit a clear block in logs for ``--detect-only`` / batch runs."""
+        sep = "=" * 78
+        qp = report.get("quality_passed")
+        qstr = "PASS" if qp is True else ("FAIL" if qp is False else "N/A")
+        logger.info(sep)
+        logger.info(f"SESSION DETECTION REPORT | {report['file']}")
+        logger.info(f"  Sessions expected (from schedule):  {report['sessions_expected']}")
+        logger.info(f"  Presentation segments found:        {report['segments_found']}")
+        logger.info(f"  Sessions missed (vs schedule):    {report['sessions_missed']}")
+        logger.info(f"  Segments over schedule (surplus):   {report['segments_surplus_vs_schedule']}")
+        logger.info(f"  Quality gate:                       {qstr}")
+        logger.info(sep)
+
+    def _append_session_report_jsonl(self, report: dict) -> None:
+        """Append one JSON object per line under ``output.folder`` for scripting."""
+        path = self.video_output_folder / "detection_session_report.jsonl"
+        line = json.dumps(report, ensure_ascii=False) + "\n"
+        with path.open("a", encoding="utf-8") as f:
+            f.write(line)
 
     def evaluate_detection_quality(
         self,
@@ -1669,20 +1732,46 @@ class VideoPresenterDetector:
             plan["success"] = success
             results.append(plan)
 
-        # logger.info summary
         logger.info(f"BATCH PROCESSING COMPLETE - {len(processing_plan)} videos")
 
-        success_count = sum(1 for _, success in results if success)
+        success_count = sum(1 for p in results if p.get("success"))
         fail_count = len(results) - success_count
 
         logger.info(f"Successfully processed: {success_count}")
         logger.info(f"Failed: {fail_count}")
 
+        logger.info(
+            "=== DETECTION BATCH SUMMARY "
+            "(sessions expected | segments found | sessions missed | surplus | quality) ==="
+        )
+        for p in results:
+            sr = p.get("session_report")
+            if not sr:
+                logger.info(f"  {Path(p.get('input_video', '')).name}: (no session_report)")
+                continue
+            q = "OK" if sr.get("quality_passed") else "FAIL"
+            logger.info(
+                f"  {sr['file']}: expected={sr['sessions_expected']} "
+                f"found={sr['segments_found']} missed={sr['sessions_missed']} "
+                f"surplus={sr['segments_surplus_vs_schedule']} quality={q}"
+            )
+
+        batch_reports = [p["session_report"] for p in results if p.get("session_report")]
+        if batch_reports:
+            batch_path = self.video_output_folder / "detection_batch_report.json"
+            with batch_path.open("w", encoding="utf-8") as f:
+                json.dump(batch_reports, f, indent=2, ensure_ascii=False)
+            logger.info(f"Wrote per-file session reports to {batch_path}")
+            logger.info(
+                f"Appended per-video lines to {self.video_output_folder / 'detection_session_report.jsonl'} "
+                "(JSONL; safe to delete to reset)"
+            )
+
         if fail_count > 0:
             logger.info("Failed videos:")
-            for video_path, success in results:
-                if not success:
-                    logger.info(f"  - {video_path}")
+            for p in results:
+                if not p.get("success"):
+                    logger.info(f"  - {p.get('input_video')}")
 
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
