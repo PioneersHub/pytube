@@ -91,6 +91,9 @@ class VideoPresenterDetector:
         self._detection_ref_arrays: list[np.ndarray] = []
         self._stats_frame_reads: int = 0
         self._stats_compare_calls: int = 0
+        # Subset of break_references for presentation→break only (see end_ref_substrings).
+        self.break_references_end: list[np.ndarray] = []
+        self._detection_ref_arrays_end: list[np.ndarray] = []
         # Set by detect_all_presentations per video; prepended to in-flight detection logs.
         self._current_video: str | None = None
 
@@ -157,19 +160,52 @@ class VideoPresenterDetector:
             return frame
         return cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
 
-    def _refresh_break_detection_refs(self) -> None:
+    def _build_detection_arrays(self, refs: list[np.ndarray]) -> list[np.ndarray]:
         """Precompute per-reference arrays for fast is_break_screen (grayscale for template)."""
-        self._detection_ref_arrays = []
+        out: list[np.ndarray] = []
         method = str(self.cfg.break_detection.comparison_method)
-        for ref in self.break_references:
+        for ref in refs:
             small = self._ensure_detection_frame(ref)
             match method:
                 case "template":
-                    self._detection_ref_arrays.append(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
+                    out.append(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
                 case "histogram":
-                    self._detection_ref_arrays.append(small)
+                    out.append(small)
                 case _:
-                    self._detection_ref_arrays.append(small)
+                    out.append(small)
+        return out
+
+    def _refresh_break_detection_refs(self) -> None:
+        """Precompute caches for all-break vs end-of-talk-only matching."""
+        self._detection_ref_arrays = self._build_detection_arrays(self.break_references)
+        self._detection_ref_arrays_end = self._build_detection_arrays(self.break_references_end)
+
+    def _assign_break_reference_subsets(self, image_files: list[Path], break_images: list[np.ndarray]) -> None:
+        """Set break_references_end from filenames; end refs detect presentation→break only."""
+        self.break_references = break_images
+        end_subs: list[str] = list(
+            OmegaConf.select(self.cfg.break_detection, "end_ref_substrings", default=[]) or []
+        )
+        if not end_subs:
+            self.break_references_end = list(break_images)
+            return
+        end_indices = [
+            i
+            for i, p in enumerate(image_files)
+            if any(s.lower() in p.name.lower() for s in end_subs if str(s).strip())
+        ]
+        if not end_indices:
+            logger.warning(
+                "break_detection.end_ref_substrings is set but no image filenames matched; "
+                "using all break images for end-of-presentation detection"
+            )
+            self.break_references_end = list(break_images)
+            return
+        self.break_references_end = [break_images[i] for i in end_indices]
+        logger.info(
+            f"End-of-presentation refs: {len(self.break_references_end)} image(s) matching "
+            f"end_ref_substrings {end_subs!r}; all {len(break_images)} refs still used for break→presentation"
+        )
 
     def _room_names_longest_first(self) -> list[str]:
         """Room strings for matching video filenames (longest first, like map_recordings)."""
@@ -200,6 +236,18 @@ class VideoPresenterDetector:
                 return r
         return None
 
+    def _room_strings_for_image_match(self, room: str) -> list[str]:
+        """Substrings to match PNG filenames; includes full label and parenthetical short name (e.g. Spectrum)."""
+        room = room.strip()
+        if not room:
+            return []
+        out: list[str] = [room]
+        if "(" in room and ")" in room:
+            inner = room[room.rfind("(") + 1 : room.rfind(")")].strip()
+            if inner and inner not in out:
+                out.append(inner)
+        return out
+
     def _filter_break_image_paths_by_room(self, paths: list[Path], video_path: str | None) -> list[Path]:
         if not paths or not video_path:
             return paths
@@ -219,13 +267,15 @@ class VideoPresenterDetector:
                 default=["All-Rooms", "Pre-Session-Graphic-All-Rooms"],
             )
         )
+        tokens = self._room_strings_for_image_match(room)
         kept: list[Path] = []
         for p in paths:
             name = p.name
             if any(s in name for s in shared):
                 kept.append(p)
                 continue
-            if room.lower() in name.lower():
+            nl = name.lower()
+            if any(t.lower() in nl for t in tokens):
                 kept.append(p)
         if not kept:
             logger.warning(
@@ -382,11 +432,15 @@ class VideoPresenterDetector:
         """
         if not break_images_dir:
             logger.info("No break images directory provided")
+            self.break_references = []
+            self.break_references_end = []
             return []
 
         break_images_path = Path(break_images_dir)
         if not break_images_path.is_dir():
             logger.info(f"Break images directory does not exist: {break_images_dir}")
+            self.break_references = []
+            self.break_references_end = []
             return []
 
         logger.info(f"Loading break images from {break_images_dir}...")
@@ -398,6 +452,8 @@ class VideoPresenterDetector:
 
         if not image_files:
             logger.info(f"No images found in {break_images_dir}")
+            self.break_references = []
+            self.break_references_end = []
             return []
 
         break_images = []
@@ -415,6 +471,7 @@ class VideoPresenterDetector:
                 logger.info(f"  Loaded: {name}")
 
         logger.info(f"✅ Loaded {len(break_images)} break images")
+        self._assign_break_reference_subsets(image_files, break_images)
         return break_images
 
     def detect_break_screens(self, cap: cv2.VideoCapture, _fps: float, duration: float) -> list[np.ndarray]:
@@ -568,11 +625,23 @@ class VideoPresenterDetector:
                 raise ValueError(f"Unknown comparison method: {method}")
 
     def is_break_screen(  # noqa: PLR0911, PLR0912
-        self, frame: np.ndarray | None, break_references: list[np.ndarray]
+        self,
+        frame: np.ndarray | None,
+        purpose: str = "any_break",
     ) -> tuple[bool, float, int]:
         """
-        Check if a frame is a break screen by comparing to multiple references
+        Check if a frame matches break reference images.
+
+        ``any_break``: welcome / intro / shared slides — used before a talk starts.
+        ``end_break``: only images selected by ``end_ref_substrings`` — used to find
+        where a talk ends (so the welcome slide does not fake an early "end").
         """
+        break_references = (
+            self.break_references if purpose == "any_break" else self.break_references_end
+        )
+        detection_arrays = (
+            self._detection_ref_arrays if purpose == "any_break" else self._detection_ref_arrays_end
+        )
         threshold = float(self.cfg.break_detection.threshold)
 
         if frame is None:
@@ -581,13 +650,13 @@ class VideoPresenterDetector:
         best_score = 0.0
         best_index = -1
 
-        if self._detection_ref_arrays and len(self._detection_ref_arrays) == len(break_references):
+        if detection_arrays and len(detection_arrays) == len(break_references):
             small = self._ensure_detection_frame(frame)
             method = str(self.cfg.break_detection.comparison_method)
             match method:
                 case "template":
                     g = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-                    for i, refg in enumerate(self._detection_ref_arrays):
+                    for i, refg in enumerate(detection_arrays):
                         result = cv2.matchTemplate(g, refg, cv2.TM_CCOEFF_NORMED)
                         score = float(np.max(result))
                         if score > threshold:
@@ -597,7 +666,7 @@ class VideoPresenterDetector:
                             best_index = i
                     return False, best_score, best_index
                 case "histogram":
-                    for i, ref_small in enumerate(self._detection_ref_arrays):
+                    for i, ref_small in enumerate(detection_arrays):
                         hist1 = cv2.calcHist([small], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
                         hist1 = cv2.normalize(hist1, hist1).flatten()
                         hist2 = cv2.calcHist([ref_small], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
@@ -626,7 +695,6 @@ class VideoPresenterDetector:
     def _gallop_first_state_change(
         self,
         cap: cv2.VideoCapture,
-        break_references: list[np.ndarray],
         t_start: float,
         video_duration: float,
         start_is_break: bool,
@@ -635,7 +703,11 @@ class VideoPresenterDetector:
         From t_start (inclusive) where break-state is start_is_break, advance until the state flips
         or the end of the file. Returns (prev_time, next_time) with the same state at prev_time and
         a different state at next_time, bracketing one transition.
+
+        When ``start_is_break`` is False (inside a talk), only ``end_ref_substrings`` images
+        count as "break" so the intro/welcome slide is not mistaken for the end of the talk.
         """
+        purpose = "any_break" if start_is_break else "end_break"
         chunk = float(self.cfg.presentation_detection.chunk_size)
         raw_max = float(OmegaConf.select(self.cfg, "presentation_detection.gallop_max_step", default=3600.0))
         # If max_step <= chunk, min(step*2, max_step) never exceeds chunk → degenerates to a fixed chunk scan.
@@ -645,7 +717,7 @@ class VideoPresenterDetector:
         while prev < video_duration - 1e-9:
             nxt = min(prev + step, video_duration)
             fr = self.get_frame_at_time(cap, nxt)
-            is_br, _, _ = self.is_break_screen(fr, break_references)
+            is_br, _, _ = self.is_break_screen(fr, purpose)
             if is_br != start_is_break:
                 return (prev, nxt)
             prev = nxt
@@ -657,7 +729,6 @@ class VideoPresenterDetector:
     def binary_search_transition(
         self,
         cap: cv2.VideoCapture,
-        break_references: list[np.ndarray],
         start_time: float,
         end_time: float,
         target_is_break: bool,
@@ -665,6 +736,7 @@ class VideoPresenterDetector:
         """
         Binary search to find transition point between break and presentation
         """
+        purpose = "end_break" if target_is_break else "any_break"
         min_interval = self.cfg.presentation_detection.min_interval
 
         current_start = start_time
@@ -679,7 +751,7 @@ class VideoPresenterDetector:
             mid_time = (current_start + current_end) / 2
             mid_frame = self.get_frame_at_time(cap, mid_time)
 
-            is_break, score, best_match = self.is_break_screen(mid_frame, break_references)
+            is_break, score, best_match = self.is_break_screen(mid_frame, purpose)
             if best_match > -1:
                 best_match_overall = best_match
 
@@ -714,7 +786,6 @@ class VideoPresenterDetector:
     def find_next_presentation(  # noqa: PLR0915
         self,
         cap: cv2.VideoCapture,
-        break_references: list[np.ndarray],
         current_time: float,
         video_duration: float,
     ) -> tuple[float, float, int, int] | None:
@@ -734,7 +805,7 @@ class VideoPresenterDetector:
 
         search_time = current_time
         start_frame = self.get_frame_at_time(cap, search_time)
-        is_break, score, break_type = self.is_break_screen(start_frame, break_references)
+        is_break, score, break_type = self.is_break_screen(start_frame, "any_break")
 
         logger.info(
             f"{tag}Current position at {timedelta(seconds=int(search_time))} is "
@@ -744,9 +815,7 @@ class VideoPresenterDetector:
 
         if not is_break:
             logger.info(f"{tag}Currently in a presentation, finding its end first...")
-            bracket = self._gallop_first_state_change(
-                cap, break_references, search_time, video_duration, start_is_break=False
-            )
+            bracket = self._gallop_first_state_change(cap, search_time, video_duration, start_is_break=False)
             if bracket is None:
                 logger.info(f"{tag}Reached end of video during initial search")
                 return None
@@ -754,9 +823,7 @@ class VideoPresenterDetector:
             logger.info(
                 f"{tag}Found potential end of current presentation around {timedelta(seconds=int(next_t))}"
             )
-            presentation_end, end_break_type = self.binary_search_transition(
-                cap, break_references, prev_t, next_t, True
-            )
+            presentation_end, end_break_type = self.binary_search_transition(cap, prev_t, next_t, True)
             search_time = presentation_end
             is_break = True
             break_type = end_break_type
@@ -765,15 +832,13 @@ class VideoPresenterDetector:
             logger.info("Searching for start of next presentation...")
             start_break_type = break_type
 
-            bracket = self._gallop_first_state_change(
-                cap, break_references, search_time, video_duration, start_is_break=True
-            )
+            bracket = self._gallop_first_state_change(cap, search_time, video_duration, start_is_break=True)
             if bracket is None:
                 logger.info("Reached end of video during initial search")
                 return None
             prev_t, next_t = bracket
             search_frame = self.get_frame_at_time(cap, next_t)
-            is_br_next, score, break_type = self.is_break_screen(search_frame, break_references)
+            is_br_next, score, break_type = self.is_break_screen(search_frame, "any_break")
             logger.info(
                 f"Checking {timedelta(seconds=int(next_t))}: "
                 + f"{'BREAK' if is_br_next else 'PRESENTATION'} "
@@ -781,9 +846,7 @@ class VideoPresenterDetector:
             )
 
             logger.info(f"Found potential start of presentation around {timedelta(seconds=int(next_t))}")
-            presentation_start, start_break_type = self.binary_search_transition(
-                cap, break_references, prev_t, next_t, False
-            )
+            presentation_start, start_break_type = self.binary_search_transition(cap, prev_t, next_t, False)
 
             logger.info("Searching for end of presentation...")
             end_offset = float(
@@ -792,7 +855,7 @@ class VideoPresenterDetector:
             end_search_start = presentation_start + end_offset
 
             fr_end = self.get_frame_at_time(cap, end_search_start)
-            is_break_end, score_end, break_type_end = self.is_break_screen(fr_end, break_references)
+            is_break_end, score_end, break_type_end = self.is_break_screen(fr_end, "end_break")
             logger.info(
                 f"Checking {timedelta(seconds=int(end_search_start))}: "
                 + f"{'BREAK' if is_break_end else 'PRESENTATION'} "
@@ -801,12 +864,10 @@ class VideoPresenterDetector:
 
             if is_break_end:
                 lo = max(0.0, end_search_start - chunk_size)
-                presentation_end, end_break_type = self.binary_search_transition(
-                    cap, break_references, lo, end_search_start, True
-                )
+                presentation_end, end_break_type = self.binary_search_transition(cap, lo, end_search_start, True)
             else:
                 bracket_end = self._gallop_first_state_change(
-                    cap, break_references, end_search_start, video_duration, start_is_break=False
+                    cap, end_search_start, video_duration, start_is_break=False
                 )
                 if bracket_end is None:
                     logger.info("Presentation continues until the end of video")
@@ -816,9 +877,7 @@ class VideoPresenterDetector:
                     )
                     return (presentation_start, video_duration, start_break_type, -1)
                 prev_e, next_e = bracket_end
-                presentation_end, end_break_type = self.binary_search_transition(
-                    cap, break_references, prev_e, next_e, True
-                )
+                presentation_end, end_break_type = self.binary_search_transition(cap, prev_e, next_e, True)
 
             logger.info(
                 f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
@@ -867,6 +926,7 @@ class VideoPresenterDetector:
         if not self.break_references and self.cfg.break_detection.auto_detect:
             logger.info("No pre-defined break images found. Auto-detecting break screens...")
             self.break_references = self.detect_break_screens(cap, fps, duration)
+            self.break_references_end = list(self.break_references)
 
         # Stop if no break screens found
         if not self.break_references:
@@ -881,7 +941,7 @@ class VideoPresenterDetector:
         current_time = 0
 
         while True:
-            result = self.find_next_presentation(cap, self.break_references, current_time, duration)
+            result = self.find_next_presentation(cap, current_time, duration)
 
             if result is None:
                 break
@@ -944,6 +1004,7 @@ class VideoPresenterDetector:
             if not self.break_references and self.cfg.break_detection.auto_detect:
                 logger.info("No break images; auto-detecting break screens for probe...")
                 self.break_references = self.detect_break_screens(cap, fps, duration)
+                self.break_references_end = list(self.break_references)
             if not self.break_references:
                 logger.error("No break references — set break_detection.images_dir or enable auto_detect.")
                 return
@@ -978,7 +1039,7 @@ class VideoPresenterDetector:
                 if t < 0 or t > duration:
                     continue
                 fr = self.get_frame_at_time(cap, t)
-                is_br, score, best = self.is_break_screen(fr, self.break_references)
+                is_br, score, best = self.is_break_screen(fr, "any_break")
                 ref_label = best + 1 if best >= 0 else "N/A"
                 flag = "BREAK" if is_br else "presentation"
                 logger.info(
@@ -1291,6 +1352,7 @@ def main():  # noqa: PLR0912
                     "filter_refs_by_room": True,
                     "shared_ref_substrings": ["All-Rooms", "Pre-Session-Graphic-All-Rooms"],
                     "room_names": [],
+                    "end_ref_substrings": ["End-Stream"],
                 },
                 "presentation_detection": {
                     "min_interval": 5,

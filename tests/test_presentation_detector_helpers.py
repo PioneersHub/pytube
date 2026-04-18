@@ -138,3 +138,101 @@ def test_filter_break_image_paths_by_room(monkeypatch: pytest.MonkeyPatch, tmp_p
     assert "Welcome-Dynamicum-x.png" in names
     assert "Pre-Session-Graphic-All-Rooms-x.png" in names
     assert "Welcome-Euphorium-x.png" not in names
+
+
+def test_assign_end_refs_substrings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": False, "processing_size": [32, 32]},
+            "break_detection": {"end_ref_substrings": ["Thank-you", "End"]},
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    paths = [Path("Welcome-Dynamicum.png"), Path("Thank-you-Dynamicum.png")]
+    imgs = [np.zeros((10, 10, 3), dtype=np.uint8), np.zeros((10, 10, 3), dtype=np.uint8)]
+    det._assign_break_reference_subsets(paths, imgs)
+    assert len(det.break_references) == 2  # noqa: PLR2004
+    assert len(det.break_references_end) == 1
+
+
+def test_room_strings_for_image_match_parenthetical(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    assert det._room_strings_for_image_match("Merck Plenary (Spectrum) [1st Floor]") == [
+        "Merck Plenary (Spectrum) [1st Floor]",
+        "Spectrum",
+    ]
+
+
+def test_filter_break_image_paths_keeps_spectrum_token(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """PNG uses End-Stream-Spectrum-... while Pretalx room is Merck Plenary (Spectrum)."""
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {
+                "threshold": 0.95,
+                "filter_refs_by_room": True,
+                "shared_ref_substrings": ["All-Rooms"],
+                "room_names": ["Merck Plenary (Spectrum)"],
+            },
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    paths = [
+        Path("End-Stream-Spectrum-PyConDE-26.png"),
+        Path("Welcome-Euphorium-PyConDE-26.png"),
+    ]
+    out = det._filter_break_image_paths_by_room(
+        paths,
+        "/recordings/PyConDE Merck Plenary (Spectrum) Thursday AM.mp4",
+    )
+    names = {p.name for p in out}
+    assert "End-Stream-Spectrum-PyConDE-26.png" in names
+    assert "Welcome-Euphorium-PyConDE-26.png" not in names
+
+
+def test_assign_end_refs_end_stream(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": False, "processing_size": [32, 32]},
+            "break_detection": {"end_ref_substrings": ["End-Stream"]},
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    paths = [
+        Path("Welcome-Dynamicum-PyConDE-26.png"),
+        Path("End-Stream-Dynamicum-PyConDE-26.png"),
+    ]
+    imgs = [np.zeros((10, 10, 3), dtype=np.uint8), np.zeros((10, 10, 3), dtype=np.uint8)]
+    det._assign_break_reference_subsets(paths, imgs)
+    assert len(det.break_references) == 2  # noqa: PLR2004
+    assert len(det.break_references_end) == 1

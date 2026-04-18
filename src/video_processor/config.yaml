@@ -47,6 +47,12 @@ break_detection:
     - "Pre-Session-Graphic-All-Rooms"
   # Optional fallback room list when mapping Parquet has no Room column (longest match wins in filename)
   room_names: []
+  # PyConDE-26-style slides use prefixes like Welcome-, Talk-Starting-, Logo-, Lunch-, End-Stream-{Room}-.
+  # Shared: Pre-Session-Graphic-All-Rooms-*.png (see shared_ref_substrings).
+  # Filenames containing any of these substrings are used ONLY to detect the *end* of a talk
+  # (presentation → break). Other loaded images are used for break→presentation and generic break.
+  end_ref_substrings:
+    - "End-Stream"
 
 # Presentation detection settings
 presentation_detection:
