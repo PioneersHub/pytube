@@ -7,7 +7,18 @@ import polars as pl
 import pytest
 from omegaconf import OmegaConf
 
-from video_processor.presentation_detector import VideoPresenterDetector, collect_video_paths
+from video_processor.presentation_detector import (
+    VideoPresenterDetector,
+    collect_video_paths,
+    duration_nearest_slot_gap_min,
+)
+
+
+def test_duration_nearest_slot_gap_min() -> None:
+    slots = [30.0, 45.0, 60.0, 90.0]
+    assert duration_nearest_slot_gap_min(30 * 60, slots) == 0.0
+    assert duration_nearest_slot_gap_min(35 * 60, slots) == 5.0  # noqa: PLR2004
+    assert duration_nearest_slot_gap_min(88 * 60, slots) == 2.0  # noqa: PLR2004
 
 
 def test_collect_video_paths_empty_dir(tmp_path: Path) -> None:

@@ -28,6 +28,14 @@ from manager import logger
 _ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
 
 
+def duration_nearest_slot_gap_min(duration_sec: float, expected_lengths_min: list[float]) -> float:
+    """Minutes between detected segment length and the nearest expected slot (30/45/60/90, etc.)."""
+    if not expected_lengths_min:
+        return 0.0
+    d_min = duration_sec / 60.0
+    return min(abs(d_min - float(s)) for s in expected_lengths_min)
+
+
 def collect_video_paths(folder: Path, extensions: str) -> list[Path]:
     """Return sorted unique video paths for comma-separated extensions (case-insensitive)."""
     if not folder.is_dir():
@@ -899,6 +907,26 @@ class VideoPresenterDetector:
         logger.info("No more presentations found")
         return None
 
+    def _validate_detected_presentation_durations(self, presentations: list[tuple[float, float]]) -> None:
+        """Log warnings when segment lengths are far from configured slot lengths (validation only)."""
+        raw = OmegaConf.select(self.cfg, "presentation_detection.expected_talk_lengths_min", default=None)
+        if not raw:
+            return
+        slots = [float(x) for x in list(raw)]
+        if not slots:
+            return
+        tol = float(
+            OmegaConf.select(self.cfg, "presentation_detection.duration_validation_tolerance_min", default=7.0)
+        )
+        for i, (start, end) in enumerate(presentations):
+            gap = duration_nearest_slot_gap_min(end - start, slots)
+            if gap > tol:
+                dur_min = (end - start) / 60.0
+                logger.warning(
+                    f"Presentation {i + 1}: detected duration {dur_min:.1f} min is {gap:.1f} min from the "
+                    f"nearest expected slot {slots} (tolerance {tol:.1f} min). Review cuts or thresholds."
+                )
+
     def detect_all_presentations(self, plan: dict) -> list[tuple[float, float]]:
         """
         Detect all presentations in the video using binary search approach
@@ -958,6 +986,8 @@ class VideoPresenterDetector:
             logger.info(f"Found {len(presentations)} presentations so far")
 
         cap.release()
+
+        self._validate_detected_presentation_durations(presentations)
 
         # logger.info summary
         end_time = time.time()
@@ -1362,6 +1392,8 @@ def main():  # noqa: PLR0912
                     "sampling_interval": 30,
                     "max_samples": 200,
                     "cluster_threshold": 0.90,
+                    "expected_talk_lengths_min": [30, 45, 60, 90],
+                    "duration_validation_tolerance_min": 7,
                 },
                 "output": {
                     "folder": "extracted_presentations",

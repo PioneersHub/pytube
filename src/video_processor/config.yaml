@@ -6,7 +6,8 @@ input:
   folder: "/Volumes/DATA4T/vimeo-downloads/"
   # File extensions to process from input folder (comma-separated)
   extensions: "mp4,mkv,avi,mov,webm"
-  # File mapping from Parquet
+  # File mapping from Parquet — must be the Stage 2 output next to pretalx.sessions_csv:
+  # same directory, name {sessions_csv_stem}_processed.parquet (see process_talk_list.py).
   mapping_file: "/Volumes/DATA4T/2026/pyconde-pydata-2026_sessions_processed.parquet"
   # When true, Parquet is not loaded (use with: python presentation_detector.py --probe-video ... --probe-skip-mapping)
   allow_missing_mapping: false
@@ -70,6 +71,11 @@ presentation_detection:
   max_samples: 200
   # Clustering threshold for break screen detection (0-1)
   cluster_threshold: 0.90
+  # If non-empty, log a warning when a detected segment length (minutes) is farther than
+  # duration_validation_tolerance_min from every listed slot (typical talk lengths).
+  # Does not change cut points — validation only.
+  expected_talk_lengths_min: [30, 45, 60, 90]
+  duration_validation_tolerance_min: 7
 
 # Output settings
 output:
