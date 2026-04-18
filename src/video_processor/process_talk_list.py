@@ -10,13 +10,39 @@ Input: Export from pretalx, read in excel: pycondepydata2025_sessions.xlsx (Exce
 Output: pycondepydata2025_sessions_with_recordings.parquet (Original data with recording match and output columns)
 """
 
+import re
 from datetime import datetime
 from pathlib import Path
 
 import polars as pl
+import yaml
 from omegaconf import OmegaConf
 
-from src.manager import logger
+from manager import logger
+
+# Matches a bracketed annotation at the end of a room name, e.g. " [3rd Floor]".
+_ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
+
+def _load_recording_mapping(mapping_yaml: Path) -> dict[tuple[str, str, str], str]:
+    """Invert the filename->classification YAML into a (room, day, period) -> filename lookup."""
+    if not mapping_yaml.exists():
+        raise FileNotFoundError(
+            f"pretalx.recording_mapping_yaml points to a missing file: {mapping_yaml}. "
+            "Run `pytube video map-recordings` (or `python src/video_processor/map_recordings.py`) first."
+        )
+    with mapping_yaml.open() as f:
+        data = yaml.safe_load(f) or {}
+    recordings = data.get("recordings") or {}
+    inverted: dict[tuple[str, str, str], str] = {}
+    for filename, meta in recordings.items():
+        key = (str(meta["room"]), str(meta["day"]), str(meta["period"]))
+        if key in inverted and inverted[key] != filename:
+            logger.info(
+                f"Duplicate mapping for {key}: {inverted[key]!r} and {filename!r}; keeping first"
+            )
+            continue
+        inverted[key] = filename
+    return inverted
 
 
 def sanitize_filename(filename: str) -> str:
@@ -44,11 +70,17 @@ def sanitize_filename(filename: str) -> str:
 
 
 def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | Path) -> None:
-    # Load the session data from the Excel file
+    mapping_yaml = OmegaConf.select(cfg, "pretalx.recording_mapping_yaml", default="")
+    if not mapping_yaml:
+        raise ValueError(
+            "pretalx.recording_mapping_yaml is not set. "
+            "Add it to config.yaml / config_local.yaml and run `pytube video map-recordings` to generate it."
+        )
+    recording_by_triple = _load_recording_mapping(Path(mapping_yaml))
+
     logger.info("Loading session data...")
 
-    # Read the Excel file and cast all columns to string
-    df = pl.read_excel(input_file)
+    df = pl.read_csv(input_file, infer_schema_length=0)
 
     # Cast all columns to string type
     df = df.with_columns([pl.col(col).cast(pl.String) for col in df.columns])
@@ -102,45 +134,23 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
             logger.info(f"Error parsing date {date_obj}: {e}")
             return None
 
-    # Function to handle both time and datetime objects
-    def classify_time(time_obj: str | datetime | None) -> str | None:
+    def classify_time(time_obj: str | None) -> str | None:
+        if not isinstance(time_obj, str) or not time_obj.strip():
+            return None
         try:
-            # Since we're reading as string, we expect strings
-            if isinstance(time_obj, str):
-                # Handle the Excel datetime format like "1899-12-31 16:15:00.000"
-                # Extract just the time part
-                time_part = time_obj.split(" ")[1]
-                hour = int(time_part.split(":")[0])
-
-                # Classify based on 24-hour clock
-                if hour < cfg.event.lunch_break_cut:
-                    return "Morning"
-                else:
-                    return "Afternoon"
-            else:
-                return None
+            # Accept "HH:MM[:SS]" and Excel-style "1899-12-31 HH:MM:SS.000".
+            hour = int(time_obj.split(" ")[-1].split(":")[0])
+            return "Morning" if hour < cfg.event.lunch_break_cut else "Afternoon"
         except Exception as e:
             logger.info(f"Error parsing time {time_obj}: {e}")
             return None
 
-    # Function to find the matching recording for a session
     def find_recording(room: str, day: str, time_period: str) -> str | None:
         if not room or not day or not time_period:
             return None
-
-        # Handle special case for Zeiss Plenary
-        room_for_recording = "Zeiss Plenary (Spectrum)" if "Zeiss" in str(room) else str(room)
-
-        # Check for variation in naming convention
-        prefix = (
-            "PyConDE & PyData 2025"
-            if str(room) in ["Dynamicum", "Ferrum", "Zeiss Plenary (Spectrum)"]
-            else "PyCon DE & PyData 2025"
-        )
-
-        # Format the recording name
-        recording_name = f"{prefix} - {room_for_recording} - {day} {time_period}.mp4"
-        return recording_name if recording_name in recordings else None
+        # Strip bracketed annotations from room names, e.g. "Europium [3rd Floor]" -> "Europium".
+        room_clean = _ROOM_ANNOTATION_RE.sub("", str(room)).strip()
+        return recording_by_triple.get((room_clean, day, time_period))
 
     logger.info("Processing session data...")
 
@@ -241,13 +251,36 @@ def main(input_file: str | Path, output_file: str | Path, recordings_dir: str | 
     logger.info(sample_df)
 
 
-if __name__ == "__main__":
+def _load_config() -> OmegaConf:
+    """Load config.yaml, merging config_local.yaml on top if it exists."""
     cfg = OmegaConf.load("config.yaml")
-    _input_file = "/Users/hendorf/Downloads/pyconde-pydata-2025_sessions.xlsx"
-    _input_file = Path(_input_file)
-    # Specify the directory containing the recordings
-    _recordings_dir = "/Users/hendorf/code/pioneershub/py_tube/_data/videos/input"
-    _recordings_dir = Path(_recordings_dir)
-    _output_file = _recordings_dir.parent / f"{_input_file.stem}_processed{_input_file.suffix}"
+    local_path = Path("config_local.yaml")
+    if local_path.exists():
+        cfg = OmegaConf.merge(cfg, OmegaConf.load(local_path))
+    return cfg
+
+
+if __name__ == "__main__":
+    cfg = _load_config()
+
+    sessions_csv = OmegaConf.select(cfg, "pretalx.sessions_csv", default="")
+    if not sessions_csv:
+        raise ValueError(
+            "pretalx.sessions_csv is not set. "
+            "Add it to config_local.yaml — path to the Pretalx confirmed-sessions CSV export."
+        )
+    _input_file = Path(sessions_csv)
+    if not _input_file.exists():
+        raise FileNotFoundError(f"pretalx.sessions_csv points to a missing file: {_input_file}")
+
+    recordings_dir = OmegaConf.select(cfg, "vimeo.raw_sources.download.output_dir", default="")
+    if not recordings_dir:
+        raise ValueError(
+            "vimeo.raw_sources.download.output_dir is not set. "
+            "Add it to config_local.yaml — must equal the folder Stage 1 (bulk-download) writes into."
+        )
+    _recordings_dir = Path(recordings_dir)
+
+    _output_file = _input_file.parent / f"{_input_file.stem}_processed{_input_file.suffix}"
 
     main(_input_file, _output_file, _recordings_dir)

@@ -19,7 +19,10 @@ nav:
       - Pre-Processing: processing.md
       - Add Descriptions with NLP: openai.md
   - Video Organization: video-organization.md
-  - Video Auto-Cut: presentation_detector.md
+  - Auto-Cut Pipeline:
+      - Overview: auto-cut-pipeline.md
+      - Vimeo Bulk Download: vimeo_download.md
+      - Presentation Detector (internals): presentation_detector.md
   - YouTube: youtube.md
   - Spread the Word:
       - LinkedIn: linkedin.md

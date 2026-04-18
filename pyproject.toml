@@ -12,12 +12,12 @@ readme = "README.md"
 license-files = [
     "LICENSE",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
     #    "pytanis>=0.9",
     # temp local update # TODO: remove once published
-    "pytanis>=0.9,<=1.0",
+    "pytanis>=0.10,<=1.0",
     "colorama>=0.4.6",
     "rich>=14.0.0",
     "structlog>=25.3.0",

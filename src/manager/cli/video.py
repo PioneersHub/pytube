@@ -1,6 +1,9 @@
 """Video file management CLI commands."""
 
 import json
+import threading
+from pathlib import Path
+from typing import Any
 
 import click
 from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
@@ -78,6 +81,152 @@ def download(ctx: click.Context, client_id: str | None, limit: int | None) -> No
         progress.stop()
 
     console.print("✓ Video download completed", style="green")
+
+
+@video.command(name="bulk-download")
+@click.option(
+    "--account",
+    "accounts_filter",
+    multiple=True,
+    help="Restrict to named account(s); default = all configured.",
+)
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Max videos per account (for smoke tests).",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the download plan; don't fetch anything.",
+)
+@click.pass_context
+def bulk_download(
+    ctx: click.Context,
+    accounts_filter: tuple[str, ...],
+    limit: int | None,
+    dry_run: bool,
+) -> None:
+    """Bulk-download raw long streams from any number of Vimeo source accounts.
+
+    Feeds the auto-cutter pipeline: videos land in
+    `vimeo.raw_sources.download.output_dir` (should equal the auto-cutter's
+    `input.folder`). Filenames preserve the Vimeo title so downstream tooling
+    still matches sessions to recordings.
+    """
+    from manager.scripts import vimeo_raw_download
+
+    console = ctx.obj["console"]
+
+    raw_sources = conf.get("vimeo", {}).get("raw_sources")
+    accounts = (raw_sources or {}).get("accounts") or []
+    if not accounts:
+        console.print(
+            "[red]No vimeo.raw_sources.accounts configured. "
+            "Add accounts to config_local.yaml before running bulk-download.[/red]"
+        )
+        ctx.exit(1)
+
+    try:
+        if dry_run:
+            summary = vimeo_raw_download.run(
+                conf, accounts_filter=accounts_filter or None, limit=limit, dry_run=True
+            )
+            _render_bulk_plan(console, summary)
+            return
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TextColumn("|"),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            tasks: dict[str, int] = {}
+            tasks_lock = threading.Lock()
+
+            def progress_cb(account_name: str, current: int, total: int, message: str) -> None:
+                with tasks_lock:
+                    if account_name not in tasks:
+                        tasks[account_name] = progress.add_task(f"[cyan]{account_name}[/cyan]", total=total)
+                    task_id = tasks[account_name]
+                progress.update(task_id, completed=current, description=f"[cyan]{account_name}[/cyan] {message}")
+
+            summary = vimeo_raw_download.run(
+                conf,
+                accounts_filter=accounts_filter or None,
+                limit=limit,
+                dry_run=False,
+                progress_cb=progress_cb,
+            )
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        ctx.exit(1)
+        return
+
+    _render_bulk_summary(console, summary, raw_sources.download.output_dir)
+
+
+def _render_bulk_plan(console: Any, summary: dict) -> None:
+    """Print the --dry-run plan as a Rich table."""
+    table = Table(title="Vimeo raw-stream bulk-download plan (dry run)")
+    table.add_column("Account", style="cyan")
+    table.add_column("Vimeo ID", style="yellow")
+    table.add_column("Title", style="white")
+    table.add_column("Target filename", style="green")
+
+    total = 0
+    for account_name, result in summary.items():
+        for entry in result.get("plan", []):
+            table.add_row(account_name, entry["vimeo_id"], entry.get("title") or "", Path(entry["target"]).name)
+            total += 1
+    console.print(table)
+    console.print(f"\n[bold]Total videos planned:[/bold] {total}")
+
+
+def _render_bulk_summary(console: Any, summary: dict, output_dir: str) -> None:
+    """Print post-run summary of downloads per account."""
+    table = Table(title="Vimeo raw-stream bulk-download summary")
+    table.add_column("Account", style="cyan")
+    table.add_column("Downloaded", style="green", justify="right")
+    table.add_column("Skipped", style="yellow", justify="right")
+    table.add_column("Failed", style="red", justify="right")
+
+    for account_name, result in summary.items():
+        table.add_row(
+            account_name,
+            str(len(result.get("downloaded", []))),
+            str(len(result.get("skipped", []))),
+            str(len(result.get("failed", []))),
+        )
+    console.print(table)
+    console.print(f"\nOutput directory: [dim]{output_dir}[/dim]")
+
+
+@video.command(name="map-recordings")
+@click.option("--dry-run", is_flag=True, help="Print the mapping without writing the YAML.")
+@click.option("--force", is_flag=True, help="Overwrite existing mapping YAML (hand edits will be lost).")
+@click.pass_context
+def map_recordings(ctx: click.Context, dry_run: bool, force: bool) -> None:
+    """Scan raw Vimeo filenames and write the room/day/period mapping YAML.
+
+    Output path comes from `pretalx.recording_mapping_yaml` in config. Hand-edit
+    the resulting YAML to fix typos or classify filenames the scanner skipped.
+    """
+    from video_processor import map_recordings as helper
+
+    console = ctx.obj["console"]
+    try:
+        path = helper.run(dry_run=dry_run, force=force)
+    except (FileExistsError, FileNotFoundError, ValueError, RuntimeError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        ctx.exit(1)
+        return
+    if path is not None:
+        console.print(f"[green]Mapping written to {path}[/green]")
 
 
 @video.command()

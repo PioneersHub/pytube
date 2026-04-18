@@ -213,12 +213,18 @@ class VideoPresenterDetector:
             traceback.print_exc()
 
     def extract_presentations_from_plan(self) -> None:
-        """
-        Extract presentations based on the processing plan
+        """Extract clips using the processing plan.
 
-        This method reads the processing plan and extracts presentations for all videos
-        that have been processed and have detected presentations.
+        Reads `processing_plan.json` from disk and runs FFmpeg extraction for each
+        video's detected segments. When the plan file is missing, runs detection
+        first so a cold-start `--extract` is a full pipeline run. Set
+        `make_processing_plan: true` + `extract_presentations: false` in the
+        config for an inspect-before-cut dry run.
         """
+        if not self.processing_plan_path.exists():
+            logger.info(f"No processing plan at {self.processing_plan_path} — running detection first.")
+            self.make_processing_plan()
+
         try:
             self.load_processing_plan()
             for plan in self.processing_plan:
@@ -868,18 +874,28 @@ class VideoPresenterDetector:
                     logger.info(f"✅ Extracted audio: {output_audio}")
 
     def _load_mapping_data(self):
-        """Load mapping data from file"""
-        try:
-            import polars as pl
+        """Load the session->recording mapping Parquet from disk.
 
-            # Read the mapping file from config
-            mapping_file = self.cfg.input.mapping_file
-            self.mapping_data = pl.read_parquet(mapping_file)
-            logger.info(f"Loaded mapping data from {mapping_file}")
-
-        except Exception as e:
-            logger.info(f"Warning: Could not load mapping file: {e}")
-            self.mapping_data = None
+        The path is read from `input.mapping_file`. Missing or empty values
+        raise immediately — downstream code can't pair sessions to video
+        segments without this, and silently continuing produced confusing
+        'No videos to process' no-ops.
+        """
+        mapping_file = self.cfg.input.mapping_file
+        if not mapping_file:
+            raise ValueError(
+                "input.mapping_file is not set in src/video_processor/config.yaml. "
+                "Run Stage 2 (process_talk_list.py) first, then point this key at the "
+                "*_processed.parquet it produced."
+            )
+        mapping_path = Path(mapping_file)
+        if not mapping_path.exists():
+            raise FileNotFoundError(
+                f"input.mapping_file points to a missing Parquet: {mapping_path}. "
+                "Run Stage 2 (process_talk_list.py) to generate it, or fix the path."
+            )
+        self.mapping_data = pl.read_parquet(mapping_path)
+        logger.info(f"Loaded mapping data from {mapping_path}")
 
     def get_output_folder(self, video_path: Path) -> str | None:
         """Get the output folder for a given video path from the Excel mapping"""
@@ -955,13 +971,16 @@ class VideoPresenterDetector:
                     logger.info(f"  - {video_path}")
 
 
+_DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+
 def main():
     """Main function with command line interface"""
     parser = argparse.ArgumentParser(description="Process conference videos")
     parser.add_argument(
         "--config",
-        default="config.yaml",
-        help="Path to configuration file (default: config.yaml)",
+        default=str(_DEFAULT_CONFIG_PATH),
+        help=f"Path to configuration file (default: {_DEFAULT_CONFIG_PATH})",
     )
     parser.add_argument(
         "--output",

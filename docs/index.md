@@ -10,6 +10,7 @@ in [Pretalx](https://github.com/pretalx/pretalx)
     * Scheduled publishing dates
     * Multi-channel support for different tracks
     * Release status monitoring
+    * Auto-cut raw livestreams into per-session clips — see [Auto-Cut Pipeline](auto-cut-pipeline.md)
 
 * **AI-Powered Content Generation:**
     * Support for multiple AI providers: OpenAI (GPT-3.5/4), Anthropic Claude, Google Gemini, Cohere

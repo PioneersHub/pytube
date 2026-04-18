@@ -1,5 +1,11 @@
 # Video Presentation Detector
 
+!!! note
+    This page describes the detector's internals. For the full pipeline
+    (Vimeo download → session mapping → break images → cutting → hand-off to
+    the publishing flow), see the
+    [Auto-Cut Pipeline guide](auto-cut-pipeline.md).
+
 A tool to automatically detect and extract presentations from videos of conferences, livestreams, or lectures that contain both presentations and break screens.
 
 ![recording-cuts.png](assets/images/recording-cuts.png)

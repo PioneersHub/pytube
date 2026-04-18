@@ -187,12 +187,128 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
     if config.get("event") and not config.event.get("program_url"):
         warnings.append("No event program URL configured - session links will be incomplete")
 
+    # Vimeo raw_sources (stage-1 bulk downloader). Only validates when the user
+    # has actually configured accounts; a user who never touches this feature is not blocked.
+    errors.extend(_maybe_validate_raw_sources(config))
+
     # Raise if requested and errors found
     if raise_on_error and errors:
         error_msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
         raise ValueError(error_msg)
 
     return errors, warnings
+
+
+def _maybe_validate_raw_sources(config: DictConfig) -> list[str]:
+    """Return raw_sources validation errors, or [] if the user hasn't configured it."""
+    raw_sources = (config.get("vimeo") or {}).get("raw_sources")
+    if raw_sources is None or not (raw_sources.get("accounts") or []):
+        return []
+    return _validate_raw_sources(raw_sources)
+
+
+_SELECTION_KEYS = ("folder_id", "title_contains", "title_regex")
+_ALLOWED_QUALITIES = ("best", "1080p", "720p", "480p")
+_MIN_CONCURRENT = 1
+
+
+def _validate_raw_source_account(idx: int, account, seen_names: set[str]) -> list[str]:
+    """Validate a single raw_sources account entry. Returns error strings."""
+    errors: list[str] = []
+    name = account.get("name") if hasattr(account, "get") else None
+    label = name or f"<index {idx}>"
+
+    if not name:
+        errors.append(f"vimeo.raw_sources.accounts[{idx}]: missing 'name'")
+    elif name in seen_names:
+        errors.append(f"vimeo.raw_sources.accounts: duplicate account name '{name}'")
+    else:
+        seen_names.add(name)
+
+    for field in ("access_token", "client_id", "client_secret"):
+        if not account.get(field):
+            errors.append(f"vimeo.raw_sources account '{label}': missing {field}")
+
+    selection = account.get("selection")
+    if selection is None:
+        errors.append(
+            f"vimeo.raw_sources account '{label}': selection must set exactly one of "
+            f"{', '.join(_SELECTION_KEYS)}"
+        )
+        return errors
+
+    set_keys = [k for k in _SELECTION_KEYS if selection.get(k)]
+    if len(set_keys) != 1:
+        errors.append(
+            f"vimeo.raw_sources account '{label}': selection must set exactly one of "
+            f"{', '.join(_SELECTION_KEYS)} (got {set_keys or 'none'})"
+        )
+    elif set_keys[0] == "folder_id" and not account.get("user_id"):
+        errors.append(
+            f"vimeo.raw_sources account '{label}': user_id required when selection.folder_id is set"
+        )
+    return errors
+
+
+def _validate_raw_source_download(download) -> list[str]:
+    """Validate the raw_sources.download sub-block."""
+    errors: list[str] = []
+    if download is None:
+        errors.append("vimeo.raw_sources.download: required")
+        return errors
+
+    output_dir = download.get("output_dir")
+    if not output_dir:
+        errors.append("vimeo.raw_sources.download.output_dir: required")
+    elif not Path(output_dir).exists():
+        errors.append(f"vimeo.raw_sources.download.output_dir: path {output_dir} does not exist")
+
+    quality = download.get("quality", "best")
+    if quality not in _ALLOWED_QUALITIES:
+        errors.append(
+            f"vimeo.raw_sources.download.quality: must be one of {', '.join(_ALLOWED_QUALITIES)} (got '{quality}')"
+        )
+
+    max_concurrent = download.get("max_concurrent", 2)
+    if not isinstance(max_concurrent, int) or max_concurrent < _MIN_CONCURRENT:
+        errors.append(
+            f"vimeo.raw_sources.download.max_concurrent: must be an int >= {_MIN_CONCURRENT} "
+            f"(got {max_concurrent!r})"
+        )
+
+    max_accounts_concurrent = download.get("max_accounts_concurrent")
+    if max_accounts_concurrent is not None and (
+        not isinstance(max_accounts_concurrent, int) or max_accounts_concurrent < _MIN_CONCURRENT
+    ):
+        errors.append(
+            f"vimeo.raw_sources.download.max_accounts_concurrent: must be an int >= {_MIN_CONCURRENT} "
+            f"(got {max_accounts_concurrent!r})"
+        )
+
+    retry_max_attempts = download.get("retry_max_attempts")
+    if retry_max_attempts is not None and (
+        not isinstance(retry_max_attempts, int) or retry_max_attempts < 0
+    ):
+        errors.append(
+            f"vimeo.raw_sources.download.retry_max_attempts: must be an int >= 0 "
+            f"(got {retry_max_attempts!r})"
+        )
+    return errors
+
+
+def _validate_raw_sources(raw_sources: DictConfig) -> list[str]:
+    """Validate `vimeo.raw_sources` block. Fail-fast rules per plan.
+
+    Called from `validate_config` only when `raw_sources.accounts` is non-empty.
+    """
+    errors: list[str] = []
+    accounts = raw_sources.get("accounts") or []
+    seen_names: set[str] = set()
+    for idx, account in enumerate(accounts):
+        errors.extend(_validate_raw_source_account(idx, account, seen_names))
+
+    errors.extend(_validate_raw_source_download(raw_sources.get("download")))
+    return errors
 
 
 def get_event_dir(config: DictConfig) -> Path:

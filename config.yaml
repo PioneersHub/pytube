@@ -8,6 +8,20 @@ vimeo:
   client_id: ""
   client_secret: ""
   access_token: ""
+  # Raw long-stream sources for the auto-cutter (stage 1 of raw -> auto-cut).
+  # Populate accounts in config_local.yaml. Each account selects videos by
+  # folder_id OR title_contains OR title_regex (exactly one).
+  # Files are saved with their Vimeo title as filename so that
+  # src/video_processor/process_talk_list.py can still match them.
+  raw_sources:
+    accounts: []                      # populated by the user in config_local.yaml
+    download:
+      output_dir: ""                  # should equal src/video_processor/config.yaml input.folder
+      quality: "best"                 # best | 1080p | 720p | 480p
+      max_concurrent: 2               # per-account concurrent video downloads
+      max_accounts_concurrent: 1      # concurrent accounts; default 1 = serial, set >1 to parallelize
+      retry_max_attempts: 3           # retry count on transient download failures (0 = no retry)
+      skip_existing: true
 # ########################################
 # ########################################
 dirs:
@@ -28,7 +42,17 @@ spreadsheets:
 # For API credentials, use the standard pytanis setup:
 # Follow the pytanis documentation to configure ~/.pytanis/credentials
 pretalx:
-  event_slug: "pretalx-uri-slug"
+  event_slug: "pyconde-pydata-2026"
+  # Path to the confirmed-sessions CSV export from Pretalx. Consumed by
+  # src/video_processor/process_talk_list.py to build the session->recording
+  # Parquet that the auto-cutter reads. Required for that stage; leave empty
+  # if you don't use the auto-cut pipeline.
+  sessions_csv: ""
+  # Path where `pytube video map-recordings` writes the filename -> {room, day,
+  # period} YAML. Hand-edit to fix typos or classify filenames the scanner
+  # couldn't parse. process_talk_list.py reads this to pair sessions with raw
+  # recordings.
+  recording_mapping_yaml: ""
   # Videos need to be split between the PyCon DE and PyData YouTube channels
   video_to_track:
     CODE: "Track"
@@ -57,9 +81,11 @@ claude:
 # ########################################
 # Event
 event:
-  name: "PyCon DE & PyData Berlin 2024"
-  url: "https://2024.pycon.de"
-  program_url: "https://2024.pycon.de/program/"
+  name: "PyCon DE & PyData 2026"
+  url: "https://2026.pycon.de"
+  program_url: "https://2026.pycon.de/program/"
+  # 24-hour. Sessions before this hour are classified Morning, on/after Afternoon.
+  lunch_break_cut: 13
 # ########################################
 # Local path to content images
 session_images: ""

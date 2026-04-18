@@ -3,11 +3,11 @@ input:
   # Single video file path (leave empty to use folder)
   video_path: ""
   # Folder containing videos to batch process (leave empty to use video_path)
-  folder: "/Volumes/DATA/_pyconde2025/videos/input"
+  folder: "/Volumes/DATA4T/vimeo-downloads/"
   # File extensions to process from input folder (comma-separated)
   extensions: "mp4,mkv,avi,mov,webm"
-  # Filenammping mapping from Parquet
-  mapping_file: "/Volumes/DATA/_pyconde2025/videos/pyconde-pydata-2025_sessions_processed.parquet"
+  # File mapping from Parquet
+  mapping_file: "/Volumes/DATA4T/vimeo-downloads/pyconde-pydata-2026_sessions_processed.parquet"
 
 
 # Video processing settings
@@ -20,7 +20,7 @@ video:
 # Break screen detection settings
 break_detection:
   # Directory for break screen images (leave empty for auto-detection)
-  images_dir: "/Volumes/DATA/_pyconde2025/break_slides"
+  images_dir: "/Volumes/DATA4T/2026/break_slides"
   # Similarity threshold for break screen detection (0-1)
   threshold: 0.95
   # Comparison method: "template" or "histogram"
@@ -28,7 +28,7 @@ break_detection:
   # Whether to auto-detect break screens if none provided
   auto_detect: true
   # Directory to save detected break screens
-  detected_screens_dir: "/Volumes/DATA/_pyconde2025/break_screens_detected"
+  detected_screens_dir: "/Volumes/DATA4T/2026/break_slides/break_screens_detected"
 
 # Presentation detection settings
 presentation_detection:
@@ -46,8 +46,12 @@ presentation_detection:
 # Output settings
 output:
   # Base output folder for extracted presentations
-  folder: "/Volumes/DATA/_pyconde2025/videos/output"
-  # Whether to make a processing plan: detect presentations in video and save to JSON
+  folder: "/Volumes/DATA4T/2026/output"
+  # When true, runs detection WITHOUT extracting clips — writes
+  # processing_plan.json only. Useful for reviewing detected cut timestamps
+  # before committing to FFmpeg extraction. When false (default), detection
+  # runs automatically the first time `extract_presentations: true` is used;
+  # subsequent runs reuse the existing plan.
   make_processing_plan: false
   # Whether to extract detected presentations as separate files
   extract_presentations: true
@@ -60,12 +64,3 @@ output:
 event:
   # 24 hrs format. Session before will be mapped to Morning, after to Afternoon
   lunch_break_cut: 13
-
-# Vimeo Downloader Configuration
-search:
-  query: "PyCon"
-  pattern: "2025"
-  max_videos: 25
-
-save_to:
-  directory: "/Volumes/DATA/_pyconde2025/videos/input"
