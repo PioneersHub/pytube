@@ -10,11 +10,44 @@ from omegaconf import OmegaConf
 from video_processor.presentation_detector import (
     VideoPresenterDetector,
     _format_detection_batch_table,
+    align_presession_starts_to_schedule,
     collect_video_paths,
     duration_nearest_slot_gap_min,
     nearest_slot_minutes,
     parse_pretalx_duration_to_seconds,
 )
+
+
+def test_align_presession_starts_to_schedule() -> None:
+    assert align_presession_starts_to_schedule([300.0, 600.0], 2, opens_in_talk=False) == [300.0, 600.0]
+    assert align_presession_starts_to_schedule([400.0], 2, opens_in_talk=True) == [0.0, 400.0]
+    assert align_presession_starts_to_schedule([], 1, opens_in_talk=True) == [0.0]
+    assert align_presession_starts_to_schedule([100.0], 1, opens_in_talk=False) == [100.0]
+    assert align_presession_starts_to_schedule([100.0], 2, opens_in_talk=False) is None
+    assert align_presession_starts_to_schedule([], 2, opens_in_talk=True) is None
+
+
+def test_two_phase_skips_legacy_recovery_helpers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Oversized refine and nth Pre-Session edge are legacy-only when two_phase_detection is on."""
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {"two_phase_detection": True},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    assert det._next_presession_to_talk_edge_after_first_talk(None, 0.0, 100.0) is None
+    seg_end = 5000.0
+    file_dur = 6000.0
+    assert det._refine_presentation_end_if_oversized(None, 0.0, seg_end, file_dur) == seg_end
 
 
 def test_duration_nearest_slot_gap_min() -> None:

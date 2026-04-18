@@ -1,7 +1,17 @@
 """
-Video Presentation Detector - Automatically detects and extracts presentations
-from conference or livestream recordings by finding transitions between
-break screens and presentations.
+Video Presentation Detector — finds talk segments (presentation vs break slides) in recordings.
+
+Detection modes (``presentation_detection.two_phase_detection`` in config):
+
+- **Two-phase (default):** Scan the file for every Pre-Session → talk transition
+  (``start_break``), align those times to the scheduled row count, then for each
+  session search **only** for End-Stream (``end_break``) in the window from after
+  ``end_search_after_start_sec`` until the **next** session start or EOF. This
+  avoids seeking End-Stream globally while the cursor is deep in a talk.
+
+- **Legacy:** Iterative ``find_next_presentation`` (End-Stream first when already
+  in a talk, then next opening), with oversized-segment grid recovery and optional
+  Pre-Session boundary fallback.
 
 Supports batch processing of multiple videos from an input folder.
 """
@@ -79,6 +89,30 @@ def parse_pretalx_duration_to_seconds(value: str | None) -> float | None:  # noq
     except ValueError:
         pass
     return None
+
+
+def align_presession_starts_to_schedule(
+    raw_edges: list[float], n_scheduled: int, opens_in_talk: bool
+) -> list[float] | None:
+    """
+    Map ordered Pre-Session → talk leave times to ``n_scheduled`` session starts.
+
+    If the file opens in a talk (no break slide at t=0), session 0 starts at 0.0
+    and the next ``n_scheduled - 1`` edges are used for sessions 1 … N−1.
+    Otherwise the first ``n_scheduled`` edges are used. Returns None if there are
+    not enough edges.
+    """
+    if n_scheduled <= 0:
+        return []
+    ordered = sorted(float(x) for x in raw_edges)
+    if opens_in_talk:
+        need = n_scheduled - 1
+        if len(ordered) < need:
+            return None
+        return [0.0] + ordered[:need]
+    if len(ordered) < n_scheduled:
+        return None
+    return ordered[:n_scheduled]
 
 
 def collect_video_paths(folder: Path, extensions: str) -> list[Path]:
@@ -1007,6 +1041,9 @@ class VideoPresenterDetector:
             OmegaConf.select(self.cfg, "presentation_detection.use_schedule_duration_for_end_search", default=True)
         )
 
+    def _two_phase_detection_enabled(self) -> bool:
+        return bool(OmegaConf.select(self.cfg, "presentation_detection.two_phase_detection", default=True))
+
     def build_session_report(
         self,
         plan: dict,
@@ -1265,7 +1302,7 @@ class VideoPresenterDetector:
         )
         return result, best_match_overall
 
-    def find_next_presentation(  # noqa: PLR0915, PLR0911
+    def find_next_presentation(  # noqa: PLR0915, PLR0911, PLR0912, PLR0913
         self,
         cap: cv2.VideoCapture,
         current_time: float,
@@ -1508,6 +1545,8 @@ class VideoPresenterDetector:
         they are not used to clip this recovery grid (otherwise we miss End-Stream and never split
         into the next session).
         """
+        if self._two_phase_detection_enabled():
+            return presentation_end
         max_min = float(
             OmegaConf.select(self.cfg, "presentation_detection.max_presentation_duration_min", default=90.0)
         )
@@ -1581,6 +1620,201 @@ class VideoPresenterDetector:
         )
         return presentation_end
 
+    def _collect_all_presession_to_talk_edges(
+        self, cap: cv2.VideoCapture, scan_dur: float
+    ) -> list[float]:
+        """
+        Dense forward scan over ``[0, scan_dur)`` for every Pre-Session → talk transition
+        (``start_break`` True → False), refined with ``binary_search_transition``.
+        """
+        if not self.break_references_start:
+            return []
+        edge_step = float(
+            OmegaConf.select(
+                self.cfg,
+                "presentation_detection.presession_boundary_scan_step_sec",
+                default=5.0,
+            )
+        )
+        edge_step = max(2.0, min(edge_step, 15.0))
+        scan_to = float(scan_dur)
+        min_interval = float(self.cfg.presentation_detection.min_interval)
+        tag = self._tag()
+
+        t0 = self.get_frame_at_time(cap, 0.0)
+        prev_pre, _, _ = self.is_break_screen(t0, "start_break")
+        t = edge_step
+        hits: list[float] = []
+        while t <= scan_to:
+            fr = self.get_frame_at_time(cap, t)
+            cur_pre, _, _ = self.is_break_screen(fr, "start_break")
+            if prev_pre and not cur_pre:
+                lo = max(0.0, t - edge_step)
+                hi = min(t, scan_to)
+                refined, _ = self.binary_search_transition(cap, lo, hi, False)
+                if not hits or refined - hits[-1] >= min_interval:
+                    hits.append(refined)
+                    logger.info(
+                        f"{tag}Pre-Session→talk edge #{len(hits)} at {timedelta(seconds=int(refined))}"
+                    )
+            prev_pre = cur_pre
+            t += edge_step
+        return hits
+
+    def _grid_scan_first_end_break(
+        self,
+        cap: cv2.VideoCapture,
+        scan_lo: float,
+        scan_hi: float,
+        video_duration: float,
+        presentation_start: float,
+    ) -> float | None:
+        """First presentation→End-Stream transition in ``[scan_lo, scan_hi)`` via grid + relax passes."""
+        step = float(
+            OmegaConf.select(
+                self.cfg,
+                "presentation_detection.oversized_segment_scan_step_sec",
+                default=45.0,
+            )
+        )
+        step = max(15.0, min(step, 120.0))
+        scan_lo = float(scan_lo)
+        scan_hi = float(scan_hi)
+        if scan_hi <= scan_lo + 1e-6:
+            return None
+
+        relax_list = OmegaConf.select(
+            self.cfg,
+            "presentation_detection.oversized_end_break_relax_deltas",
+            default=None,
+        )
+        if relax_list is None:
+            relax_list = [0.0, 0.06, 0.1, 0.14]
+        elif isinstance(relax_list, (int, float)):
+            relax_list = [float(relax_list)]
+        else:
+            relax_list = [float(x) for x in list(relax_list)]
+
+        tag = self._tag()
+        for relax in relax_list:
+            t = scan_lo
+            prev_fr = self.get_frame_at_time(cap, t)
+            prev_br = self.is_break_screen(prev_fr, "end_break", threshold_relax=relax)[0]
+            t += step
+            while t < scan_hi:
+                fr = self.get_frame_at_time(cap, t)
+                is_br = self.is_break_screen(fr, "end_break", threshold_relax=relax)[0]
+                if not prev_br and is_br:
+                    lo = max(presentation_start, t - step)
+                    hi = min(t, video_duration)
+                    refined_end, _ = self.binary_search_transition(
+                        cap, lo, hi, True, threshold_relax=relax
+                    )
+                    logger.info(
+                        f"{tag}Grid End-Stream at {timedelta(seconds=int(refined_end))}"
+                        f"{f' (end_break_relax={relax:.2f})' if relax > 0 else ''}"
+                    )
+                    return refined_end
+                prev_br = is_br
+                t += step
+        return None
+
+    def _find_first_end_break_in_interval(
+        self,
+        cap: cv2.VideoCapture,
+        lo: float,
+        hi: float,
+        video_duration: float,
+        presentation_start: float,
+    ) -> float | None:
+        """First ``end_break`` transition in ``[lo, hi)`` (gallop + binary search, then grid)."""
+        lo = float(lo)
+        hi = float(hi)
+        vd = float(video_duration)
+        hi = min(hi, vd)
+        if hi <= lo + float(self.cfg.presentation_detection.min_interval):
+            return None
+        bracket = self._gallop_first_state_change(cap, lo, hi, start_is_break=False)
+        if bracket is not None:
+            prev_t, next_t = bracket
+            end_t, _ = self.binary_search_transition(cap, prev_t, next_t, True, threshold_relax=0.0)
+            return min(end_t, hi)
+        return self._grid_scan_first_end_break(cap, lo, hi, vd, presentation_start)
+
+    def _detect_presentations_two_phase(
+        self,
+        cap: cv2.VideoCapture,
+        scan_dur: float,
+        plan: dict,
+    ) -> list[tuple[float, float]]:
+        """Session starts from all Pre-Session→talk edges, then End-Stream per bounded window."""
+        pres_rows: list[dict] = list(plan.get("presentations") or [])
+        n = len(pres_rows)
+        if n == 0:
+            return []
+
+        end_off = float(
+            OmegaConf.select(self.cfg, "presentation_detection.end_search_after_start_sec", default=300.0)
+        )
+        fallback_no_end = bool(
+            OmegaConf.select(
+                self.cfg,
+                "presentation_detection.fallback_segment_if_no_end_stream",
+                default=True,
+            )
+        )
+        min_interval = float(self.cfg.presentation_detection.min_interval)
+        tag = self._tag()
+
+        f0 = self.get_frame_at_time(cap, 0.0)
+        opens_in_talk = not self.is_break_screen(f0, "any_break")[0]
+        raw = self._collect_all_presession_to_talk_edges(cap, scan_dur)
+        starts = align_presession_starts_to_schedule(raw, n, opens_in_talk)
+        if starts is None:
+            need = n - 1 if opens_in_talk else n
+            logger.error(
+                f"{tag}Two-phase detection: need at least {need} Pre-Session→talk edge(s); "
+                f"got {len(raw)}. Cannot align to {n} scheduled row(s)."
+            )
+            return []
+
+        out: list[tuple[float, float]] = []
+        for i in range(n):
+            hi = starts[i + 1] if i + 1 < n else scan_dur
+            hi = min(float(hi), float(scan_dur))
+            st = float(starts[i])
+            lo = max(st + min_interval, st + end_off)
+            if lo >= hi:
+                lo = max(st + min_interval, min(st + end_off, hi - min_interval - 1e-6))
+            if lo >= hi - 1e-6:
+                logger.warning(
+                    f"{tag}Session {i + 1}: no window before next start for End-Stream search "
+                    f"(talk start {timedelta(seconds=int(st))} → next boundary {timedelta(seconds=int(hi))}); "
+                    f"using next boundary as segment end."
+                )
+                out.append((st, hi))
+                continue
+
+            found = self._find_first_end_break_in_interval(cap, lo, hi, scan_dur, st)
+            if found is not None:
+                end_t = min(found, hi)
+                out.append((st, end_t))
+            elif fallback_no_end:
+                logger.warning(
+                    f"{tag}Session {i + 1}: no End-Stream in "
+                    f"{timedelta(seconds=int(lo))} … {timedelta(seconds=int(hi))}; "
+                    f"using next session start (or EOF) as end."
+                )
+                out.append((st, hi))
+            else:
+                logger.error(
+                    f"{tag}Session {i + 1}: no End-Stream in window and "
+                    f"fallback_segment_if_no_end_stream is false — using next boundary."
+                )
+                out.append((st, hi))
+
+        return out
+
     def _next_presession_to_talk_edge_after_first_talk(
         self,
         cap: cv2.VideoCapture,
@@ -1597,6 +1831,8 @@ class VideoPresenterDetector:
         use the **second** leave in this scan, not the first).
         Uses a **dense** time step so brief Pre-Session slides are not skipped.
         """
+        if self._two_phase_detection_enabled():
+            return None
         if not self.break_references_start:
             return None
         end_off = float(
@@ -1694,7 +1930,9 @@ class VideoPresenterDetector:
 
     def detect_all_presentations(self, plan: dict) -> list[tuple[float, float]]:  # noqa: PLR0915
         """
-        Detect all presentations in the video using binary search approach
+        Detect all presentations: two-phase (all Pre-Session→talk edges, then End-Stream per window)
+        when ``presentation_detection.two_phase_detection`` is true and Pre-Session refs exist; otherwise
+        the legacy iterative ``find_next_presentation`` loop.
         """
         # Start timing
         start_time = time.time()
@@ -1734,36 +1972,52 @@ class VideoPresenterDetector:
 
         self._refresh_break_detection_refs()
 
-        # Find all presentations
-        presentations = []
-        current_time = 0
-
         pres_rows: list[dict] = list(plan.get("presentations") or [])
+        use_two_phase = (
+            self._two_phase_detection_enabled()
+            and bool(pres_rows)
+            and bool(self.break_references_start)
+        )
+        if use_two_phase:
+            presentations = self._detect_presentations_two_phase(cap, scan_dur, plan)
+        else:
+            if (
+                self._two_phase_detection_enabled()
+                and bool(pres_rows)
+                and not self.break_references_start
+            ):
+                logger.warning(
+                    "two_phase_detection is enabled but no Pre-Session (start_break) references are "
+                    "loaded — falling back to legacy iterative detection. "
+                    "Set break_detection.start_ref_substrings or disable two_phase_detection."
+                )
+            presentations = []
+            current_time = 0
 
-        while True:
-            row = pres_rows[len(presentations)] if len(presentations) < len(pres_rows) else None
-            result = self.find_next_presentation(
-                cap,
-                current_time,
-                scan_dur,
-                expected_session=row,
-                scheduled_session_count=len(pres_rows),
-                closing_segment_index=len(presentations),
-            )
+            while True:
+                row = pres_rows[len(presentations)] if len(presentations) < len(pres_rows) else None
+                result = self.find_next_presentation(
+                    cap,
+                    current_time,
+                    scan_dur,
+                    expected_session=row,
+                    scheduled_session_count=len(pres_rows),
+                    closing_segment_index=len(presentations),
+                )
 
-            if result is None:
-                break
+                if result is None:
+                    break
 
-            start_time_sec, end_time_sec, _, _ = result
-            presentations.append((start_time_sec, end_time_sec))
+                start_time_sec, end_time_sec, _, _ = result
+                presentations.append((start_time_sec, end_time_sec))
 
-            # Move past this presentation for next search
-            current_time = end_time_sec
+                # Move past this presentation for next search
+                current_time = end_time_sec
 
-            # Show overall progress
-            progress = (current_time / duration) * 100
-            logger.info(f"Overall progress: {progress:.1f}% of video processed")
-            logger.info(f"Found {len(presentations)} presentations so far")
+                # Show overall progress
+                progress = (current_time / duration) * 100
+                logger.info(f"Overall progress: {progress:.1f}% of video processed")
+                logger.info(f"Found {len(presentations)} presentations so far")
 
         cap.release()
 
@@ -2139,10 +2393,11 @@ def _format_detection_batch_table(results: list[dict]) -> str:
         found = sr.get("segments_found")
         exp_s = "—" if exp is None else str(int(exp))
         found_s = "—" if found is None else str(int(found))
-        if isinstance(exp, int) and isinstance(found, int):
-            count_s = "OK" if exp == found else "MISMATCH"
-        else:
-            count_s = "—"
+        count_s = (
+            ("OK" if exp == found else "MISMATCH")
+            if isinstance(exp, int) and isinstance(found, int)
+            else "—"
+        )
         qp = sr.get("quality_passed")
         if qp is True:
             q_s = "PASS"
