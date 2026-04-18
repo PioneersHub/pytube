@@ -65,6 +65,20 @@ presentation_detection:
   gallop_max_step: 3600
   # Seconds after presentation start before searching for presentation→break (avoid instant false end)
   end_search_after_start_sec: 300
+  # Use each plan row's Pretalx ``Duration`` to bound End-Stream search (asymmetric slack by slot).
+  use_schedule_duration_for_end_search: true
+  # Optional override of default late/early slack (minutes) per standard slot. Values: [late, early].
+  # Defaults: 30→[5,10], 45→[5,15], 60→[10,15], 90→[10,15].
+  # schedule_slack_by_slot_min:
+  #   30: [5, 10]
+  #   45: [5, 15]
+  #   60: [10, 15]
+  #   90: [10, 15]
+  # If the detector returns a talk longer than this (minutes), re-scan from talk start for the first
+  # End-Stream (end_break) transition within this window — recovers missed cuts between back-to-back talks.
+  max_presentation_duration_min: 90
+  # Grid step when re-scanning an oversized segment (seconds); smaller = finer, slower.
+  oversized_segment_scan_step_sec: 120
   # Sampling interval for break screen detection in seconds
   sampling_interval: 30
   # Maximum number of samples to take for break screen detection

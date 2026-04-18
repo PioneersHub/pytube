@@ -11,6 +11,8 @@ from video_processor.presentation_detector import (
     VideoPresenterDetector,
     collect_video_paths,
     duration_nearest_slot_gap_min,
+    nearest_slot_minutes,
+    parse_pretalx_duration_to_seconds,
 )
 
 
@@ -19,6 +21,52 @@ def test_duration_nearest_slot_gap_min() -> None:
     assert duration_nearest_slot_gap_min(30 * 60, slots) == 0.0
     assert duration_nearest_slot_gap_min(35 * 60, slots) == 5.0  # noqa: PLR2004
     assert duration_nearest_slot_gap_min(88 * 60, slots) == 2.0  # noqa: PLR2004
+
+
+def test_parse_pretalx_duration_to_seconds() -> None:
+    assert parse_pretalx_duration_to_seconds(None) is None
+    assert parse_pretalx_duration_to_seconds("") is None
+    assert parse_pretalx_duration_to_seconds("30") == 30 * 60.0
+    assert parse_pretalx_duration_to_seconds("45.5") == 45.5 * 60.0
+    assert parse_pretalx_duration_to_seconds("1:30:00") == 3600.0 + 30 * 60.0
+    assert parse_pretalx_duration_to_seconds("45:30") == 45 * 60.0 + 30.0
+
+
+def test_nearest_slot_minutes() -> None:
+    assert nearest_slot_minutes(30.0) == 30  # noqa: PLR2004
+    assert nearest_slot_minutes(45.0) == 45  # noqa: PLR2004
+    assert nearest_slot_minutes(40.0) == 45  # noqa: PLR2004
+    # Tie at 37.5 min from 30 and 45: min() picks the first smallest distance → 30.
+    assert nearest_slot_minutes(37.5) == 30  # noqa: PLR2004
+    assert nearest_slot_minutes(25.0) == 30  # noqa: PLR2004
+
+
+@pytest.mark.parametrize(
+    ("slot", "late", "early"),
+    [
+        (30, 5.0, 10.0),
+        (45, 5.0, 15.0),
+        (60, 10.0, 15.0),
+        (90, 10.0, 15.0),
+    ],
+)
+def test_get_schedule_slack_minutes_defaults(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, slot: int, late: float, early: float
+) -> None:
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.parquet")},
+            "video": {"detection_resize": True, "detection_size": [320, 180]},
+            "break_detection": {"threshold": 0.95},
+            "presentation_detection": {"use_schedule_duration_for_end_search": True},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    pl.DataFrame({"Recording": [], "Output_Folder": []}).write_parquet(tmp_path / "m.parquet")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    assert det._get_schedule_slack_minutes(slot) == (late, early)
 
 
 def test_collect_video_paths_empty_dir(tmp_path: Path) -> None:

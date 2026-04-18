@@ -36,6 +36,51 @@ def duration_nearest_slot_gap_min(duration_sec: float, expected_lengths_min: lis
     return min(abs(d_min - float(s)) for s in expected_lengths_min)
 
 
+STANDARD_SLOT_MINUTES: tuple[int, ...] = (30, 45, 60, 90)
+
+# Default (late_min, early_min) vs scheduled slot — see presentation_detection.schedule_slack_by_slot_min
+_DEFAULT_SCHEDULE_SLACK: dict[int, tuple[float, float]] = {
+    30: (5.0, 10.0),
+    45: (5.0, 15.0),
+    60: (10.0, 15.0),
+    90: (10.0, 15.0),
+}
+
+
+def nearest_slot_minutes(duration_min: float) -> int:
+    """Map a duration in minutes to the nearest standard slot (30/45/60/90)."""
+    return min(STANDARD_SLOT_MINUTES, key=lambda s: abs(float(s) - duration_min))
+
+
+def parse_pretalx_duration_to_seconds(value: str | None) -> float | None:  # noqa: PLR0911
+    """
+    Parse Pretalx ``Duration`` cell to seconds.
+    Accepts integer minutes (``30``), decimal minutes, ``HH:MM``, ``HH:MM:SS``, ``MM:SS``.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if re.fullmatch(r"\d+", s):
+        return float(s) * 60.0
+    if re.fullmatch(r"\d+\.\d+", s):
+        return float(s) * 60.0
+    # Time-of-day style
+    tail = s.split(" ")[-1] if " " in s else s
+    parts = tail.replace(",", ".").split(":")
+    try:
+        if len(parts) == 3:  # noqa: PLR2004
+            h, m, sec = (float(parts[0]), float(parts[1]), float(parts[2]))
+            return h * 3600.0 + m * 60.0 + sec
+        if len(parts) == 2:  # noqa: PLR2004
+            m, sec = float(parts[0]), float(parts[1])
+            return m * 60.0 + sec
+    except ValueError:
+        pass
+    return None
+
+
 def collect_video_paths(folder: Path, extensions: str) -> list[Path]:
     """Return sorted unique video paths for comma-separated extensions (case-insensitive)."""
     if not folder.is_dir():
@@ -412,6 +457,9 @@ class VideoPresenterDetector:
         """Get a frame at a specific time in the video"""
         self._stats_frame_reads += 1
         fps = self._video_fps if self._video_fps is not None else float(cap.get(cv2.CAP_PROP_FPS)) or 30.0
+        if self._video_total_frames is not None and fps > 0:
+            max_t = max(0.0, float(self._video_total_frames - 1) / fps)
+            time_sec = max(0.0, min(float(time_sec), max_t))
         use_msec = bool(OmegaConf.select(self.cfg.video, "seek_use_pos_msec", default=False))
         if use_msec:
             cap.set(cv2.CAP_PROP_POS_MSEC, float(time_sec) * 1000.0)
@@ -704,16 +752,14 @@ class VideoPresenterDetector:
         self,
         cap: cv2.VideoCapture,
         t_start: float,
-        video_duration: float,
+        scan_end: float,
         start_is_break: bool,
     ) -> tuple[float, float] | None:
         """
         From t_start (inclusive) where break-state is start_is_break, advance until the state flips
-        or the end of the file. Returns (prev_time, next_time) with the same state at prev_time and
-        a different state at next_time, bracketing one transition.
+        or ``scan_end``. Returns (prev_time, next_time) bracketing one transition.
 
-        When ``start_is_break`` is False (inside a talk), only ``end_ref_substrings`` images
-        count as "break" so the intro/welcome slide is not mistaken for the end of the talk.
+        ``scan_end`` is typically ``video_duration`` or a schedule-derived bound (first plausible End-Stream).
         """
         purpose = "any_break" if start_is_break else "end_break"
         chunk = float(self.cfg.presentation_detection.chunk_size)
@@ -722,17 +768,33 @@ class VideoPresenterDetector:
         max_step = max(raw_max, chunk * 2.0)
         prev = float(t_start)
         step = chunk
-        while prev < video_duration - 1e-9:
-            nxt = min(prev + step, video_duration)
+        while prev < scan_end - 1e-9:
+            nxt = min(prev + step, scan_end)
             fr = self.get_frame_at_time(cap, nxt)
             is_br, _, _ = self.is_break_screen(fr, purpose)
             if is_br != start_is_break:
                 return (prev, nxt)
             prev = nxt
             step = min(step * 2.0, max_step)
-            if nxt >= video_duration - 1e-9:
+            if nxt >= scan_end - 1e-9:
                 break
         return None
+
+    def _get_schedule_slack_minutes(self, slot_min: int) -> tuple[float, float]:
+        """Return (late_min, early_min) for a standard slot; optional YAML override."""
+        o = OmegaConf.select(self.cfg, "presentation_detection.schedule_slack_by_slot_min", default=None)
+        if o is not None:
+            for key in (slot_min, str(slot_min)):
+                if key in o:
+                    v = o[key]
+                    if isinstance(v, (list, tuple)) and len(v) >= 2:  # noqa: PLR2004
+                        return float(v[0]), float(v[1])
+        return _DEFAULT_SCHEDULE_SLACK.get(slot_min, (10.0, 15.0))
+
+    def _use_schedule_duration_for_end_search(self) -> bool:
+        return bool(
+            OmegaConf.select(self.cfg, "presentation_detection.use_schedule_duration_for_end_search", default=True)
+        )
 
     def binary_search_transition(
         self,
@@ -791,14 +853,18 @@ class VideoPresenterDetector:
         )
         return result, best_match_overall
 
-    def find_next_presentation(  # noqa: PLR0915
+    def find_next_presentation(  # noqa: PLR0915, PLR0911
         self,
         cap: cv2.VideoCapture,
         current_time: float,
         video_duration: float,
+        expected_session: dict | None = None,
     ) -> tuple[float, float, int, int] | None:
         """
-        Find the next presentation in the video
+        Find the next presentation in the video.
+
+        ``expected_session`` is the matching row from ``processing_plan.yaml`` ``presentations`` (Pretalx CSV),
+        used to bound End-Stream search via ``Duration`` when enabled.
         """
         chunk_size = float(self.cfg.presentation_detection.chunk_size)
 
@@ -862,6 +928,22 @@ class VideoPresenterDetector:
             )
             end_search_start = presentation_start + end_offset
 
+            sched_hi: float | None = None
+            if self._use_schedule_duration_for_end_search() and expected_session:
+                ds = parse_pretalx_duration_to_seconds(expected_session.get("Duration"))
+                if ds and ds > 0:
+                    slot = nearest_slot_minutes(ds / 60.0)
+                    late_m, early_m = self._get_schedule_slack_minutes(slot)
+                    sched_hi = min(video_duration, presentation_start + ds + late_m * 60.0)
+                    # Earliest plausible end: D − early, but not before end_search_after_start_sec (plan).
+                    earliest_from_sched = presentation_start + max(end_offset, ds - early_m * 60.0)
+                    end_search_start = max(end_search_start, earliest_from_sched)
+                    logger.info(
+                        f"{tag}Schedule-guided end search: Duration≈{ds / 60.0:.0f} min (slot {slot} min), "
+                        f"slack +{late_m:.0f}/−{early_m:.0f} min → End-Stream window "
+                        f"{timedelta(seconds=int(earliest_from_sched))} … {timedelta(seconds=int(sched_hi))}"
+                    )
+
             fr_end = self.get_frame_at_time(cap, end_search_start)
             is_break_end, score_end, break_type_end = self.is_break_screen(fr_end, "end_break")
             logger.info(
@@ -874,10 +956,37 @@ class VideoPresenterDetector:
                 lo = max(0.0, end_search_start - chunk_size)
                 presentation_end, end_break_type = self.binary_search_transition(cap, lo, end_search_start, True)
             else:
+                scan_end = sched_hi if sched_hi is not None else video_duration
                 bracket_end = self._gallop_first_state_change(
-                    cap, end_search_start, video_duration, start_is_break=False
+                    cap, end_search_start, scan_end, start_is_break=False
                 )
+                if bracket_end is None and sched_hi is not None and sched_hi < video_duration - 1.0:
+                    logger.info(
+                        f"{tag}No End-Stream before schedule bound; continuing search from "
+                        f"{timedelta(seconds=int(sched_hi))} to end of file"
+                    )
+                    bracket_end = self._gallop_first_state_change(
+                        cap, sched_hi, video_duration, start_is_break=False
+                    )
                 if bracket_end is None:
+                    refined_end = self._refine_presentation_end_if_oversized(
+                        cap,
+                        presentation_start,
+                        video_duration,
+                        video_duration,
+                        schedule_scan_cap=sched_hi,
+                    )
+                    if refined_end < video_duration - 1.0:
+                        logger.info(
+                            f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
+                            + f"{timedelta(seconds=int(refined_end))}"
+                            + f" (Duration: {timedelta(seconds=int(refined_end - presentation_start))})"
+                        )
+                        logger.info(
+                            f"Break screen types: Start={start_break_type + 1 if start_break_type >= 0 else 'Unknown'}, "
+                            + "End=refined"
+                        )
+                        return (presentation_start, refined_end, start_break_type, -1)
                     logger.info("Presentation continues until the end of video")
                     logger.info(
                         f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
@@ -886,6 +995,14 @@ class VideoPresenterDetector:
                     return (presentation_start, video_duration, start_break_type, -1)
                 prev_e, next_e = bracket_end
                 presentation_end, end_break_type = self.binary_search_transition(cap, prev_e, next_e, True)
+
+            presentation_end = self._refine_presentation_end_if_oversized(
+                cap,
+                presentation_start,
+                presentation_end,
+                video_duration,
+                schedule_scan_cap=sched_hi,
+            )
 
             logger.info(
                 f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
@@ -907,8 +1024,93 @@ class VideoPresenterDetector:
         logger.info("No more presentations found")
         return None
 
-    def _validate_detected_presentation_durations(self, presentations: list[tuple[float, float]]) -> None:
-        """Log warnings when segment lengths are far from configured slot lengths (validation only)."""
+    def _refine_presentation_end_if_oversized(
+        self,
+        cap: cv2.VideoCapture,
+        presentation_start: float,
+        presentation_end: float,
+        video_duration: float,
+        schedule_scan_cap: float | None = None,
+    ) -> float:
+        """
+        If the primary search merged multiple talks, the segment can exceed max talk length.
+        Grid-scan the first max_presentation_duration_min for the first presentation→End-Stream transition.
+        When ``schedule_scan_cap`` is set (presentation_start + D + late), the grid does not scan past it.
+        """
+        max_min = float(
+            OmegaConf.select(self.cfg, "presentation_detection.max_presentation_duration_min", default=90.0)
+        )
+        if max_min <= 0:
+            return presentation_end
+        max_sec = max_min * 60.0
+        if presentation_end - presentation_start <= max_sec:
+            return presentation_end
+
+        end_offset = float(
+            OmegaConf.select(self.cfg, "presentation_detection.end_search_after_start_sec", default=300.0)
+        )
+        step = float(
+            OmegaConf.select(self.cfg, "presentation_detection.oversized_segment_scan_step_sec", default=120.0)
+        )
+        min_interval = float(self.cfg.presentation_detection.min_interval)
+        tag = self._tag()
+
+        logger.info(
+            f"{tag}Segment {timedelta(seconds=int(presentation_start))} → "
+            f"{timedelta(seconds=int(presentation_end))} is longer than {max_min:.0f} min; "
+            f"grid-scanning for first End-Stream in the first {max_min:.0f} min of this talk..."
+        )
+
+        scan_lo = presentation_start + end_offset
+        scan_hi = min(presentation_end, presentation_start + max_sec)
+        if schedule_scan_cap is not None:
+            scan_hi = min(scan_hi, schedule_scan_cap)
+        if scan_hi <= scan_lo + min_interval:
+            return presentation_end
+
+        t = scan_lo
+        prev_fr = self.get_frame_at_time(cap, t)
+        prev_br = self.is_break_screen(prev_fr, "end_break")[0]
+        t += step
+        while t < scan_hi:
+            fr = self.get_frame_at_time(cap, t)
+            is_br = self.is_break_screen(fr, "end_break")[0]
+            if not prev_br and is_br:
+                lo = max(presentation_start, t - step)
+                hi = min(t, video_duration)
+                refined_end, _ = self.binary_search_transition(cap, lo, hi, True)
+                logger.info(
+                    f"{tag}Refined talk end to {timedelta(seconds=int(refined_end))} "
+                    f"(duration {timedelta(seconds=int(refined_end - presentation_start))})"
+                )
+                return refined_end
+            prev_br = is_br
+            t += step
+
+        logger.info(
+            f"{tag}No End-Stream transition in first {max_min:.0f} min (grid step {step:.0f}s); "
+            f"keeping detector end — tune threshold or step size if cuts are still wrong."
+        )
+        return presentation_end
+
+    def _validate_detected_presentation_durations(
+        self, presentations: list[tuple[float, float]], plan: dict | None = None
+    ) -> None:
+        """Log warnings when segment lengths disagree with schedule or configured slot lengths."""
+        rows = (plan or {}).get("presentations") or []
+        for i, (start, end) in enumerate(presentations):
+            dur_min = (end - start) / 60.0
+            ds = parse_pretalx_duration_to_seconds(rows[i].get("Duration")) if i < len(rows) else None
+            if i < len(rows) and self._use_schedule_duration_for_end_search() and ds and ds > 0:
+                slot = nearest_slot_minutes(ds / 60.0)
+                late_m, early_m = self._get_schedule_slack_minutes(slot)
+                exp_min = ds / 60.0
+                if dur_min > exp_min + late_m + 0.05 or dur_min < exp_min - early_m - 0.05:
+                    logger.warning(
+                        f"Presentation {i + 1}: detected {dur_min:.1f} min vs scheduled ~{exp_min:.1f} min "
+                        f"(slot {slot} min: allowed +{late_m:.0f}/−{early_m:.0f} min) — check cuts or CSV Duration."
+                    )
+
         raw = OmegaConf.select(self.cfg, "presentation_detection.expected_talk_lengths_min", default=None)
         if not raw:
             return
@@ -918,16 +1120,25 @@ class VideoPresenterDetector:
         tol = float(
             OmegaConf.select(self.cfg, "presentation_detection.duration_validation_tolerance_min", default=7.0)
         )
+        max_cap = float(
+            OmegaConf.select(self.cfg, "presentation_detection.max_presentation_duration_min", default=0.0)
+        )
         for i, (start, end) in enumerate(presentations):
+            dur_min = (end - start) / 60.0
+            if max_cap > 0 and dur_min > max_cap + 2.0:
+                logger.warning(
+                    f"Presentation {i + 1}: duration {dur_min:.1f} min still exceeds "
+                    f"max_presentation_duration_min ({max_cap:.0f} min) — grid refine missed End-Stream; "
+                    f"lower break_detection.threshold or oversized_segment_scan_step_sec."
+                )
             gap = duration_nearest_slot_gap_min(end - start, slots)
             if gap > tol:
-                dur_min = (end - start) / 60.0
                 logger.warning(
                     f"Presentation {i + 1}: detected duration {dur_min:.1f} min is {gap:.1f} min from the "
                     f"nearest expected slot {slots} (tolerance {tol:.1f} min). Review cuts or thresholds."
                 )
 
-    def detect_all_presentations(self, plan: dict) -> list[tuple[float, float]]:
+    def detect_all_presentations(self, plan: dict) -> list[tuple[float, float]]:  # noqa: PLR0915
         """
         Detect all presentations in the video using binary search approach
         """
@@ -968,8 +1179,11 @@ class VideoPresenterDetector:
         presentations = []
         current_time = 0
 
+        pres_rows: list[dict] = list(plan.get("presentations") or [])
+
         while True:
-            result = self.find_next_presentation(cap, current_time, duration)
+            row = pres_rows[len(presentations)] if len(presentations) < len(pres_rows) else None
+            result = self.find_next_presentation(cap, current_time, duration, expected_session=row)
 
             if result is None:
                 break
@@ -987,7 +1201,7 @@ class VideoPresenterDetector:
 
         cap.release()
 
-        self._validate_detected_presentation_durations(presentations)
+        self._validate_detected_presentation_durations(presentations, plan)
 
         # logger.info summary
         end_time = time.time()
@@ -1389,11 +1603,14 @@ def main():  # noqa: PLR0912
                     "chunk_size": 300,
                     "gallop_max_step": 3600,
                     "end_search_after_start_sec": 300,
+                    "use_schedule_duration_for_end_search": True,
                     "sampling_interval": 30,
                     "max_samples": 200,
                     "cluster_threshold": 0.90,
                     "expected_talk_lengths_min": [30, 45, 60, 90],
                     "duration_validation_tolerance_min": 7,
+                    "max_presentation_duration_min": 90,
+                    "oversized_segment_scan_step_sec": 120,
                 },
                 "output": {
                     "folder": "extracted_presentations",
