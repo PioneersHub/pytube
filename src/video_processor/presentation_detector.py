@@ -832,6 +832,8 @@ class VideoPresenterDetector:
         self,
         frame: np.ndarray | None,
         purpose: str = "any_break",
+        *,
+        threshold_relax: float = 0.0,
     ) -> tuple[bool, float, int]:
         """
         Check if a frame matches break reference images.
@@ -856,7 +858,7 @@ class VideoPresenterDetector:
         else:
             raise ValueError(f"Unknown is_break_screen purpose: {purpose!r}")
 
-        threshold = self._threshold_for_break_purpose(purpose)
+        threshold = max(0.08, self._threshold_for_break_purpose(purpose) - float(threshold_relax))
 
         if frame is None:
             # Do not classify read failures as break — that created false transitions at EOF/garbled seeks.
@@ -1198,6 +1200,8 @@ class VideoPresenterDetector:
         start_time: float,
         end_time: float,
         target_is_break: bool,
+        *,
+        threshold_relax: float = 0.0,
     ) -> tuple[float, int]:
         """
         Binary search to find transition point between break and presentation
@@ -1207,6 +1211,7 @@ class VideoPresenterDetector:
             if target_is_break
             else ("start_break" if self.break_references_start else "any_break")
         )
+        relax_use = float(threshold_relax) if target_is_break else 0.0
         min_interval = self.cfg.presentation_detection.min_interval
 
         current_start = start_time
@@ -1215,7 +1220,9 @@ class VideoPresenterDetector:
         logger.info(f"Binary search from {timedelta(seconds=int(start_time))} to {timedelta(seconds=int(end_time))}")
         logger.info(
             f"Looking for {'presentation→break' if target_is_break else 'break→presentation'} transition "
-            f"(purpose={purpose})"
+            f"(purpose={purpose}"
+            + (f", end_break threshold_relax={relax_use:.3f}" if relax_use > 0 else "")
+            + ")"
         )
 
         best_match_overall = -1
@@ -1224,7 +1231,9 @@ class VideoPresenterDetector:
             mid_time = (current_start + current_end) / 2
             mid_frame = self.get_frame_at_time(cap, mid_time)
 
-            is_break, score, best_match = self.is_break_screen(mid_frame, purpose)
+            is_break, score, best_match = self.is_break_screen(
+                mid_frame, purpose, threshold_relax=relax_use
+            )
             if best_match > -1:
                 best_match_overall = best_match
 
@@ -1262,12 +1271,20 @@ class VideoPresenterDetector:
         current_time: float,
         video_duration: float,
         expected_session: dict | None = None,
+        *,
+        scheduled_session_count: int = 0,
+        closing_segment_index: int = 0,
     ) -> tuple[float, float, int, int] | None:
         """
         Find the next presentation in the video.
 
         ``expected_session`` is the matching row from ``processing_plan.yaml`` ``presentations`` (Pretalx CSV),
         used to bound End-Stream search via ``Duration`` when enabled.
+
+        ``scheduled_session_count`` / ``closing_segment_index``: when the schedule lists multiple sessions
+        and End-Stream never matches on the file, the end of talk one can still be placed at the same
+        **Pre-Session → talk** edge used for every session start (``start_break``), with a dense time
+        grid so short interstitials are not skipped.
         """
         chunk_size = float(self.cfg.presentation_detection.chunk_size)
 
@@ -1391,7 +1408,6 @@ class VideoPresenterDetector:
                         presentation_start,
                         video_duration,
                         video_duration,
-                        schedule_scan_cap=sched_hi,
                     )
                     if refined_end < video_duration - 1.0:
                         logger.info(
@@ -1404,6 +1420,40 @@ class VideoPresenterDetector:
                             + "End=refined"
                         )
                         return (presentation_start, refined_end, start_break_type, -1)
+                    use_ps_boundary = bool(
+                        OmegaConf.select(
+                            self.cfg,
+                            "presentation_detection.oversized_use_presession_talk_boundary",
+                            default=True,
+                        )
+                    )
+                    if (
+                        use_ps_boundary
+                        and scheduled_session_count > 1
+                        and closing_segment_index == 0
+                        and self.break_references_start
+                    ):
+                        ps_cut = self._next_presession_to_talk_edge_after_first_talk(
+                            cap,
+                            presentation_start,
+                            video_duration - 1.0,
+                            want_nth_leave=min(1, scheduled_session_count - 1),
+                        )
+                        if ps_cut is not None and presentation_start + 30.0 < ps_cut < video_duration - 5.0:
+                            logger.info(
+                                f"{tag}End-Stream did not match on this recording; using Pre-Session→talk "
+                                f"boundary for talk 2 start (same start_break as session openings)."
+                            )
+                            logger.info(
+                                f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
+                                f"{timedelta(seconds=int(ps_cut))} "
+                                f"(Duration: {timedelta(seconds=int(ps_cut - presentation_start))})"
+                            )
+                            logger.info(
+                                f"Break screen types: Start={start_break_type + 1 if start_break_type >= 0 else 'Unknown'}, "
+                                + "End=Pre-Session-boundary"
+                            )
+                            return (presentation_start, ps_cut, start_break_type, -1)
                     logger.info("Presentation continues until the end of video")
                     logger.info(
                         f"🎯 FOUND PRESENTATION: {timedelta(seconds=int(presentation_start))} → "
@@ -1418,7 +1468,6 @@ class VideoPresenterDetector:
                 presentation_start,
                 presentation_end,
                 video_duration,
-                schedule_scan_cap=sched_hi,
             )
 
             logger.info(
@@ -1447,12 +1496,17 @@ class VideoPresenterDetector:
         presentation_start: float,
         presentation_end: float,
         video_duration: float,
-        schedule_scan_cap: float | None = None,
     ) -> float:
         """
         If the primary search merged multiple talks, the segment can exceed max talk length.
-        Grid-scan the first max_presentation_duration_min for the first presentation→End-Stream transition.
-        When ``schedule_scan_cap`` is set (presentation_start + D + late), the grid does not scan past it.
+        Grid-scan for the first presentation→End-Stream transition.
+
+        Talks can run longer than the nominal slot (e.g. 90 min row but ~115 min on tape); the first
+        End-Stream may appear *after* ``max_presentation_duration_min`` from talk start. We therefore
+        scan the **entire** oversized segment up to ``presentation_end``, not only the first
+        ``max_presentation_duration_min`` minutes. Schedule caps apply to the *gallop* search above;
+        they are not used to clip this recovery grid (otherwise we miss End-Stream and never split
+        into the next session).
         """
         max_min = float(
             OmegaConf.select(self.cfg, "presentation_detection.max_presentation_duration_min", default=90.0)
@@ -1467,48 +1521,131 @@ class VideoPresenterDetector:
             OmegaConf.select(self.cfg, "presentation_detection.end_search_after_start_sec", default=300.0)
         )
         step = float(
-            OmegaConf.select(self.cfg, "presentation_detection.oversized_segment_scan_step_sec", default=120.0)
+            OmegaConf.select(self.cfg, "presentation_detection.oversized_segment_scan_step_sec", default=45.0)
         )
+        step = max(15.0, min(step, 120.0))
         min_interval = float(self.cfg.presentation_detection.min_interval)
         tag = self._tag()
+
+        scan_lo = presentation_start + end_offset
+        scan_hi = min(presentation_end, video_duration)
+        if scan_hi <= scan_lo + min_interval:
+            return presentation_end
 
         logger.info(
             f"{tag}Segment {timedelta(seconds=int(presentation_start))} → "
             f"{timedelta(seconds=int(presentation_end))} is longer than {max_min:.0f} min; "
-            f"grid-scanning for first End-Stream in the first {max_min:.0f} min of this talk..."
+            f"grid-scanning for first End-Stream over "
+            f"{timedelta(seconds=int(scan_lo))} … {timedelta(seconds=int(scan_hi))} (step {step:.0f}s)..."
         )
 
-        scan_lo = presentation_start + end_offset
-        scan_hi = min(presentation_end, presentation_start + max_sec)
-        if schedule_scan_cap is not None:
-            scan_hi = min(scan_hi, schedule_scan_cap)
-        if scan_hi <= scan_lo + min_interval:
-            return presentation_end
+        relax_list = OmegaConf.select(
+            self.cfg,
+            "presentation_detection.oversized_end_break_relax_deltas",
+            default=None,
+        )
+        if relax_list is None:
+            relax_list = [0.0, 0.06, 0.1, 0.14]
+        elif isinstance(relax_list, (int, float)):
+            relax_list = [float(relax_list)]
+        else:
+            relax_list = [float(x) for x in list(relax_list)]
 
-        t = scan_lo
-        prev_fr = self.get_frame_at_time(cap, t)
-        prev_br = self.is_break_screen(prev_fr, "end_break")[0]
-        t += step
-        while t < scan_hi:
-            fr = self.get_frame_at_time(cap, t)
-            is_br = self.is_break_screen(fr, "end_break")[0]
-            if not prev_br and is_br:
-                lo = max(presentation_start, t - step)
-                hi = min(t, video_duration)
-                refined_end, _ = self.binary_search_transition(cap, lo, hi, True)
-                logger.info(
-                    f"{tag}Refined talk end to {timedelta(seconds=int(refined_end))} "
-                    f"(duration {timedelta(seconds=int(refined_end - presentation_start))})"
-                )
-                return refined_end
-            prev_br = is_br
+        for relax in relax_list:
+            t = scan_lo
+            prev_fr = self.get_frame_at_time(cap, t)
+            prev_br = self.is_break_screen(prev_fr, "end_break", threshold_relax=relax)[0]
             t += step
+            while t < scan_hi:
+                fr = self.get_frame_at_time(cap, t)
+                is_br = self.is_break_screen(fr, "end_break", threshold_relax=relax)[0]
+                if not prev_br and is_br:
+                    lo = max(presentation_start, t - step)
+                    hi = min(t, video_duration)
+                    refined_end, _ = self.binary_search_transition(
+                        cap, lo, hi, True, threshold_relax=relax
+                    )
+                    logger.info(
+                        f"{tag}Refined talk end to {timedelta(seconds=int(refined_end))} "
+                        f"(duration {timedelta(seconds=int(refined_end - presentation_start))}"
+                        f"{f', end_break_relax={relax:.2f}' if relax > 0 else ''})"
+                    )
+                    return refined_end
+                prev_br = is_br
+                t += step
 
         logger.info(
-            f"{tag}No End-Stream transition in first {max_min:.0f} min (grid step {step:.0f}s); "
-            f"keeping detector end — tune threshold or step size if cuts are still wrong."
+            f"{tag}No End-Stream transition in oversized segment (grid step {step:.0f}s, "
+            f"relax passes {relax_list}); keeping detector end — set break_detection.end_threshold "
+            f"or add presentation_detection.oversized_end_break_relax_deltas."
         )
         return presentation_end
+
+    def _next_presession_to_talk_edge_after_first_talk(
+        self,
+        cap: cv2.VideoCapture,
+        presentation_start: float,
+        scan_to: float,
+        *,
+        want_nth_leave: int = 1,
+    ) -> float | None:
+        """
+        After talk one content has started, find ``start_break`` transitions (Pre-Session → talk).
+
+        Short glitches can produce a false first edge; when the schedule has *S* sessions, the start of
+        talk *S* for this file is often the *(S−1)*-th leave after the opening (e.g. for 2 sessions,
+        use the **second** leave in this scan, not the first).
+        Uses a **dense** time step so brief Pre-Session slides are not skipped.
+        """
+        if not self.break_references_start:
+            return None
+        end_off = float(
+            OmegaConf.select(self.cfg, "presentation_detection.end_search_after_start_sec", default=300.0)
+        )
+        edge_step = float(
+            OmegaConf.select(
+                self.cfg,
+                "presentation_detection.presession_boundary_scan_step_sec",
+                default=5.0,
+            )
+        )
+        edge_step = max(2.0, min(edge_step, 15.0))
+        scan_from = float(presentation_start) + end_off
+        scan_to = float(scan_to)
+        if scan_to <= scan_from + edge_step:
+            return None
+        min_accept_t = float(presentation_start) + 15.0 * 60.0
+        tag = self._tag()
+        want_nth_leave = max(0, int(want_nth_leave))
+
+        t0 = self.get_frame_at_time(cap, scan_from)
+        prev_pre, _, _ = self.is_break_screen(t0, "start_break")
+        t = scan_from + edge_step
+        hits: list[float] = []
+        while t <= scan_to:
+            fr = self.get_frame_at_time(cap, t)
+            cur_pre, _, _ = self.is_break_screen(fr, "start_break")
+            if prev_pre and not cur_pre and t >= min_accept_t:
+                lo = max(scan_from, t - edge_step)
+                hi = min(t, scan_to)
+                refined, _ = self.binary_search_transition(cap, lo, hi, False)
+                if refined >= min_accept_t:
+                    hits.append(refined)
+                    logger.info(
+                        f"{tag}Pre-Session→talk candidate #{len(hits)} at {timedelta(seconds=int(refined))}"
+                    )
+            prev_pre = cur_pre
+            t += edge_step
+
+        if not hits:
+            return None
+        idx = want_nth_leave if want_nth_leave < len(hits) else len(hits) - 1
+        chosen = hits[idx]
+        logger.info(
+            f"{tag}Using Pre-Session→talk boundary #{idx + 1} of {len(hits)} "
+            f"→ {timedelta(seconds=int(chosen))}"
+        )
+        return chosen
 
     def _validate_detected_presentation_durations(
         self, presentations: list[tuple[float, float]], plan: dict | None = None
@@ -1605,7 +1742,14 @@ class VideoPresenterDetector:
 
         while True:
             row = pres_rows[len(presentations)] if len(presentations) < len(pres_rows) else None
-            result = self.find_next_presentation(cap, current_time, scan_dur, expected_session=row)
+            result = self.find_next_presentation(
+                cap,
+                current_time,
+                scan_dur,
+                expected_session=row,
+                scheduled_session_count=len(pres_rows),
+                closing_segment_index=len(presentations),
+            )
 
             if result is None:
                 break
@@ -1934,8 +2078,10 @@ class VideoPresenterDetector:
         logger.info(f"Successfully processed: {success_count}")
         logger.info(f"Failed: {fail_count}")
 
+        logger.info("=== DETECTION BATCH SUMMARY (tabular) ===\n" + _format_detection_batch_table(results))
+
         logger.info(
-            "=== DETECTION BATCH SUMMARY "
+            "=== DETECTION BATCH DETAIL "
             "(sessions expected | segments found | sessions missed | surplus | quality) ==="
         )
         for p in results:
@@ -1969,6 +2115,54 @@ class VideoPresenterDetector:
 
 
 _DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+
+def _format_detection_batch_table(results: list[dict]) -> str:
+    """ASCII table: file, expected sessions, segments found, count OK, quality PASS/FAIL."""
+    file_w = 46
+    lines: list[str] = []
+    header = (
+        f"{'File':<{file_w}}  {'Exp':>4}  {'Found':>5}  {'Count':^10}  {'Quality':>7}"
+    )
+    rule = "-" * len(header)
+    lines.append(header)
+    lines.append(rule)
+    pass_n = 0
+    fail_n = 0
+    na_quality = 0
+    for p in results:
+        sr = p.get("session_report") or {}
+        fn = Path(p.get("input_video", "")).name
+        if len(fn) > file_w:
+            fn = fn[: file_w - 1] + "…"
+        exp = sr.get("sessions_expected")
+        found = sr.get("segments_found")
+        exp_s = "—" if exp is None else str(int(exp))
+        found_s = "—" if found is None else str(int(found))
+        if isinstance(exp, int) and isinstance(found, int):
+            count_s = "OK" if exp == found else "MISMATCH"
+        else:
+            count_s = "—"
+        qp = sr.get("quality_passed")
+        if qp is True:
+            q_s = "PASS"
+            pass_n += 1
+        elif qp is False:
+            q_s = "FAIL"
+            fail_n += 1
+        else:
+            q_s = "—"
+            na_quality += 1
+        lines.append(
+            f"{fn:<{file_w}}  {exp_s:>4}  {found_s:>5}  {count_s:^10}  {q_s:>7}"
+        )
+    lines.append(rule)
+    n = len(results)
+    tail = f"Summary: {n} file(s)  |  quality PASS={pass_n}  FAIL={fail_n}"
+    if na_quality:
+        tail += f"  (no quality row: {na_quality})"
+    lines.append(tail)
+    return "\n".join(lines)
 
 
 def _parse_probe_times(s: str | None) -> list[float] | None:

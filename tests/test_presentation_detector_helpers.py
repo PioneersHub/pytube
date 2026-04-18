@@ -9,6 +9,7 @@ from omegaconf import OmegaConf
 
 from video_processor.presentation_detector import (
     VideoPresenterDetector,
+    _format_detection_batch_table,
     collect_video_paths,
     duration_nearest_slot_gap_min,
     nearest_slot_minutes,
@@ -21,6 +22,36 @@ def test_duration_nearest_slot_gap_min() -> None:
     assert duration_nearest_slot_gap_min(30 * 60, slots) == 0.0
     assert duration_nearest_slot_gap_min(35 * 60, slots) == 5.0  # noqa: PLR2004
     assert duration_nearest_slot_gap_min(88 * 60, slots) == 2.0  # noqa: PLR2004
+
+
+def test_format_detection_batch_table() -> None:
+    results = [
+        {
+            "input_video": "/recordings/a.mp4",
+            "session_report": {
+                "sessions_expected": 2,
+                "segments_found": 2,
+                "quality_passed": True,
+            },
+        },
+        {
+            "input_video": "/recordings/b.mp4",
+            "session_report": {
+                "sessions_expected": 1,
+                "segments_found": 2,
+                "quality_passed": False,
+            },
+        },
+    ]
+    text = _format_detection_batch_table(results)
+    assert "a.mp4" in text
+    assert "b.mp4" in text
+    assert "PASS" in text
+    assert "FAIL" in text
+    assert "MISMATCH" in text
+    assert "OK" in text
+    assert "PASS=1" in text
+    assert "FAIL=1" in text
 
 
 def test_parse_pretalx_duration_to_seconds() -> None:

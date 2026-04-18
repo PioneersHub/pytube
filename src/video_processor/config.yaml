@@ -52,7 +52,8 @@ break_detection:
     - "Pre-Session-Graphic-All-Rooms"
   # Optional: stricter/softer threshold for Pre-Session (if End-Stream needs different sensitivity, use end_threshold).
   # start_threshold: 0.35
-  # end_threshold: 0.38
+  # Lower end_threshold (e.g. 0.28–0.32) if End-Stream slides match weakly vs the PNG on real video.
+  # end_threshold: 0.30
   # Optional fallback room list when mapping Parquet has no Room column (longest match wins in filename)
   room_names: []
   # PyConDE-26-style slides use prefixes like Welcome-, Talk-Starting-, Logo-, Lunch-, End-Stream-{Room}-.
@@ -86,7 +87,14 @@ presentation_detection:
   # End-Stream (end_break) transition within this window — recovers missed cuts between back-to-back talks.
   max_presentation_duration_min: 90
   # Grid step when re-scanning an oversized segment (seconds); smaller = finer, slower.
-  oversized_segment_scan_step_sec: 120
+  oversized_segment_scan_step_sec: 45
+  # Subtracted from end_break threshold on successive passes (0 = strict first). Use when End-Stream
+  # matches weakly on the real video.
+  oversized_end_break_relax_deltas: [0.0, 0.06, 0.1, 0.14]
+  # If End-Stream never matches on the file but the schedule has multiple rows, end talk 1 at the next
+  # Pre-Session→talk edge (same ``start_break`` as openings). Dense step avoids missing short slides.
+  oversized_use_presession_talk_boundary: true
+  presession_boundary_scan_step_sec: 5
   # Sampling interval for break screen detection in seconds
   sampling_interval: 30
   # Maximum number of samples to take for break screen detection
