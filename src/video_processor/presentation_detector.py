@@ -3551,6 +3551,27 @@ def _run_inverse_cli(  # noqa: PLR0913
         logger.info(f"  {r['video']}: {r['n']} span(s) — {spans_str}")
 
 
+def _am_pm(time_period: str | None) -> str | None:
+    """Map Pretalx ``TimePeriod`` values (``Morning`` / ``Afternoon``) to ``AM`` / ``PM``."""
+    if not time_period:
+        return None
+    tp = str(time_period).strip().lower()
+    if tp in {"morning", "am"}:
+        return "AM"
+    if tp in {"afternoon", "pm"}:
+        return "PM"
+    return None
+
+
+def _room_short(room: str | None) -> str | None:
+    """Strip bracketed annotations from a Pretalx ``Room`` value, e.g.
+    ``Titanium [2nd Floor]`` → ``Titanium``.
+    """
+    if not room:
+        return None
+    return _ROOM_ANNOTATION_RE.sub("", str(room)).strip() or None
+
+
 def _parse_time_of_day_seconds(value) -> float | None:  # noqa: PLR0911
     """Parse a Pretalx ``Start (time)`` / ``End (time)`` cell to seconds-of-day.
 
@@ -3655,7 +3676,15 @@ def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
             "output_folder": subdir,
             "detector": "schedule-match",
             "scheduled_rows": [
-                {k: r.get(k) for k in ("Proposal title", "Duration", "Start (time)", "End (time)")}
+                {
+                    "pretalx_id": r.get("ID"),
+                    "room_short": _room_short(r.get("Room")),
+                    "time_period": _am_pm(r.get("TimePeriod")),
+                    "Proposal title": r.get("Proposal title"),
+                    "Duration": r.get("Duration"),
+                    "Start (time)": r.get("Start (time)"),
+                    "End (time)": r.get("End (time)"),
+                }
                 for r in rows
             ],
         }
