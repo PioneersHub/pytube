@@ -33,9 +33,57 @@ break_detection:
   # Similarity threshold (0-1). Template scores on resized frames are often 0.15-0.45 for talks;
   # full-screen break graphics often peak higher. Run: --probe-video PATH --probe-every 300
   # Raise threshold if you get false breaks; lower if you get 0 presentations (try histogram too).
+  presentation_starts_soon_images: "/Volumes/DATA4T/2026/presentation_starts_soon_images"
   threshold: 0.38
-  # Comparison method: "template" or "histogram"
+  # Comparison method: "template" | "histogram" | "phash" | "clip" | "phash_clip".
+  # - "template"/"histogram": existing OpenCV methods; use ``threshold`` above.
+  # - "phash": fast perceptual hash (Hamming distance ≤ phash.max_hamming_distance).
+  # - "clip": CLIP image-embedding cosine ≥ clip.cosine_threshold (robust to compression/overlays).
+  # - "phash_clip": pHash shortlist → CLIP confirmation (recommended for streams with artifacts).
   comparison_method: "template"
+  # Tuning for ``comparison_method: phash`` and the shortlist step of ``phash_clip``.
+  phash:
+    # Hash bit length is 64 (cv2.img_hash.PHash). Accept match when Hamming distance ≤ this.
+    max_hamming_distance: 8
+    # Extra slack added to max_hamming_distance when building the pHash→CLIP shortlist (phash_clip only).
+    shortlist_margin: 4
+  # Tuning for ``comparison_method: clip`` and the confirmation step of ``phash_clip``.
+  clip:
+    # open_clip model name (any architecture supported by open_clip.create_model_and_transforms).
+    model: "ViT-B-32"
+    pretrained: "laion2b_s34b_b79k"
+    # Start around 0.85–0.95; calibrate against known-good video.
+    cosine_threshold: 0.88
+    # "auto" picks cuda → mps → cpu. Override to "cpu" to avoid GPU init cost.
+    device: "auto"
+  # Temporal consistency — require ``min_agree`` of ``window_frames`` nearby samples to classify as break.
+  # Applied by detection loops that call ``_is_break_with_temporal``; ``min_agree <= 1`` disables it.
+  temporal:
+    window_frames: 3
+    min_agree: 2
+    # Spacing between the N samples in the window (seconds).
+    step_sec: 0.5
+  # Tuning for ``--inverse-detect``: 3-pass algorithm (coarse pHash → persistence → local refine).
+  # Presumes breaks persist ≥ ``min_break_sec``; raw noise is rejected by ``min_block_samples``.
+  inverse:
+    # Pass 1 — coarse scan rate. 5s ≈ 60 samples per 5-minute break → plenty of evidence.
+    coarse_step_sec: 5.0
+    # Pass 3 — boundary refinement (samples at this step inside ±refine_pad_sec of each break block).
+    refine_step_sec: 1.0
+    refine_pad_sec: 30.0
+    # Pass 2 — persistence: same ref must match in ≥ min_block_samples consecutive coarse samples.
+    # With coarse_step_sec=5.0, min_block_samples=4 ⇒ 20s continuous evidence.
+    min_block_samples: 4
+    # Pass 2 — merge adjacent blocks of the same ref if the gap between them is ≤ merge_gap_sec
+    # (tolerates fades, transition cuts, single missed sample).
+    merge_gap_sec: 15.0
+    # Reject any confirmed break block shorter than this; breaks in this event are ≥ 5 min.
+    min_break_sec: 300.0
+    # Template-match (TM_CCOEFF_NORMED) threshold vs every loaded break ref. A frame is a
+    # break frame when its best score against any ref is ≥ this. Looser than the main pipeline's
+    # ``break_detection.threshold`` (0.38) because break slides in the wild carry overlays
+    # (countdown timer, sponsor bar, schedule ticker) that drop the score a bit.
+    match_threshold: 0.30
   # Whether to auto-detect break screens if none provided
   auto_detect: true
   # Directory to save detected break screens

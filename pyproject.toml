@@ -35,9 +35,10 @@ dependencies = [
     "pyyaml>=6.0.2",
     "xlsxwriter>=3.2.5",
     "numpy>=2.2.5",
-    "opencv-python>=4.11.0.86",
+    "opencv-contrib-python==4.11.0.86",
     "polars>=1.29.0",
 ]
+
 
 [project.optional-dependencies]
 # Core test dependencies
@@ -89,11 +90,16 @@ docs = [
     "pymdown-extensions>=10.15",
 ]
 
-# Video processing dependencies (numpy/opencv/polars are core deps; extras for spreadsheets)
+# Video processing dependencies (numpy/opencv/polars are core deps; extras for spreadsheets).
+# Also includes pHash + CLIP comparison methods for break_detection — enabled when using
+# break_detection.comparison_method in {"phash", "clip", "phash_clip"}. pHash itself uses
+# cv2.img_hash (already in the opencv-contrib-python core dep).
 video_processor = [
     "python-dotenv>=0.9.9",
     "fastexcel>=0.14.0",
     "xlsxwriter>=3.2.3",
+    "torch>=2.3.0",
+    "open_clip_torch>=2.24.0",
 ]
 
 # Vimeo integration

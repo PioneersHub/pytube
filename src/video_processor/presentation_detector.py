@@ -34,6 +34,7 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from manager import logger
+from video_processor.metadata_template import apply_templates, emit_templates
 from video_processor.models import DetectionFailures, FailedVideo, PresentationSegment, VideoMetadata
 
 # region agent log
@@ -58,6 +59,91 @@ def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict
 
 
 # endregion
+
+
+# region pHash / CLIP helpers — used only when break_detection.comparison_method ∈ {phash, clip, phash_clip}.
+# Loaded lazily on first use so that default (template/histogram) runs do not pay the torch import cost.
+_PHASH_BITS = 64
+_CLIP_STATE: dict = {}
+_PHASH_CACHE: dict = {}
+
+
+def _get_phash_hasher():
+    """Return a cached cv2.img_hash.PHash instance (requires opencv-contrib-python)."""
+    hasher = _PHASH_CACHE.get("hasher")
+    if hasher is None:
+        if not hasattr(cv2, "img_hash"):
+            raise RuntimeError(
+                "cv2.img_hash is unavailable — install opencv-contrib-python to use "
+                "break_detection.comparison_method in {'phash','phash_clip'}."
+            )
+        hasher = cv2.img_hash.PHash_create()
+        _PHASH_CACHE["hasher"] = hasher
+    return hasher
+
+
+def _compute_phash(frame_bgr: np.ndarray) -> np.ndarray:
+    """Return an 8-byte pHash as a 1-D uint8 array."""
+    h = _get_phash_hasher().compute(frame_bgr)
+    return np.asarray(h, dtype=np.uint8).reshape(-1)
+
+
+def _phash_hamming(a: np.ndarray, b: np.ndarray) -> int:
+    """Hamming distance between two pHash byte arrays (0..64)."""
+    return int(np.unpackbits(np.bitwise_xor(a, b)).sum())
+
+
+def _resolve_clip_device(pref: str) -> str:
+    """Pick a torch device string — honor explicit choice; for "auto" use cuda→mps→cpu."""
+    import torch  # noqa: PLC0415  # optional dep: only imported when CLIP method is selected
+
+    pref = (pref or "auto").lower()
+    if pref != "auto":
+        return pref
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def _get_clip_state(model_name: str, pretrained: str, device_pref: str) -> dict:
+    """Return a cached dict {model, preprocess, tokenizer, device, torch} for the requested CLIP config."""
+    key = (model_name, pretrained, device_pref)
+    cached = _CLIP_STATE.get(key)
+    if cached is not None:
+        return cached
+    try:
+        import open_clip  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+    except ImportError as e:
+        raise RuntimeError(
+            "open_clip_torch/torch are required for break_detection.comparison_method in "
+            "{'clip','phash_clip'}. Install the optional 'clip' extra."
+        ) from e
+    device = _resolve_clip_device(device_pref)
+    model, _, preprocess = open_clip.create_model_and_transforms(model_name, pretrained=pretrained, device=device)
+    model.eval()
+    state = {"model": model, "preprocess": preprocess, "device": device, "torch": torch}
+    _CLIP_STATE[key] = state
+    return state
+
+
+def _compute_clip_embedding(frame_bgr: np.ndarray, state: dict) -> np.ndarray:
+    """L2-normalized CLIP image embedding for a BGR OpenCV frame; returned as float32 1-D array."""
+    torch = state["torch"]
+    from PIL import Image  # noqa: PLC0415  # Pillow ships with open_clip_torch
+    rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+    pil = Image.fromarray(rgb)
+    tensor = state["preprocess"](pil).unsqueeze(0).to(state["device"])
+    with torch.no_grad():
+        emb = state["model"].encode_image(tensor)
+        emb = emb / emb.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+    return emb.squeeze(0).detach().cpu().numpy().astype(np.float32)
+
+
+# endregion
+
 
 # Strip bracketed room annotations (same as process_talk_list / map_recordings).
 _ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
@@ -225,6 +311,13 @@ class VideoPresenterDetector:
         # Subset for session start: Pre-Session shared slide until it disappears (see start_ref_substrings).
         self.break_references_start: list[np.ndarray] = []
         self._detection_ref_arrays_start: list[np.ndarray] = []
+        # Optional caches for comparison_method in {phash, clip, phash_clip}. Parallel to break_references*.
+        self._ref_phashes: list[np.ndarray] = []
+        self._ref_phashes_end: list[np.ndarray] = []
+        self._ref_phashes_start: list[np.ndarray] = []
+        self._ref_clip_embs: list[np.ndarray] = []
+        self._ref_clip_embs_end: list[np.ndarray] = []
+        self._ref_clip_embs_start: list[np.ndarray] = []
         # Set by detect_all_presentations per video; prepended to in-flight detection logs.
         self._current_video: str | None = None
         # Last video duration (seconds) from detect_all_presentations — used for detection_quality.
@@ -315,6 +408,33 @@ class VideoPresenterDetector:
                     out.append(small)
         return out
 
+    def _method_uses_phash(self) -> bool:
+        m = str(self.cfg.break_detection.comparison_method)
+        return m in {"phash", "phash_clip"}
+
+    def _method_uses_clip(self) -> bool:
+        m = str(self.cfg.break_detection.comparison_method)
+        return m in {"clip", "phash_clip"}
+
+    def _clip_state(self) -> dict:
+        """Return the cached CLIP model/state for the configured (model, pretrained, device)."""
+        clip_cfg = OmegaConf.select(self.cfg.break_detection, "clip", default=None)
+        model_name = str(OmegaConf.select(clip_cfg, "model", default="ViT-B-32"))
+        pretrained = str(OmegaConf.select(clip_cfg, "pretrained", default="laion2b_s34b_b79k"))
+        device_pref = str(OmegaConf.select(clip_cfg, "device", default="auto"))
+        return _get_clip_state(model_name, pretrained, device_pref)
+
+    def _build_ref_phashes(self, refs: list[np.ndarray]) -> list[np.ndarray]:
+        if not refs or not self._method_uses_phash():
+            return []
+        return [_compute_phash(self._ensure_detection_frame(r)) for r in refs]
+
+    def _build_ref_clip_embs(self, refs: list[np.ndarray]) -> list[np.ndarray]:
+        if not refs or not self._method_uses_clip():
+            return []
+        state = self._clip_state()
+        return [_compute_clip_embedding(self._ensure_detection_frame(r), state) for r in refs]
+
     def _refresh_break_detection_refs(self) -> None:
         """Precompute caches for all-break vs end-of-talk vs session-start matching."""
         self._detection_ref_arrays = self._build_detection_arrays(self.break_references)
@@ -322,6 +442,12 @@ class VideoPresenterDetector:
         self._detection_ref_arrays_start = (
             self._build_detection_arrays(self.break_references_start) if self.break_references_start else []
         )
+        self._ref_phashes = self._build_ref_phashes(self.break_references)
+        self._ref_phashes_end = self._build_ref_phashes(self.break_references_end)
+        self._ref_phashes_start = self._build_ref_phashes(self.break_references_start)
+        self._ref_clip_embs = self._build_ref_clip_embs(self.break_references)
+        self._ref_clip_embs_end = self._build_ref_clip_embs(self.break_references_end)
+        self._ref_clip_embs_start = self._build_ref_clip_embs(self.break_references_start)
 
     def _resolve_start_image_path(self) -> Path | None:
         """Return absolute path for ``break_detection.start_image``, or None if unset/invalid."""
@@ -764,6 +890,35 @@ class VideoPresenterDetector:
         image_files = sorted({p.resolve(): p for p in image_files}.values(), key=lambda p: p.name.lower())
         image_files = self._filter_break_image_paths_by_room(image_files, video_path)
 
+        # Also load event-wide "presentation starts soon" slides (Pre-Session / intermission
+        # graphics shown across all rooms). These bypass the room filter.
+        starts_soon_dir = str(
+            OmegaConf.select(self.cfg.break_detection, "presentation_starts_soon_images", default="") or ""
+        ).strip()
+        starts_soon_files: list[Path] = []
+        if starts_soon_dir:
+            starts_soon_path = Path(starts_soon_dir)
+            if starts_soon_path.is_dir():
+                for pattern in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
+                    starts_soon_files.extend(starts_soon_path.glob(pattern))
+                starts_soon_files = sorted(
+                    {p.resolve(): p for p in starts_soon_files}.values(),
+                    key=lambda p: p.name.lower(),
+                )
+                # De-duplicate against images_dir when the file is symlinked into both.
+                seen = {p.resolve() for p in image_files}
+                starts_soon_files = [p for p in starts_soon_files if p.resolve() not in seen]
+                if starts_soon_files:
+                    logger.info(
+                        f"Loading {len(starts_soon_files)} presentation-starts-soon image(s) from "
+                        f"{starts_soon_dir} (room filter skipped)"
+                    )
+                    image_files = [*image_files, *starts_soon_files]
+            else:
+                logger.info(
+                    f"break_detection.presentation_starts_soon_images does not exist: {starts_soon_dir}"
+                )
+
         if not image_files:
             logger.info(f"No images found in {break_images_dir}")
             self.break_references = []
@@ -919,7 +1074,12 @@ class VideoPresenterDetector:
         return np.mean(durations) if durations else 0
 
     def compare_frames(self, frame1: np.ndarray, frame2: np.ndarray) -> float:
-        """Compare two frames and return similarity score (0-1)"""
+        """Compare two frames and return similarity score (higher = more similar).
+
+        All methods are monotonic so a single ``threshold``-style comparison is valid, but the
+        absolute scale differs: template/CLIP ∈ [-1, 1], histogram ∈ [-1, 1], pHash ∈ [0, 1]
+        (computed as ``1 - hamming/64``).
+        """
         self._stats_compare_calls += 1
         a = self._ensure_detection_frame(frame1)
         b = self._ensure_detection_frame(frame2)
@@ -936,8 +1096,78 @@ class VideoPresenterDetector:
                 hist2 = cv2.calcHist([b], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
                 hist2 = cv2.normalize(hist2, hist2).flatten()
                 return float(cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL))
+            case "phash":
+                h1 = _compute_phash(a)
+                h2 = _compute_phash(b)
+                return 1.0 - _phash_hamming(h1, h2) / float(_PHASH_BITS)
+            case "clip":
+                state = self._clip_state()
+                e1 = _compute_clip_embedding(a, state)
+                e2 = _compute_clip_embedding(b, state)
+                return float(np.dot(e1, e2))
+            case "phash_clip":
+                # Ad-hoc pairwise fallback: return CLIP cosine (pHash shortlist only matters
+                # against a *set* of refs, not a single pair).
+                state = self._clip_state()
+                e1 = _compute_clip_embedding(a, state)
+                e2 = _compute_clip_embedding(b, state)
+                return float(np.dot(e1, e2))
             case _:
                 raise ValueError(f"Unknown comparison method: {method}")
+
+    def _phash_caches_for_purpose(self, purpose: str) -> list[np.ndarray]:
+        if purpose == "end_break":
+            return self._ref_phashes_end
+        if purpose == "start_break":
+            return self._ref_phashes_start
+        return self._ref_phashes
+
+    def _clip_caches_for_purpose(self, purpose: str) -> list[np.ndarray]:
+        if purpose == "end_break":
+            return self._ref_clip_embs_end
+        if purpose == "start_break":
+            return self._ref_clip_embs_start
+        return self._ref_clip_embs
+
+    def _phash_best_match(
+        self, frame: np.ndarray, ref_phashes: list[np.ndarray]
+    ) -> tuple[int, int]:
+        """Return (best_ref_index, best_hamming) for a BGR frame against cached pHashes.
+
+        Uses ``_ensure_detection_frame`` so the frame is hashed at the same scale as refs.
+        """
+        if not ref_phashes:
+            return -1, _PHASH_BITS
+        h = _compute_phash(self._ensure_detection_frame(frame))
+        best_idx = -1
+        best_dist = _PHASH_BITS + 1
+        for i, rh in enumerate(ref_phashes):
+            d = _phash_hamming(h, rh)
+            if d < best_dist:
+                best_dist = d
+                best_idx = i
+        return best_idx, int(best_dist)
+
+    def _clip_best_match(
+        self,
+        frame: np.ndarray,
+        ref_embs: list[np.ndarray],
+        restrict_to: list[int] | None = None,
+    ) -> tuple[int, float]:
+        """Return (best_ref_index, best_cosine) for a BGR frame against cached CLIP embeddings."""
+        if not ref_embs:
+            return -1, 0.0
+        state = self._clip_state()
+        emb = _compute_clip_embedding(self._ensure_detection_frame(frame), state)
+        indices = restrict_to if restrict_to is not None else range(len(ref_embs))
+        best_idx = -1
+        best_cos = -1.0
+        for i in indices:
+            cos = float(np.dot(emb, ref_embs[i]))
+            if cos > best_cos:
+                best_cos = cos
+                best_idx = int(i)
+        return best_idx, best_cos
 
     def _threshold_for_break_purpose(self, purpose: str) -> float:
         """Optional per-purpose overrides (tune Pre-Session vs End-Stream without affecting the other)."""
@@ -950,7 +1180,7 @@ class VideoPresenterDetector:
             return float(o) if o is not None else base
         return base
 
-    def is_break_screen(  # noqa: PLR0911, PLR0912
+    def is_break_screen(  # noqa: PLR0911, PLR0912, PLR0915
         self,
         frame: np.ndarray | None,
         purpose: str = "any_break",
@@ -1017,6 +1247,49 @@ class VideoPresenterDetector:
                             best_score = score
                             best_index = i
                     return False, best_score, best_index
+                case "phash":
+                    ref_phashes = self._phash_caches_for_purpose(purpose)
+                    if not ref_phashes:
+                        return False, 0.0, -1
+                    max_d = int(OmegaConf.select(
+                        self.cfg.break_detection, "phash.max_hamming_distance", default=8
+                    ))
+                    idx, dist = self._phash_best_match(frame, ref_phashes)
+                    score = 1.0 - dist / float(_PHASH_BITS)
+                    return dist <= max_d, score, idx
+                case "clip":
+                    ref_embs = self._clip_caches_for_purpose(purpose)
+                    if not ref_embs:
+                        return False, 0.0, -1
+                    cos_thr = float(OmegaConf.select(
+                        self.cfg.break_detection, "clip.cosine_threshold", default=0.88
+                    ))
+                    idx, cos = self._clip_best_match(frame, ref_embs)
+                    return cos >= cos_thr, cos, idx
+                case "phash_clip":
+                    ref_phashes = self._phash_caches_for_purpose(purpose)
+                    ref_embs = self._clip_caches_for_purpose(purpose)
+                    if not ref_phashes or not ref_embs:
+                        return False, 0.0, -1
+                    max_d = int(OmegaConf.select(
+                        self.cfg.break_detection, "phash.max_hamming_distance", default=8
+                    ))
+                    margin = int(OmegaConf.select(
+                        self.cfg.break_detection, "phash.shortlist_margin", default=4
+                    ))
+                    cos_thr = float(OmegaConf.select(
+                        self.cfg.break_detection, "clip.cosine_threshold", default=0.88
+                    ))
+                    small_bgr = self._ensure_detection_frame(frame)
+                    frame_hash = _compute_phash(small_bgr)
+                    shortlist = [
+                        i for i, rh in enumerate(ref_phashes)
+                        if _phash_hamming(frame_hash, rh) <= max_d + margin
+                    ]
+                    if not shortlist:
+                        return False, 0.0, -1
+                    idx, cos = self._clip_best_match(frame, ref_embs, restrict_to=shortlist)
+                    return cos >= cos_thr, cos, idx
                 case _:
                     pass
 
@@ -1030,6 +1303,506 @@ class VideoPresenterDetector:
 
         is_break = best_score > threshold
         return is_break, best_score, best_index
+
+    def _is_break_with_temporal(
+        self,
+        cap: cv2.VideoCapture,
+        t_sec: float,
+        purpose: str = "any_break",
+        *,
+        threshold_relax: float = 0.0,
+    ) -> tuple[bool, float, int]:
+        """Temporal consistency wrapper around ``is_break_screen``.
+
+        Reads ``break_detection.temporal.window_frames`` samples centered at ``t_sec`` (spacing
+        ``temporal.step_sec``) and returns ``(True, score, idx)`` only when at least
+        ``temporal.min_agree`` of them classify as break AND agree on the same best-ref index.
+
+        When ``min_agree <= 1`` or only one frame fits, this degrades to the single-frame path.
+        """
+        temporal = OmegaConf.select(self.cfg.break_detection, "temporal", default=None)
+        window = int(OmegaConf.select(temporal, "window_frames", default=1) or 1)
+        min_agree = int(OmegaConf.select(temporal, "min_agree", default=1) or 1)
+        step = float(OmegaConf.select(temporal, "step_sec", default=0.5) or 0.5)
+
+        if window <= 1 or min_agree <= 1:
+            frame = self.get_frame_at_time(cap, t_sec)
+            return self.is_break_screen(frame, purpose, threshold_relax=threshold_relax)
+
+        half = (window - 1) / 2.0
+        offsets = [(k - half) * step for k in range(window)]
+        idx_counts: dict[int, int] = {}
+        best_score_for_idx: dict[int, float] = {}
+        total_break = 0
+
+        for off in offsets:
+            t = max(0.0, min(self._video_duration_scan or t_sec, t_sec + off))
+            frame = self.get_frame_at_time(cap, t)
+            is_br, score, ref_idx = self.is_break_screen(
+                frame, purpose, threshold_relax=threshold_relax
+            )
+            if is_br and ref_idx >= 0:
+                total_break += 1
+                idx_counts[ref_idx] = idx_counts.get(ref_idx, 0) + 1
+                prev = best_score_for_idx.get(ref_idx, -1.0)
+                if score > prev:
+                    best_score_for_idx[ref_idx] = score
+
+        if total_break < min_agree or not idx_counts:
+            return False, 0.0, -1
+        top_idx, top_count = max(idx_counts.items(), key=lambda kv: kv[1])
+        if top_count < min_agree:
+            return False, 0.0, -1
+        return True, float(best_score_for_idx[top_idx]), int(top_idx)
+
+    def _ensure_inverse_gray_refs(self) -> list[np.ndarray]:
+        """Return grayscale detection-sized refs for the inverse detector's template matcher.
+
+        Reuses ``_detection_ref_arrays`` when the normal pipeline is on ``template`` (those are
+        already grayscale); otherwise builds a fresh grayscale cache from ``break_references``.
+        The inverse path always uses template matching, independent of ``comparison_method``.
+        """
+        method = str(self.cfg.break_detection.comparison_method)
+        if method == "template" and self._detection_ref_arrays and len(
+            self._detection_ref_arrays
+        ) == len(self.break_references):
+            return self._detection_ref_arrays
+        return [
+            cv2.cvtColor(self._ensure_detection_frame(r), cv2.COLOR_BGR2GRAY)
+            for r in self.break_references
+        ]
+
+    def _match_break_ref_for_inverse(
+        self,
+        frame: np.ndarray | None,
+        gray_refs: list[np.ndarray],
+        threshold: float,
+    ) -> int:
+        """Per-sample match: returns best ref index if any ``TM_CCOEFF_NORMED`` score ≥ threshold.
+
+        Fast, deterministic, overlay-tolerant in the normalized-correlation sense: identical
+        layout with an added overlay strip typically still scores 0.30–0.50.
+        """
+        if frame is None or not gray_refs:
+            return -1
+        gray = cv2.cvtColor(self._ensure_detection_frame(frame), cv2.COLOR_BGR2GRAY)
+        best_idx = -1
+        best_score = -1.0
+        for i, ref in enumerate(gray_refs):
+            score = float(np.max(cv2.matchTemplate(gray, ref, cv2.TM_CCOEFF_NORMED)))
+            if score > best_score:
+                best_score = score
+                best_idx = i
+        return best_idx if best_score >= threshold else -1
+
+    def detect_presentations_inverse(  # noqa: PLR0912, PLR0913, PLR0914, PLR0915
+        self,
+        video_path: str,
+        *,
+        coarse_step_sec: float | None = None,
+        refine_step_sec: float | None = None,
+        refine_pad_sec: float | None = None,
+        min_block_samples: int | None = None,
+        merge_gap_sec: float | None = None,
+        min_break_sec: float | None = None,
+        min_presentation_sec: float | None = None,
+    ) -> list[tuple[float, float]]:
+        """Inverse detection — 3-pass algorithm for long recordings with ≥ 5-minute breaks.
+
+        Pass 1 (coarse): sample every ``coarse_step_sec`` (default 5s) across the whole file.
+        At each sample, run ``TM_CCOEFF_NORMED`` against every loaded room-filtered break ref
+        and mark the frame as "break" when the best score ≥ ``match_threshold``.
+
+        Pass 2 (persistence): form break blocks where ≥ ``min_block_samples`` consecutive
+        coarse samples are break-matched (any ref counts); merge adjacent blocks whose gap
+        is ≤ ``merge_gap_sec``. Drop blocks shorter than ``min_break_sec``.
+
+        Pass 3 (refine): re-scan ±``refine_pad_sec`` around each surviving break block at
+        ``refine_step_sec`` to snap tight boundaries.
+
+        Output: presentation spans = complement of refined break blocks within [0, duration],
+        then drop spans shorter than ``min_presentation_sec`` (default 300s).
+        """
+        inv = OmegaConf.select(self.cfg.break_detection, "inverse", default=None)
+        coarse = float(coarse_step_sec if coarse_step_sec is not None
+                       else OmegaConf.select(inv, "coarse_step_sec", default=5.0))
+        refine = float(refine_step_sec if refine_step_sec is not None
+                       else OmegaConf.select(inv, "refine_step_sec", default=1.0))
+        pad = float(refine_pad_sec if refine_pad_sec is not None
+                    else OmegaConf.select(inv, "refine_pad_sec", default=30.0))
+        need_samples = int(min_block_samples if min_block_samples is not None
+                           else OmegaConf.select(inv, "min_block_samples", default=4))
+        merge_gap = float(merge_gap_sec if merge_gap_sec is not None
+                          else OmegaConf.select(inv, "merge_gap_sec", default=15.0))
+        min_break = float(min_break_sec if min_break_sec is not None
+                          else OmegaConf.select(inv, "min_break_sec", default=300.0))
+        min_pres = float(min_presentation_sec if min_presentation_sec is not None
+                         else OmegaConf.select(
+                             self.cfg.presentation_detection, "min_presentation_duration", default=300.0
+                         ))
+        match_thr = float(OmegaConf.select(inv, "match_threshold", default=0.30))
+
+        self._current_video = Path(video_path).name
+        self.load_break_images(str(self.cfg.break_detection.images_dir), video_path=video_path)
+        if not self.break_references:
+            logger.warning(
+                f"{self._tag()}inverse: no break references loaded — the whole file will be one presentation"
+            )
+        gray_refs = self._ensure_inverse_gray_refs()
+
+        cap, _fps, _total, duration = self.load_video(video_path)
+        try:
+            scan_to = float(self._video_duration_scan or duration)
+            if scan_to <= 0:
+                return []
+
+            # Pass 1 — coarse scan.
+            coarse = max(0.5, coarse)
+            n_samples = int(scan_to // coarse) + 1
+            logger.info(
+                f"{self._tag()}inverse: Pass 1 — coarse scan {n_samples} samples @ {coarse:.1f}s step "
+                f"vs {len(gray_refs)} refs (TM_CCOEFF_NORMED ≥ {match_thr:.2f})"
+            )
+            samples: list[tuple[float, int]] = []  # (time_sec, ref_idx or -1)
+            t = 0.0
+            while t <= scan_to:
+                frame = self.get_frame_at_time(cap, t)
+                ref_idx = self._match_break_ref_for_inverse(frame, gray_refs, match_thr)
+                samples.append((t, ref_idx))
+                t += coarse
+
+            # Pass 2 — persistence + gap merge.
+            raw_blocks = self._inverse_collect_blocks(samples, need_samples=need_samples)
+            merged = self._inverse_merge_blocks(raw_blocks, merge_gap_sec=merge_gap)
+            long_enough = [b for b in merged if (b[1] - b[0]) >= min_break]
+            logger.info(
+                f"{self._tag()}inverse: Pass 2 — {len(raw_blocks)} raw blocks → {len(merged)} merged "
+                f"→ {len(long_enough)} with duration ≥ {min_break:.0f}s"
+            )
+            for i, (bs, be) in enumerate(merged, start=1):
+                tag = "KEPT" if (be - bs) >= min_break else "drop"
+                logger.info(
+                    f"{self._tag()}inverse:   block {i:2d} [{tag}] "
+                    f"{str(timedelta(seconds=int(bs)))}–{str(timedelta(seconds=int(be)))} "
+                    f"({int(be - bs)}s)"
+                )
+
+            # Pass 3 — local refinement of each surviving break block.
+            refined_blocks: list[tuple[float, float]] = []
+            for b_start, b_end in long_enough:
+                rs, re_ = self._inverse_refine_block(
+                    cap, b_start, b_end, scan_to,
+                    pad_sec=pad, step_sec=refine,
+                    gray_refs=gray_refs, threshold=match_thr,
+                )
+                refined_blocks.append((rs, re_))
+            if refined_blocks:
+                logger.info(f"{self._tag()}inverse: Pass 3 — refined {len(refined_blocks)} break block boundaries")
+
+            # Invert break blocks → presentation spans within [0, scan_to].
+            presentations: list[tuple[float, float]] = []
+            cursor = 0.0
+            for bs, be in sorted(refined_blocks):
+                if bs - cursor >= min_pres:
+                    presentations.append((cursor, bs))
+                cursor = max(cursor, be)
+            if scan_to - cursor >= min_pres:
+                presentations.append((cursor, scan_to))
+
+            logger.info(
+                f"{self._tag()}inverse: {len(presentations)} presentation span(s) "
+                f"(min_presentation_sec={min_pres:.0f}s)"
+            )
+            return presentations
+        finally:
+            cap.release()
+            self._current_video = None
+
+    @staticmethod
+    def _inverse_collect_blocks(
+        samples: list[tuple[float, int]], *, need_samples: int
+    ) -> list[tuple[float, float]]:
+        """Group coarse samples into ``(start, end)`` runs of ≥ ``need_samples`` consecutive
+        break-matched samples. A sample is "break" when its ``ref_idx >= 0`` — any loaded
+        reference counts, because breaks in this event cycle through several slides.
+        """
+        blocks: list[tuple[float, float]] = []
+        run_start: float | None = None
+        run_last: float | None = None
+        run_len = 0
+        for ts, ref in samples:
+            if ref >= 0:
+                if run_start is None:
+                    run_start = ts
+                run_last = ts
+                run_len += 1
+                continue
+            if run_len >= need_samples and run_start is not None and run_last is not None:
+                blocks.append((run_start, run_last))
+            run_start = None
+            run_last = None
+            run_len = 0
+        if run_len >= need_samples and run_start is not None and run_last is not None:
+            blocks.append((run_start, run_last))
+        return blocks
+
+    @staticmethod
+    def _inverse_merge_blocks(
+        blocks: list[tuple[float, float]], *, merge_gap_sec: float
+    ) -> list[tuple[float, float]]:
+        """Merge neighboring blocks when the gap ≤ ``merge_gap_sec`` (ref-agnostic)."""
+        if not blocks:
+            return []
+        ordered = sorted(blocks)
+        out: list[tuple[float, float]] = [ordered[0]]
+        for start, end in ordered[1:]:
+            p_start, p_end = out[-1]
+            if (start - p_end) <= float(merge_gap_sec):
+                out[-1] = (p_start, max(p_end, end))
+            else:
+                out.append((start, end))
+        return out
+
+    def _inverse_refine_block(  # noqa: PLR0913
+        self,
+        cap: cv2.VideoCapture,
+        block_start: float,
+        block_end: float,
+        scan_to: float,
+        *,
+        pad_sec: float,
+        step_sec: float,
+        gray_refs: list[np.ndarray],
+        threshold: float,
+    ) -> tuple[float, float]:
+        """Snap block boundaries by scanning ±pad_sec at step_sec. Accepts any break ref."""
+        step = max(0.1, float(step_sec))
+        pad = max(step, float(pad_sec))
+        new_start = block_start
+        new_end = block_end
+        t = max(0.0, block_start - pad)
+        while t <= min(scan_to, block_end + pad):
+            frame = self.get_frame_at_time(cap, t)
+            if self._match_break_ref_for_inverse(frame, gray_refs, threshold) >= 0:
+                new_start = min(new_start, t)
+                new_end = max(new_end, t)
+            t += step
+        new_start = max(0.0, min(new_start, block_start))
+        new_end = min(scan_to, max(new_end, new_start + step))
+        return new_start, new_end
+
+    @staticmethod
+    def _schedule_match_assign(
+        gaps: list[tuple[float, float]],
+        scheduled_durations_sec: list[float],
+    ) -> list[int]:
+        """Pick ``K = len(scheduled_durations_sec)`` gap indices (chronological, preserving order)
+        that minimize the total |gap_duration − scheduled_duration| error.
+
+        Returns the list of selected gap indices, one per scheduled row. Requires
+        ``len(gaps) >= K``; raises ``ValueError`` otherwise.
+        """
+        k = len(scheduled_durations_sec)
+        m = len(gaps)
+        if k == 0:
+            return []
+        if m < k:
+            raise ValueError(
+                f"Schedule has {k} rows but only {m} talk-candidate gap(s) found — "
+                "cannot assign; lower break_detection.inverse.min_block_samples or "
+                "check break references."
+            )
+        inf = float("inf")
+        # f[i][j] = min cost using first i gaps and having assigned j rows; parent[i][j] = 0/1.
+        f = [[inf] * (k + 1) for _ in range(m + 1)]
+        parent = [[0] * (k + 1) for _ in range(m + 1)]
+        for i in range(m + 1):
+            f[i][0] = 0.0
+        for i in range(1, m + 1):
+            g_dur = gaps[i - 1][1] - gaps[i - 1][0]
+            for j in range(1, min(i, k) + 1):
+                skip = f[i - 1][j]
+                take = f[i - 1][j - 1] + abs(g_dur - scheduled_durations_sec[j - 1])
+                if take <= skip:
+                    f[i][j] = take
+                    parent[i][j] = 1
+                else:
+                    f[i][j] = skip
+                    parent[i][j] = 0
+        picks: list[int] = []
+        i, j = m, k
+        while j > 0:
+            if parent[i][j] == 1:
+                picks.append(i - 1)
+                i -= 1
+                j -= 1
+            else:
+                i -= 1
+        picks.reverse()
+        return picks
+
+    def detect_by_schedule_matching(  # noqa: PLR0912, PLR0913, PLR0914, PLR0915
+        self,
+        video_path: str,
+        scheduled_durations_sec: list[float],
+        *,
+        scheduled_starts_of_day_sec: list[float | None] | None = None,
+        coarse_step_sec: float | None = None,
+        min_block_samples: int | None = None,
+        merge_gap_sec: float | None = None,
+        min_candidate_gap_sec: float = 60.0,
+        trim_candidate_edges_sec: float = 0.0,
+    ) -> list[tuple[float, float]]:
+        """Find K presentation spans, one per scheduled row, by matching scheduled durations
+        to the talk-candidate gaps between detected break blocks.
+
+        Pipeline:
+          1. Load break refs (`images_dir` room-filtered + `presentation_starts_soon_images`).
+          2. Coarse-sample the file at ``coarse_step_sec`` (default 5 s), template-match each
+             frame against all loaded refs, mark it break when any score ≥ inverse.match_threshold.
+          3. Form persistent break blocks (≥ ``min_block_samples`` consecutive matched samples,
+             merge gaps ≤ ``merge_gap_sec``). NO minimum-break duration filter — every persistent
+             run is a boundary, no matter how short.
+          4. Compute candidate gaps between blocks (and before first / after last), drop gaps
+             shorter than ``min_candidate_gap_sec``.
+          5. Dynamic-programming assignment: pick ``K`` gaps in chronological order that
+             minimize Σ |gap_duration − scheduled_duration|.
+
+        Returns K spans in chronological order, one per scheduled row (same order as
+        ``scheduled_durations_sec``).
+        """
+        inv = OmegaConf.select(self.cfg.break_detection, "inverse", default=None)
+        coarse = float(coarse_step_sec if coarse_step_sec is not None
+                       else OmegaConf.select(inv, "coarse_step_sec", default=5.0))
+        need_samples = int(min_block_samples if min_block_samples is not None
+                           else OmegaConf.select(inv, "min_block_samples", default=4))
+        merge_gap = float(merge_gap_sec if merge_gap_sec is not None
+                          else OmegaConf.select(inv, "merge_gap_sec", default=15.0))
+        match_thr = float(OmegaConf.select(inv, "match_threshold", default=0.30))
+
+        self._current_video = Path(video_path).name
+        self.load_break_images(str(self.cfg.break_detection.images_dir), video_path=video_path)
+        if not self.break_references:
+            logger.warning(
+                f"{self._tag()}schedule-match: no break references loaded — cannot find gaps"
+            )
+            return []
+        gray_refs = self._ensure_inverse_gray_refs()
+
+        cap, _fps, _total, duration = self.load_video(video_path)
+        try:
+            scan_to = float(self._video_duration_scan or duration)
+            if scan_to <= 0:
+                return []
+
+            coarse = max(0.5, coarse)
+            n_samples = int(scan_to // coarse) + 1
+            logger.info(
+                f"{self._tag()}schedule-match: scanning {n_samples} samples @ {coarse:.1f}s "
+                f"vs {len(gray_refs)} refs (TM_CCOEFF_NORMED ≥ {match_thr:.2f})"
+            )
+            samples: list[tuple[float, int]] = []
+            t = 0.0
+            while t <= scan_to:
+                frame = self.get_frame_at_time(cap, t)
+                ref_idx = self._match_break_ref_for_inverse(frame, gray_refs, match_thr)
+                samples.append((t, ref_idx))
+                t += coarse
+
+            raw_blocks = self._inverse_collect_blocks(samples, need_samples=need_samples)
+            break_blocks = self._inverse_merge_blocks(raw_blocks, merge_gap_sec=merge_gap)
+
+            # Build candidate gaps = complement of break blocks within [0, scan_to].
+            gaps_raw: list[tuple[float, float]] = []
+            cursor = 0.0
+            for bs, be in sorted(break_blocks):
+                if bs > cursor:
+                    gaps_raw.append((cursor, bs))
+                cursor = max(cursor, be)
+            if scan_to > cursor:
+                gaps_raw.append((cursor, scan_to))
+
+            # Trim edges so tiny sliver-breaks at a talk's boundary don't pollute duration,
+            # then drop gaps shorter than min_candidate_gap_sec.
+            trim = max(0.0, float(trim_candidate_edges_sec))
+            gaps: list[tuple[float, float]] = []
+            for gs, ge in gaps_raw:
+                s = min(gs + trim, ge)
+                e = max(ge - trim, s)
+                if (e - s) >= float(min_candidate_gap_sec):
+                    gaps.append((s, e))
+
+            logger.info(
+                f"{self._tag()}schedule-match: {len(break_blocks)} break block(s), "
+                f"{len(gaps)} talk-candidate gap(s) ≥ {int(min_candidate_gap_sec)}s"
+            )
+            for i, (gs, ge) in enumerate(gaps, start=1):
+                logger.info(
+                    f"{self._tag()}schedule-match:   gap {i:2d} "
+                    f"{str(timedelta(seconds=int(gs)))}–{str(timedelta(seconds=int(ge)))} "
+                    f"({int(ge - gs)}s = {(ge - gs) / 60.0:.1f} min)"
+                )
+
+            if not scheduled_durations_sec:
+                logger.warning(f"{self._tag()}schedule-match: no scheduled rows — returning no spans")
+                return []
+
+            picks = self._schedule_match_assign(gaps, scheduled_durations_sec)
+            gap_spans = [gaps[i] for i in picks]
+
+            # Wallclock anchoring: derive ``video_offset = gap_start - scheduled_start_of_day``
+            # from the best-fit pair (smallest |gap_duration − scheduled_duration|), then emit
+            # each row's final span as [offset + sched_start, offset + sched_start + duration].
+            # This clips over-long gaps (pre-talk walk-in, post-talk Q&A) down to scheduled size
+            # while still placing every row at the right video offset.
+            offset: float | None = None
+            if scheduled_starts_of_day_sec and len(scheduled_starts_of_day_sec) == len(scheduled_durations_sec):
+                best: tuple[float, float] | None = None  # (|Δ|, offset)
+                for (g_start, g_end), sched_dur, sched_start in zip(
+                    gap_spans, scheduled_durations_sec, scheduled_starts_of_day_sec, strict=True
+                ):
+                    if sched_start is None:
+                        continue
+                    delta = abs((g_end - g_start) - float(sched_dur))
+                    cand_offset = float(g_start) - float(sched_start)
+                    if best is None or delta < best[0]:
+                        best = (delta, cand_offset)
+                if best is not None:
+                    offset = best[1]
+                    logger.info(
+                        f"{self._tag()}schedule-match: wallclock anchor — video_offset={offset:.1f}s "
+                        f"(best gap Δ={best[0]:.1f}s); clipping spans to scheduled durations"
+                    )
+
+            if offset is not None:
+                out: list[tuple[float, float]] = []
+                for sched_dur, sched_start in zip(
+                    scheduled_durations_sec, scheduled_starts_of_day_sec or [], strict=False
+                ):
+                    if sched_start is None:
+                        out.append((0.0, 0.0))  # placeholder; fall back below
+                        continue
+                    start_v = max(0.0, offset + float(sched_start))
+                    end_v = min(float(scan_to), start_v + float(sched_dur))
+                    out.append((start_v, end_v))
+                # Safety: if any placeholder, fall back to gap spans entirely.
+                if any(e == 0.0 and s == 0.0 for s, e in out):
+                    out = gap_spans
+            else:
+                out = gap_spans
+
+            for i, (span, sched) in enumerate(zip(out, scheduled_durations_sec, strict=True), start=1):
+                actual = span[1] - span[0]
+                diff = actual - float(sched)
+                logger.info(
+                    f"{self._tag()}schedule-match:   match {i}: scheduled {sched / 60.0:.1f} min → "
+                    f"{str(timedelta(seconds=int(span[0])))}–{str(timedelta(seconds=int(span[1])))} "
+                    f"({actual / 60.0:.1f} min, Δ={diff / 60.0:+.1f} min)"
+                )
+            return out
+        finally:
+            cap.release()
+            self._current_video = None
 
     def _advance_to_pre_session_if_needed(self, cap: cv2.VideoCapture, t0: float, scan_end: float) -> float:
         """
@@ -2659,7 +3432,251 @@ def _parse_probe_times(s: str | None) -> list[float] | None:
     return [float(x.strip()) for x in str(s).split(",") if x.strip()]
 
 
-def main():  # noqa: PLR0912, PLR0915
+_INVERSE_FILENAME_RE = re.compile(
+    r"(?P<room>[A-Za-z][A-Za-z0-9]+)\s+"
+    r"(?P<day>Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+"
+    r"(?P<half>AM|PM)",
+    re.IGNORECASE,
+)
+
+
+def _inverse_output_subdir_from_filename(name: str) -> str:
+    """Fallback output folder when no mapping row covers the video.
+
+    Parses patterns like ``PyConDE & PyData 2026 Titanium Tuesday AM.mp4`` →
+    ``Titanium_Tuesday_AM``. Falls back to the filename stem when no day/half match.
+    """
+    m = _INVERSE_FILENAME_RE.search(name)
+    if m:
+        return f"{m.group('room')}_{m.group('day').title()}_{m.group('half').upper()}"
+    return Path(name).stem
+
+
+def _run_inverse_cli(  # noqa: PLR0913
+    cfg: DictConfig,
+    video_paths: list[str],
+    *,
+    coarse_step_sec: float | None,
+    refine_step_sec: float | None,
+    min_break_sec: float | None,
+    min_block_samples: int | None,
+) -> None:
+    """Standalone inverse-detection runner — writes ``<video>.inverse_presentations.json`` per video.
+
+    Bypasses schedule mapping, two-phase, legacy, detection_quality, and FFmpeg. Runs the
+    3-pass algorithm (coarse pHash → persistence → local refine) described under
+    ``break_detection.inverse`` in config.
+    """
+    if not video_paths:
+        logger.error("--inverse-detect: no video files to process (set --video or --input-folder)")
+        raise SystemExit(2)
+
+    detector = VideoPresenterDetector(cfg)
+
+    rows: list[dict] = []
+    for vp in video_paths:
+        vpath = Path(vp)
+        logger.info(f"=== inverse detection: {vpath.name} ===")
+        spans = detector.detect_presentations_inverse(
+            str(vpath),
+            coarse_step_sec=coarse_step_sec,
+            refine_step_sec=refine_step_sec,
+            min_break_sec=min_break_sec,
+            min_block_samples=min_block_samples,
+        )
+        segments: list[dict] = []
+        for i, (s, e) in enumerate(spans, start=1):
+            seg = PresentationSegment(
+                index=i,
+                start_seconds=int(s),
+                end_seconds=int(e),
+                duration_seconds=int(max(0.0, e - s)),
+                start_timecode=str(timedelta(seconds=int(s))),
+                end_timecode=str(timedelta(seconds=int(e))),
+                duration=str(timedelta(seconds=int(max(0.0, e - s)))),
+            )
+            segments.append(seg.model_dump())
+
+        inv_cfg = OmegaConf.select(cfg.break_detection, "inverse", default=None)
+        out_path = vpath.with_suffix(vpath.suffix + ".inverse_presentations.json")
+        doc = {
+            "video": str(vpath),
+            "images_dir": str(cfg.break_detection.images_dir),
+            "params": {
+                "coarse_step_sec": float(
+                    coarse_step_sec if coarse_step_sec is not None
+                    else OmegaConf.select(inv_cfg, "coarse_step_sec", default=5.0)
+                ),
+                "refine_step_sec": float(
+                    refine_step_sec if refine_step_sec is not None
+                    else OmegaConf.select(inv_cfg, "refine_step_sec", default=1.0)
+                ),
+                "min_break_sec": float(
+                    min_break_sec if min_break_sec is not None
+                    else OmegaConf.select(inv_cfg, "min_break_sec", default=300.0)
+                ),
+                "min_block_samples": int(
+                    min_block_samples if min_block_samples is not None
+                    else OmegaConf.select(inv_cfg, "min_block_samples", default=4)
+                ),
+            },
+            "segments": segments,
+        }
+        with out_path.open("w", encoding="utf-8") as f:
+            json.dump(doc, f, indent=2, ensure_ascii=False)
+        logger.info(f"  wrote {out_path} ({len(segments)} segment(s))")
+
+        # Also write metadata.yaml into {output.folder}/{output_folder}/ matching the normal pipeline.
+        mapped = detector.get_output_folder(vpath)
+        subdir = mapped or _inverse_output_subdir_from_filename(vpath.name)
+        plan_for_yaml = {
+            "input_video": str(vpath),
+            "output_folder": subdir,
+            "detector": "inverse",
+        }
+        try:
+            (detector.video_output_folder / subdir).mkdir(parents=True, exist_ok=True)
+            detector.save_presentation_metadata(plan_for_yaml, spans)
+        except Exception as e:
+            logger.warning(f"  failed to write metadata.yaml for {vpath.name}: {e}")
+
+        rows.append({"video": vpath.name, "n": len(segments), "spans": spans})
+
+    logger.info("=== INVERSE DETECTION SUMMARY ===")
+    for r in rows:
+        spans_str = ", ".join(
+            f"{str(timedelta(seconds=int(s)))}–{str(timedelta(seconds=int(e)))}"
+            for s, e in r["spans"]
+        ) or "(none)"
+        logger.info(f"  {r['video']}: {r['n']} span(s) — {spans_str}")
+
+
+def _parse_time_of_day_seconds(value) -> float | None:  # noqa: PLR0911
+    """Parse a Pretalx ``Start (time)`` / ``End (time)`` cell to seconds-of-day.
+
+    Accepts ``HH:MM[:SS]``, ``datetime.time``, or an already-numeric value. Returns ``None``
+    for missing / unparseable input so callers can fall back to gap-based spans.
+    """
+    if value is None:
+        return None
+    # datetime.time / datetime.datetime duck-typing
+    h = getattr(value, "hour", None)
+    if h is not None:
+        m = int(getattr(value, "minute", 0) or 0)
+        s = int(getattr(value, "second", 0) or 0)
+        return float(int(h) * 3600 + m * 60 + s)
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value).strip()
+    if not s:
+        return None
+    parts = s.split(":")
+    try:
+        if len(parts) == 3:  # noqa: PLR2004
+            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
+        if len(parts) == 2:  # noqa: PLR2004
+            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0
+    except ValueError:
+        return None
+    return None
+
+
+def _scheduled_rows_for_video(detector: "VideoPresenterDetector", video_name: str) -> list[dict]:
+    """Return mapping-YAML rows matching ``video_name``, sorted chronologically by Pretalx
+    ``Start (time)``. Non-matching videos → empty list.
+    """
+    if detector.mapping_data is None or len(detector.mapping_data) == 0:
+        return []
+    try:
+        subset = detector.mapping_data.filter(pl.col("Recording") == video_name)
+    except Exception:
+        return []
+    if len(subset) == 0:
+        return []
+    import contextlib  # noqa: PLC0415
+
+    with contextlib.suppress(Exception):
+        subset = subset.sort("Start (time)")
+    return subset.to_dicts()
+
+
+def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
+    """Schedule-aligned detection: per video, find K scheduled talks by matching scheduled
+    durations to gaps between detected break blocks. Writes metadata.yaml per video.
+    """
+    if not video_paths:
+        logger.error("--schedule-match: no video files to process (set --video or --input-folder)")
+        raise SystemExit(2)
+
+    detector = VideoPresenterDetector(cfg)
+    rows_out: list[dict] = []
+
+    for vp in video_paths:
+        vpath = Path(vp)
+        logger.info(f"=== schedule-match: {vpath.name} ===")
+        rows = _scheduled_rows_for_video(detector, vpath.name)
+        if not rows:
+            logger.warning(f"  no mapping rows for {vpath.name} — skipping")
+            continue
+        durations_sec: list[float] = []
+        starts_of_day_sec: list[float | None] = []
+        for r in rows:
+            d = parse_pretalx_duration_to_seconds(r.get("Duration"))
+            if d is None or d <= 0:
+                logger.warning(f"  {vpath.name}: row with unparseable Duration={r.get('Duration')!r} — skipping video")
+                durations_sec = []
+                break
+            durations_sec.append(float(d))
+            starts_of_day_sec.append(_parse_time_of_day_seconds(r.get("Start (time)")))
+        if not durations_sec:
+            continue
+
+        logger.info(
+            f"  {len(rows)} scheduled row(s) — durations (min): "
+            + ", ".join(f"{d / 60.0:.0f}" for d in durations_sec)
+        )
+        spans = detector.detect_by_schedule_matching(
+            str(vpath),
+            durations_sec,
+            scheduled_starts_of_day_sec=starts_of_day_sec if any(s is not None for s in starts_of_day_sec) else None,
+        )
+        if len(spans) != len(durations_sec):
+            logger.error(
+                f"  {vpath.name}: expected {len(durations_sec)} span(s), got {len(spans)} — "
+                "not writing metadata.yaml"
+            )
+            rows_out.append({"video": vpath.name, "n": len(spans), "ok": False})
+            continue
+
+        mapped = detector.get_output_folder(vpath)
+        subdir = mapped or _inverse_output_subdir_from_filename(vpath.name)
+        plan_for_yaml = {
+            "input_video": str(vpath),
+            "output_folder": subdir,
+            "detector": "schedule-match",
+            "scheduled_rows": [
+                {k: r.get(k) for k in ("Proposal title", "Duration", "Start (time)", "End (time)")}
+                for r in rows
+            ],
+        }
+        try:
+            (detector.video_output_folder / subdir).mkdir(parents=True, exist_ok=True)
+            detector.save_presentation_metadata(plan_for_yaml, spans)
+        except Exception as e:
+            logger.warning(f"  failed to write metadata.yaml for {vpath.name}: {e}")
+        rows_out.append({"video": vpath.name, "n": len(spans), "ok": True, "spans": spans})
+
+    logger.info("=== SCHEDULE-MATCH SUMMARY ===")
+    for r in rows_out:
+        spans_str = ", ".join(
+            f"{str(timedelta(seconds=int(s)))}–{str(timedelta(seconds=int(e)))}"
+            for s, e in r.get("spans", [])
+        ) or "(none)"
+        status = "OK" if r.get("ok") else "FAIL"
+        logger.info(f"  [{status}] {r['video']}: {r['n']} span(s) — {spans_str}")
+
+
+def main():  # noqa: PLR0911, PLR0912, PLR0915
     """Main function with command line interface"""
     parser = argparse.ArgumentParser(description="Process conference videos")
     parser.add_argument(
@@ -2732,6 +3749,73 @@ def main():  # noqa: PLR0912, PLR0915
         "--extract-only",
         action="store_true",
         help="FFmpeg extract only from existing processing_plan.yaml (requires prior successful detection).",
+    )
+    parser.add_argument(
+        "--emit-templates",
+        action="store_true",
+        help=(
+            "Write one metadata_template.yaml per video in processing_plan.yaml (blank HH:MM:SS rows "
+            "sized to the scheduled talk count). Run after --detect-only. No FFmpeg."
+        ),
+    )
+    parser.add_argument(
+        "--force-emit-templates",
+        action="store_true",
+        help="With --emit-templates, overwrite existing templates (default: skip existing).",
+    )
+    parser.add_argument(
+        "--apply-templates",
+        action="store_true",
+        help=(
+            "Convert each filled metadata_template.yaml to metadata_manual.yaml (HH:MM:SS → seconds). "
+            "Leaves the detector's metadata.yaml untouched."
+        ),
+    )
+    parser.add_argument(
+        "--inverse-detect",
+        action="store_true",
+        help=(
+            "Experimental: find presentation spans as contiguous frames matching NO reference "
+            "in break_detection.images_dir (ignores start/end/shared subsets and schedule). "
+            "Writes <video>.inverse_presentations.json. No FFmpeg."
+        ),
+    )
+    parser.add_argument(
+        "--inverse-coarse-step-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="Pass 1 coarse sample step for --inverse-detect (default: break_detection.inverse.coarse_step_sec=5).",
+    )
+    parser.add_argument(
+        "--inverse-refine-step-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="Pass 3 boundary refinement step (default: break_detection.inverse.refine_step_sec=1).",
+    )
+    parser.add_argument(
+        "--inverse-min-break-sec",
+        type=float,
+        default=None,
+        metavar="SEC",
+        help="Minimum break-block duration to accept (default: break_detection.inverse.min_break_sec=300).",
+    )
+    parser.add_argument(
+        "--inverse-min-block-samples",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Required consecutive same-ref coarse samples (default: break_detection.inverse.min_block_samples=4).",
+    )
+    parser.add_argument(
+        "--schedule-match",
+        action="store_true",
+        help=(
+            "Schedule-aligned detection: find K presentation spans (one per scheduled row in "
+            "input.mapping_file) by matching scheduled durations to the gaps between detected "
+            "break blocks. Writes metadata.yaml per video. No FFmpeg."
+        ),
     )
 
     args = parser.parse_args()
@@ -2826,11 +3910,69 @@ def main():  # noqa: PLR0912, PLR0915
     if args.video:
         cfg.input.video_path = str(Path(args.video).expanduser().resolve())
 
+    if args.inverse_detect:
+        single = str(OmegaConf.select(cfg.input, "video_path", default="") or "").strip()
+        if single:
+            vp = Path(single).expanduser().resolve()
+            if not vp.is_file():
+                raise FileNotFoundError(f"input.video_path is not a file: {vp}")
+            inverse_videos = [str(vp)]
+        else:
+            folder = Path(str(cfg.input.folder)).expanduser().resolve()
+            inverse_videos = get_video_files(str(folder), str(cfg.input.extensions))
+        _run_inverse_cli(
+            cfg,
+            inverse_videos,
+            coarse_step_sec=args.inverse_coarse_step_sec,
+            refine_step_sec=args.inverse_refine_step_sec,
+            min_break_sec=args.inverse_min_break_sec,
+            min_block_samples=args.inverse_min_block_samples,
+        )
+        return
+
+    if args.schedule_match:
+        single = str(OmegaConf.select(cfg.input, "video_path", default="") or "").strip()
+        if single:
+            vp = Path(single).expanduser().resolve()
+            if not vp.is_file():
+                raise FileNotFoundError(f"input.video_path is not a file: {vp}")
+            sm_videos = [str(vp)]
+        else:
+            folder = Path(str(cfg.input.folder)).expanduser().resolve()
+            sm_videos = get_video_files(str(folder), str(cfg.input.extensions))
+        _run_schedule_match_cli(cfg, sm_videos)
+        return
+
     # Initialize detector
     detector = VideoPresenterDetector(cfg)
 
     if args.extract_only and args.detect_only:
         logger.error("Use only one of --extract-only or --detect-only.")
+        return
+
+    template_modes = sum(1 for flag in (args.emit_templates, args.apply_templates) if flag)
+    if template_modes > 1:
+        logger.error("Use only one of --emit-templates or --apply-templates.")
+        return
+    if template_modes and (args.detect_only or args.extract_only):
+        logger.error("--emit-templates/--apply-templates cannot be combined with --detect-only or --extract-only.")
+        return
+    if args.force_emit_templates and not args.emit_templates:
+        logger.error("--force-emit-templates requires --emit-templates.")
+        return
+
+    if args.emit_templates or args.apply_templates:
+        if not detector.processing_plan_path.exists():
+            logger.error(
+                f"No processing plan at {detector.processing_plan_path}. "
+                "Run detection first, e.g. `python presentation_detector.py --detect-only`."
+            )
+            raise SystemExit(1)
+        plan_entries = detector.load_processing_plan()
+        if args.emit_templates:
+            emit_templates(plan_entries, detector.video_output_folder, force=args.force_emit_templates)
+        else:
+            apply_templates(plan_entries, detector.video_output_folder)
         return
 
     if args.extract_only:
