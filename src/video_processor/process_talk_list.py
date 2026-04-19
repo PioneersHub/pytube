@@ -20,7 +20,7 @@ import yaml
 from omegaconf import OmegaConf
 
 from manager import logger
-from video_processor import map_recordings
+from video_processor import map_recordings, room_mapping
 
 # Matches a bracketed annotation at the end of a room name, e.g. " [3rd Floor]".
 _ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
@@ -123,6 +123,10 @@ def main(
 
     # logger.info some information about the data
     logger.info(f"Loaded {df.shape[0]} sessions")
+
+    # Ensure the Pretalx Room -> short-form mapping YAML exists (prompt before replace).
+    unique_rooms = [r for r in df["Room"].drop_nulls().unique().to_list() if r]
+    room_mapping.generate(unique_rooms)
 
     # Read recordings from directory
     recordings_path = Path(recordings_dir)

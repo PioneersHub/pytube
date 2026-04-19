@@ -34,6 +34,30 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 
 from manager import logger
+from video_processor.models import DetectionFailures, FailedVideo, PresentationSegment, VideoMetadata
+
+# region agent log
+_AGENT_DEBUG_LOG = Path(__file__).resolve().parents[2] / ".cursor" / "debug-76f0e9.log"
+
+
+def _agent_debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    """Append one NDJSON line for debug-mode analysis (session 76f0e9)."""
+    try:
+        payload = {
+            "sessionId": "76f0e9",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        with _AGENT_DEBUG_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+# endregion
 
 # Strip bracketed room annotations (same as process_talk_list / map_recordings).
 _ROOM_ANNOTATION_RE = re.compile(r"\s*\[[^\]]*\]\s*")
@@ -106,15 +130,23 @@ def align_presession_starts_to_schedule(
     """
     Map ordered Pre-Session → talk leave times to ``n_scheduled`` session starts.
 
-    If the file opens in a talk (no break slide at t=0), session 0 starts at 0.0
-    and the next ``n_scheduled - 1`` edges are used for sessions 1 … N−1.
-    Otherwise the first ``n_scheduled`` edges are used. Returns None if there are
-    not enough edges.
+    If the file opens in a talk (no break slide at t=0): for **one** scheduled session and at
+    least one raw edge, the talk start is the **last** Pre-Session→talk edge (earlier edges are
+    intro/pre-roll). With **no** raw edges, session 0 is anchored at 0.0. For **multiple**
+    scheduled sessions, session 0 is at 0.0 and the next ``n_scheduled - 1`` edges are sessions 1…N−1.
+
+    If the file opens on a break slide, the first ``n_scheduled`` edges are used.
+
+    Returns None if there are not enough edges.
     """
     if n_scheduled <= 0:
         return []
     ordered = sorted(float(x) for x in raw_edges)
     if opens_in_talk:
+        if n_scheduled == 1:
+            if not ordered:
+                return [0.0]
+            return [ordered[-1]]
         need = n_scheduled - 1
         if len(ordered) < need:
             return None
@@ -291,6 +323,21 @@ class VideoPresenterDetector:
             self._build_detection_arrays(self.break_references_start) if self.break_references_start else []
         )
 
+    def _resolve_start_image_path(self) -> Path | None:
+        """Return absolute path for ``break_detection.start_image``, or None if unset/invalid."""
+        raw = OmegaConf.select(self.cfg.break_detection, "start_image", default="")
+        if raw is None:
+            return None
+        s = str(raw).strip()
+        if not s:
+            return None
+        p = Path(s).expanduser()
+        if p.is_absolute():
+            return p.resolve()
+        images_dir = str(OmegaConf.select(self.cfg.break_detection, "images_dir", default="") or "").strip()
+        base = Path(images_dir).expanduser() if images_dir else Path.cwd()
+        return (base / p).resolve()
+
     def _assign_break_reference_subsets(self, image_files: list[Path], break_images: list[np.ndarray]) -> None:
         """Split refs: end-of-talk (room End-Stream), session-start (Pre-Session), and full set for generic use."""
         self.break_references = break_images
@@ -324,6 +371,29 @@ class VideoPresenterDetector:
                     f"End-of-presentation refs: {len(self.break_references_end)} image(s) matching "
                     f"end_ref_substrings {end_subs!r}; other refs used for break→presentation / session start"
                 )
+
+        start_image_loaded = False
+        sip = self._resolve_start_image_path()
+        if sip is not None:
+            img = cv2.imread(str(sip))
+            if img is not None:
+                if self.cfg.video.enable_resize:
+                    width, height = self.cfg.video.processing_size
+                    img = cv2.resize(img, (int(width), int(height)), interpolation=cv2.INTER_AREA)
+                self.break_references_start = [img]
+                start_image_loaded = True
+                logger.info(
+                    f"Session-start ref from break_detection.start_image (single file): {sip} — "
+                    "talk start when this slide no longer matches (overrides start_ref_substrings)"
+                )
+            else:
+                logger.warning(
+                    f"break_detection.start_image: could not read image at {sip}; "
+                    "falling back to start_ref_substrings"
+                )
+
+        if start_image_loaded:
+            return
 
         if not start_subs:
             self.break_references_start = []
@@ -513,6 +583,8 @@ class VideoPresenterDetector:
         self.load_processing_plan()
         auto_detect = bool(OmegaConf.select(self.cfg, "output.auto_detect_on_extract", default=False))
 
+        failed_plans: list[dict] = []
+
         for plan in self.processing_plan:
             if not plan.get("presentations"):
                 continue
@@ -527,16 +599,19 @@ class VideoPresenterDetector:
                         "Run detection first (`--detect-only`), or set output.auto_detect_on_extract: true to allow "
                         "auto-detection from this step (not recommended)."
                     )
+                    failed_plans.append(plan)
                     continue
                 logger.info(f"Detecting presentations in {plan['input_video']} (auto_detect_on_extract=true)...")
                 if not self.process_video(plan):
                     logger.warning(f"Detection failed for {plan['input_video']}; skipping.")
+                    failed_plans.append(plan)
                     continue
                 idx = plan.get("presentations_index")
                 dq = plan.get("detection_quality") or {}
 
             if not idx:
                 logger.error(f"Skipping {plan.get('input_video')}: no presentations_index after detection step.")
+                failed_plans.append(plan)
                 continue
 
             if dq.get("passed") is False:
@@ -544,6 +619,7 @@ class VideoPresenterDetector:
                     f"Skipping {plan.get('input_video')}: detection_quality.passed is false — "
                     "fix break detection and re-run detection before FFmpeg extract."
                 )
+                failed_plans.append(plan)
                 continue
 
             if dq.get("passed") is None:
@@ -557,10 +633,13 @@ class VideoPresenterDetector:
                     logger.error(
                         f"Skipping extract for {plan.get('input_video')}: legacy plan fails detection_quality re-check."
                     )
+                    failed_plans.append(plan)
                     continue
 
             logger.info(f"Extracting presentations from {plan['input_video']}...")
             self.extract_presentations(plan)
+
+        self._write_detection_failed(failed_plans)
 
     def process_video(self, plan: dict) -> bool:
         """
@@ -1174,6 +1253,22 @@ class VideoPresenterDetector:
         # One scheduled row covering the whole file (e.g. half-day track) may exceed a nominal cap.
         seg_dur_ok = True
         skip_cap = expected == 1 and got == 1 and len(segments) == 1
+        # region agent log
+        seg_preview = [[float(s), float(e), round((e - s) / 60.0, 2)] for s, e in segments[:5]]
+        _agent_debug_log(
+            "H3",
+            "evaluate_detection_quality",
+            "quality_gate_skip_cap",
+            {
+                "expected": expected,
+                "got": got,
+                "skip_cap": skip_cap,
+                "max_seg_min": max_seg_min,
+                "video_duration_sec": video_duration_sec,
+                "segments_preview_min": seg_preview,
+            },
+        )
+        # endregion
         for i, (start, end) in enumerate(segments):
             if skip_cap:
                 continue
@@ -1643,9 +1738,10 @@ class VideoPresenterDetector:
         Dense forward scan over ``[0, scan_dur)`` for every Pre-Session → talk transition
         (``start_break`` True → False), refined with ``binary_search_transition``.
 
-        When ``use_schedule_duration_for_presession_scan`` is true and ``plan`` has ``presentations``,
-        after each edge at ``refined`` the scan jumps to ``refined + Duration`` (row ``i`` for the
-        ``i``-th edge) instead of stepping in 5s increments across the talk.
+        When ``use_schedule_duration_for_presession_scan`` is true and ``plan`` has **multiple**
+        ``presentations`` rows, after each edge at ``refined`` the scan jumps to ``refined + Duration``.
+        For a **single** scheduled session, jumping is disabled: one early spurious edge plus jump
+        can skip the real Pre-Session→talk band later in the file (see debug H5).
         """
         if not self.break_references_start:
             return []
@@ -1661,8 +1757,13 @@ class VideoPresenterDetector:
         min_interval = float(self.cfg.presentation_detection.min_interval)
         tag = self._tag()
 
-        use_jump = self._use_schedule_duration_for_presession_scan() and plan is not None
-        rows: list[dict] = list((plan or {}).get("presentations") or []) if use_jump else []
+        plan_rows: list[dict] = list((plan or {}).get("presentations") or [])
+        use_jump = (
+            self._use_schedule_duration_for_presession_scan()
+            and plan is not None
+            and len(plan_rows) > 1
+        )
+        rows: list[dict] = plan_rows if use_jump else []
 
         t0 = self.get_frame_at_time(cap, 0.0)
         prev_pre, _, _ = self.is_break_screen(t0, "start_break")
@@ -1697,6 +1798,21 @@ class VideoPresenterDetector:
                                 continue
             prev_pre = cur_pre
             t += edge_step
+        # region agent log
+        _agent_debug_log(
+            "H4",
+            "_collect_all_presession_to_talk_edges",
+            "presession_hits",
+            {
+                "n_hits": len(hits),
+                "first_hit_sec": hits[0] if hits else None,
+                "last_hit_sec": hits[-1] if hits else None,
+                "use_jump": use_jump,
+                "n_plan_rows": len(plan_rows),
+                "jump_disabled_single_session": len(plan_rows) == 1,
+            },
+        )
+        # endregion
         return hits
 
     def _grid_scan_first_end_break(
@@ -1808,6 +1924,19 @@ class VideoPresenterDetector:
         opens_in_talk = not self.is_break_screen(f0, "any_break")[0]
         raw = self._collect_all_presession_to_talk_edges(cap, scan_dur, plan)
         starts = align_presession_starts_to_schedule(raw, n, opens_in_talk)
+        # region agent log
+        _agent_debug_log(
+            "H1",
+            "_detect_presentations_two_phase",
+            "opens_in_talk_and_alignment",
+            {
+                "opens_in_talk": opens_in_talk,
+                "n_raw_edges": len(raw),
+                "scheduled_n": n,
+                "starts": [float(x) for x in (starts or [])][:10],
+            },
+        )
+        # endregion
         if starts is None:
             need = n - 1 if opens_in_talk else n
             logger.error(
@@ -1815,6 +1944,23 @@ class VideoPresenterDetector:
                 f"got {len(raw)}. Cannot align to {n} scheduled row(s)."
             )
             return []
+
+        if opens_in_talk and n == 1 and raw:
+            earlier = [float(x) for x in raw[:-1]] if len(raw) > 1 else []
+            st0 = float(starts[0])
+            if earlier:
+                logger.info(
+                    f"{tag}Schedule uses one session; file opens without a full-screen break at 0:00. "
+                    f"Found {len(raw)} Pre-Session→talk edge(s) while scanning — earlier edge(s) at "
+                    f"{[str(timedelta(seconds=int(x))) for x in earlier]} are intro/pre-roll. "
+                    f"Scheduled talk start (``start_ref_substrings`` / Pre-Session PNG) is set to the "
+                    f"last edge: {timedelta(seconds=int(st0))}, not 0:00:00."
+                )
+            else:
+                logger.info(
+                    f"{tag}Schedule uses one session; talk start from Pre-Session→talk edge at "
+                    f"{timedelta(seconds=int(st0))} (``start_ref_substrings``)."
+                )
 
         out: list[tuple[float, float]] = []
         for i in range(n):
@@ -1851,6 +1997,18 @@ class VideoPresenterDetector:
                 )
                 out.append((st, hi))
 
+        # region agent log
+        _agent_debug_log(
+            "H2",
+            "_detect_presentations_two_phase",
+            "segments_result",
+            {
+                "n_out": len(out),
+                "pairs": [[float(a), float(b)] for a, b in out[:5]],
+                "scan_dur": float(scan_dur),
+            },
+        )
+        # endregion
         return out
 
     def _next_presession_to_talk_edge_after_first_talk(
@@ -2269,16 +2427,18 @@ class VideoPresenterDetector:
                     logger.info(f"✅ Extracted audio: {output_audio}")
 
     def _load_mapping_data(self):
-        """Load the session->recording mapping Parquet from disk.
+        """Load the session->recording mapping YAML from disk.
 
-        The path is read from `input.mapping_file`. Missing or empty values
-        raise immediately — downstream code can't pair sessions to video
-        segments without this, and silently continuing produced confusing
-        'No videos to process' no-ops.
+        The path is read from `input.mapping_file`. Expected top-level shape:
+        ``{sessions: [<row dict>, ...]}``. Rows are loaded into a polars
+        DataFrame (all columns cast to Utf8) so downstream filter/select
+        code keeps working unchanged. Missing or empty values raise
+        immediately — silently continuing produced confusing 'No videos to
+        process' no-ops.
         """
         if bool(OmegaConf.select(self.cfg.input, "allow_missing_mapping", default=False)):
             self.mapping_data = None
-            logger.info("input.allow_missing_mapping: skipping Parquet load (probe / tooling only)")
+            logger.info("input.allow_missing_mapping: skipping YAML load (probe / tooling only)")
             return
 
         mapping_file = self.cfg.input.mapping_file
@@ -2286,16 +2446,26 @@ class VideoPresenterDetector:
             raise ValueError(
                 "input.mapping_file is not set in src/video_processor/config.yaml. "
                 "Run Stage 2 (process_talk_list.py) first, then point this key at the "
-                "*_processed.parquet it produced."
+                "*_processed.yaml it produced."
             )
         mapping_path = Path(mapping_file)
         if not mapping_path.exists():
             raise FileNotFoundError(
-                f"input.mapping_file points to a missing Parquet: {mapping_path}. "
+                f"input.mapping_file points to a missing YAML: {mapping_path}. "
                 "Run Stage 2 (process_talk_list.py) to generate it, or fix the path."
             )
-        self.mapping_data = pl.read_parquet(mapping_path)
-        logger.info(f"Loaded mapping data from {mapping_path}")
+        with mapping_path.open() as f:
+            doc = yaml.safe_load(f) or {}
+        sessions = doc.get("sessions") if isinstance(doc, dict) else None
+        if not sessions:
+            raise ValueError(
+                f"input.mapping_file has no 'sessions' list: {mapping_path}. "
+                "Expected top-level shape: {sessions: [ ... ]}."
+            )
+        self.mapping_data = pl.from_dicts(sessions).with_columns(
+            [pl.col(c).cast(pl.String) for c in sessions[0]]
+        )
+        logger.info(f"Loaded mapping data from {mapping_path} ({len(sessions)} rows)")
 
     def get_output_folder(self, video_path: Path) -> str | None:
         """Get the output folder for a given video path from the Excel mapping"""
@@ -2315,27 +2485,50 @@ class VideoPresenterDetector:
             return None
 
     def save_presentation_metadata(self, plan: dict, presentations: list[tuple[float, float]]) -> None:
-        """Save presentation metadata in a JSON file for future reference"""
-        metadata_file = self.video_output_folder / plan["output_folder"] / "metadata.json"
-        metadata = {"video": plan, "presentations_index": []}
-
-        for i, (start, end) in enumerate(presentations):
-            metadata["presentations_index"].append(
-                {
-                    "index": i + 1,
-                    "start_seconds": int(start),
-                    "end_seconds": int(end),
-                    "duration_seconds": int(end - start),
-                    "start_timecode": str(timedelta(seconds=int(start))),
-                    "end_timecode": str(timedelta(seconds=int(end))),
-                    "duration": str(timedelta(seconds=int(end - start))),
-                }
+        """Build a VideoMetadata (pydantic-validated) and write to metadata.yaml."""
+        metadata_file = self.video_output_folder / plan["output_folder"] / "metadata.yaml"
+        metadata = VideoMetadata(
+            video=plan,
+            presentations_index=[
+                PresentationSegment(
+                    index=i + 1,
+                    start_seconds=int(start),
+                    end_seconds=int(end),
+                    duration_seconds=int(end - start),
+                    start_timecode=str(timedelta(seconds=int(start))),
+                    end_timecode=str(timedelta(seconds=int(end))),
+                    duration=str(timedelta(seconds=int(end - start))),
+                )
+                for i, (start, end) in enumerate(presentations)
+            ],
+        )
+        with metadata_file.open("w") as f:
+            f.write("# Per-video presentation metadata — validated by video_processor.models.VideoMetadata.\n\n")
+            yaml.safe_dump(
+                metadata.model_dump(), f, sort_keys=False, allow_unicode=True, default_flow_style=False
             )
-
-        with open(metadata_file, "w") as f:
-            json.dump(metadata, f, indent=2)
-
         logger.info(f"Saved presentation metadata to {metadata_file}")
+
+    def _write_detection_failed(self, failed_plans: list[dict]) -> None:
+        """Write {output.folder}/detection_failed.yaml listing videos where detection failed.
+
+        When there are no failures, any stale file is removed so an empty run
+        clears the previous state.
+        """
+        path = self.video_output_folder / "detection_failed.yaml"
+        if not failed_plans:
+            path.unlink(missing_ok=True)
+            return
+        doc = DetectionFailures(
+            failed=[
+                FailedVideo(input_video=p["input_video"], output_folder=p.get("output_folder"))
+                for p in failed_plans
+            ]
+        )
+        with path.open("w") as f:
+            f.write("# Videos where detection failed — re-run presentation_detector.py to retry.\n\n")
+            yaml.safe_dump(doc.model_dump(), f, sort_keys=False, allow_unicode=True, default_flow_style=False)
+        logger.info(f"Wrote {len(failed_plans)} failed entries to {path}")
 
     def make_processing_plan(self):
         # Generate processing plan
@@ -2369,6 +2562,8 @@ class VideoPresenterDetector:
 
         logger.info(f"Successfully processed: {success_count}")
         logger.info(f"Failed: {fail_count}")
+
+        self._write_detection_failed([p for p in results if not p.get("success")])
 
         logger.info("=== DETECTION BATCH SUMMARY (tabular) ===\n" + _format_detection_batch_table(results))
 
@@ -2526,7 +2721,7 @@ def main():  # noqa: PLR0912, PLR0915
     parser.add_argument(
         "--probe-skip-mapping",
         action="store_true",
-        help="Do not load input.mapping_file Parquet (for probe without session mapping)",
+        help="Do not load input.mapping_file YAML (for probe without session mapping)",
     )
     parser.add_argument(
         "--detect-only",
@@ -2572,6 +2767,7 @@ def main():  # noqa: PLR0912, PLR0915
                     "shared_ref_substrings": ["All-Rooms", "Pre-Session-Graphic-All-Rooms"],
                     "room_names": [],
                     "start_ref_substrings": ["Pre-Session-Graphic-All-Rooms"],
+                    "start_image": "",
                     "end_ref_substrings": ["End-Stream"],
                 },
                 "presentation_detection": {

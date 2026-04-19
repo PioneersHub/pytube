@@ -178,6 +178,10 @@ Add to `config_local.yaml`:
 pretalx:
   sessions_csv: "/path/to/pyconde-pydata-2026_sessions.csv"
   recording_mapping_yaml: "/path/to/pyconde-pydata-2026_recording_mapping.yaml"
+  # Pretalx Room -> short-form mapping. Generated once by process_talk_list.py;
+  # default transform is "strip [brackets], strip, lowercase". Hand-edit values
+  # to override per room (e.g. "Merck Plenary (Spectrum)" -> "spectrum").
+  room_mapping_yaml: "/path/to/pyconde-pydata-2026_room_mapping.yaml"
 
 vimeo:
   raw_sources:
@@ -347,7 +351,7 @@ In [src/video_processor/config.yaml](../src/video_processor/config.yaml):
 input:
   folder: "/Volumes/DATA/_pyconde2026/videos/input"          # = Stage 1 output_dir
   extensions: "mp4,mkv,avi,mov,webm"
-  mapping_file: "/Volumes/DATA/_pyconde2026/pyconde-pydata-2026_sessions_processed.parquet"  # = Stage 2 output
+  mapping_file: "/Volumes/DATA/_pyconde2026/pyconde-pydata-2026_sessions_processed.yaml"  # = Stage 2 output (YAML)
 
 video:
   enable_resize: false              # true → downscale before detection (faster, less accurate)
@@ -430,16 +434,17 @@ For each processed stream you get a subfolder:
 {output.folder}/
 └── PyConDE & PyData 2026 - Dynamicum - Monday Morning/
     ├── presentations.txt
-    ├── <stream>_metadata.json
+    ├── metadata.yaml
     ├── 001 - Talk Title [ABC123].mp4
     ├── 001 - Talk Title [ABC123].mp3
     ├── 002 - Next Talk [DEF456].mp4
     └── 002 - Next Talk [DEF456].mp3
 ```
 
-The metadata JSON records per-clip `start_time`, `end_time`, `duration`, and
-which break-type index opened/closed the segment — useful for spot-checking
-cuts against the source stream.
+`metadata.yaml` is validated at write time by
+[`VideoMetadata`](../src/video_processor/models.py). It records per-clip
+`start_seconds`, `end_seconds`, `duration`, and the source plan entry —
+useful for spot-checking cuts against the source stream.
 
 ---
 

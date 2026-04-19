@@ -6,10 +6,10 @@ input:
   folder: "/Volumes/DATA4T/vimeo-downloads/"
   # File extensions to process from input folder (comma-separated)
   extensions: "mp4,mkv,avi,mov,webm"
-  # File mapping from Parquet — must be the Stage 2 output next to pretalx.sessions_csv:
-  # same directory, name {sessions_csv_stem}_processed.parquet (see process_talk_list.py).
-  mapping_file: "/Volumes/DATA4T/2026/pyconde-pydata-2026_sessions_processed.parquet"
-  # When true, Parquet is not loaded (use with: python presentation_detector.py --probe-video ... --probe-skip-mapping)
+  # Session mapping YAML — Stage 2 output next to pretalx.sessions_csv.
+  # Expected top-level shape: {sessions: [ {ID, Proposal title, Room, Day, TimePeriod, Recording, ...}, ... ]}
+  mapping_file: "/Volumes/DATA4T/2026/pyconde-pydata-2026_sessions_processed.yaml"
+  # When true, mapping YAML is not loaded (use with: python presentation_detector.py --probe-video ... --probe-skip-mapping)
   allow_missing_mapping: false
 
 
@@ -47,14 +47,20 @@ break_detection:
     - "All-Rooms"
     - "Pre-Session-Graphic-All-Rooms"
   # Session *start*: match Pre-Session-Graphic until it is no longer on screen → that edge is talk start.
+  # Substrings match filenames (e.g. ``Pre-Session-Graphic-All-Rooms-PyConDE-26.png`` matches
+  # ``Pre-Session-Graphic-All-Rooms``). You do not list the full filename here.
   # Default when key omitted: ["Pre-Session-Graphic-All-Rooms"]. Set to [] to use all refs for talk start (legacy).
   start_ref_substrings:
     - "Pre-Session-Graphic-All-Rooms"
+  # Optional: absolute path, or filename relative to ``images_dir``, to ONE PNG used only for session-start
+  # (``start_break``). Talk begins when this slide stops matching — overrides ``start_ref_substrings`` when set
+  # and the file loads. Example: Pre-Session-Graphic-All-Rooms-PyConDE-26.png
+  start_image: ""
   # Optional: stricter/softer threshold for Pre-Session (if End-Stream needs different sensitivity, use end_threshold).
   # start_threshold: 0.35
   # Lower end_threshold (e.g. 0.28–0.32) if End-Stream slides match weakly vs the PNG on real video.
   # end_threshold: 0.30
-  # Optional fallback room list when mapping Parquet has no Room column (longest match wins in filename)
+  # Optional fallback room list when mapping YAML has no Room column (longest match wins in filename)
   room_names: []
   # PyConDE-26-style slides use prefixes like Welcome-, Talk-Starting-, Logo-, Lunch-, End-Stream-{Room}-.
   # Filenames containing any of these substrings are used ONLY for presentation→break (room End-Stream, etc.).
@@ -80,7 +86,8 @@ presentation_detection:
   # Use each plan row's Pretalx ``Duration`` to bound End-Stream search (asymmetric slack by slot).
   use_schedule_duration_for_end_search: true
   # After each Pre-Session→talk edge at time t, resume scanning for the next edge at t + that row's
-  # ``Duration`` (faster than stepping across whole talks). Requires two-phase + plan rows.
+  # ``Duration`` (faster than stepping across whole talks). Used only when multiple schedule rows;
+  # disabled for a single row so one early false edge cannot skip the real Pre-Session band.
   use_schedule_duration_for_presession_scan: true
   # Optional override of default late/early slack (minutes) per standard slot. Values: [late, early].
   # Defaults: 30→[5,10], 45→[5,15], 60→[10,15], 90→[10,15].

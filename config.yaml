@@ -53,6 +53,10 @@ pretalx:
   # couldn't parse. process_talk_list.py reads this to pair sessions with raw
   # recordings.
   recording_mapping_yaml: ""
+  # Path where process_talk_list.py writes the Pretalx Room -> short-form
+  # mapping YAML (default transform: strip [brackets], strip, lowercase).
+  # Hand-edit values to override the default short form per room.
+  room_mapping_yaml: "/Volumes/DATA4T/2026/pyconde-pydata-2026_room_mapping.yaml"
   # Videos need to be split between the PyCon DE and PyData YouTube channels
   video_to_track:
     CODE: "Track"

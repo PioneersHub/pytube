@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import cv2
 import numpy as np
 import polars as pl
 import pytest
@@ -30,9 +31,44 @@ def test_align_presession_starts_to_schedule() -> None:
     assert align_presession_starts_to_schedule([300.0, 600.0], 2, opens_in_talk=False) == [300.0, 600.0]
     assert align_presession_starts_to_schedule([400.0], 2, opens_in_talk=True) == [0.0, 400.0]
     assert align_presession_starts_to_schedule([], 1, opens_in_talk=True) == [0.0]
+    assert align_presession_starts_to_schedule([100.0], 1, opens_in_talk=True) == [100.0]
+    assert align_presession_starts_to_schedule([379.0, 3883.0], 1, opens_in_talk=True) == [3883.0]
     assert align_presession_starts_to_schedule([100.0], 1, opens_in_talk=False) == [100.0]
     assert align_presession_starts_to_schedule([100.0], 2, opens_in_talk=False) is None
     assert align_presession_starts_to_schedule([], 2, opens_in_talk=True) is None
+
+
+def test_break_detection_start_image_yields_single_session_start_ref(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """break_detection.start_image loads exactly one ndarray for break_references_start (overrides substrings)."""
+    slides = tmp_path / "slides"
+    slides.mkdir()
+    cv2.imwrite(str(slides / "Pre-Session-Graphic-All-Rooms-X.png"), np.zeros((32, 32, 3), dtype=np.uint8))
+    solo = slides / "solo_start.png"
+    cv2.imwrite(str(solo), np.ones((32, 32, 3), dtype=np.uint8) * 40)
+    cfg = OmegaConf.create(
+        {
+            "input": {"mapping_file": str(tmp_path / "m.yaml"), "allow_missing_mapping": True},
+            "video": {"detection_resize": True, "detection_size": [320, 180], "enable_resize": False},
+            "break_detection": {
+                "threshold": 0.5,
+                "images_dir": str(slides),
+                "filter_refs_by_room": False,
+                "start_image": str(solo.resolve()),
+                "start_ref_substrings": ["Pre-Session-Graphic-All-Rooms"],
+                "end_ref_substrings": ["End-Stream"],
+            },
+            "presentation_detection": {},
+            "output": {"folder": str(tmp_path / "out")},
+            "event": {"lunch_break_cut": 13},
+        }
+    )
+    (tmp_path / "m.yaml").write_text("sessions: []\n", encoding="utf-8")
+    monkeypatch.setattr(VideoPresenterDetector, "_load_mapping_data", lambda _: None)
+    det = VideoPresenterDetector(cfg)
+    det.load_break_images(str(slides), video_path=str(tmp_path / "v.mp4"))
+    assert len(det.break_references_start) == 1
 
 
 def test_two_phase_skips_legacy_recovery_helpers(

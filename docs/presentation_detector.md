@@ -214,7 +214,7 @@ For each processed video, a subdirectory is created in the output folder:
 output_folder/
 ├── video1_name/
 │   ├── presentations.txt       # Text file with presentation times
-│   ├── video1_name_metadata.json   # JSON with detailed metadata
+│   ├── metadata.yaml               # Pydantic-validated detection metadata
 │   ├── video1_name_presentation_1.mp4  # First presentation video
 │   ├── video1_name_presentation_1.mp3  # First presentation audio
 │   ├── video1_name_presentation_2.mp4  # Second presentation video
