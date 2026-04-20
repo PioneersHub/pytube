@@ -1,0 +1,2397 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx.">
+      
+      
+        <meta name="author" content="Alexander Hendorf">
+      
+      
+        <link rel="canonical" href="https://pioneershub.github.io/pytube/cli-reference/">
+      
+      
+        <link rel="prev" href="../step-by-step/">
+      
+      
+        <link rel="next" href="../scripts/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>CLI Reference - Py Tube</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CLI Reference - Py Tube" />
+<meta property="og:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="og:image" content="https://pioneershub.github.io/pytube/assets/images/social/cli-reference.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://pioneershub.github.io/pytube/cli-reference/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="CLI Reference - Py Tube" />
+<meta property="twitter:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="twitter:image" content="https://pioneershub.github.io/pytube/assets/images/social/cli-reference.png" />
+ <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Py Tube" class="md-header__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Py Tube
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Py Tube" class="md-nav__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    Py Tube
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Conference Videos on YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../step-by-step/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step by Step Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive Assistant
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interactive Assistant">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube assistant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#records-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Records Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Records Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-fetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records fetch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-enhance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records enhance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-show" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records show
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtube-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notify-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notify Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Notify Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify email
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-social" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify social
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify run
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#video-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Video Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video download
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-assign-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video assign-channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-move" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video move
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video report
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-organize-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video organize (Deprecated)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Command
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status Command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initial-setup-and-first-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initial Setup and First Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-organization-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Organization Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit Codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metadata
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Metadata
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pre-Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Descriptions with NLP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../video-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-Cut Pipeline
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Auto-Cut Pipeline
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auto-cut-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vimeo_download/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vimeo Bulk Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../presentation_detector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Presentation Detector (internals)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../youtube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spread the Word
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spread the Word
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linkedin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LinkedIn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://pioneershub.org/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pioneers Hub website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#global-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Global Options
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commands-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commands Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#interactive-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive Assistant
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Interactive Assistant">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-assistant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube assistant
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#records-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Records Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Records Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-fetch" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records fetch
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-enhance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records enhance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-records-show" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube records show
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#youtube-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="YouTube Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-map" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube map
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-youtube-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube youtube channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notify-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notify Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Notify Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify check
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-email" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify email
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-social" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify social
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-notify-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube notify run
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#video-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Commands
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Video Commands">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video download
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-assign-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video assign-channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-move" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video move
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video report
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-organize-deprecated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video organize (Deprecated)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video list
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pytube-video-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube video status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Command
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status Command">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pytube-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        pytube status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-workflows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Workflows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Workflows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#initial-setup-and-first-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Initial Setup and First Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#video-organization-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Video Organization Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#daily-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Daily Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exit Codes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="cli-reference">CLI Reference<a class="headerlink" href="#cli-reference" title="Permanent link">¤</a></h1>
+<p>PyTube provides a comprehensive command-line interface for managing conference videos from Pretalx to YouTube publication.</p>
+<h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">¤</a></h2>
+<p>After installing PyTube, the <code>pytube</code> command will be available in your environment:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Verify installation</span>
+pytube<span class="w"> </span>--version
+
+<span class="c1"># Get help</span>
+pytube<span class="w"> </span>--help
+</code></pre></div>
+<h2 id="global-options">Global Options<a class="headerlink" href="#global-options" title="Permanent link">¤</a></h2>
+<p>These options can be used with any command:</p>
+<ul>
+<li><code>-v, --verbose</code>: Enable verbose output for debugging</li>
+<li><code>-q, --quiet</code>: Suppress non-essential output</li>
+<li><code>--help</code>: Show help for any command</li>
+</ul>
+<h2 id="commands-overview">Commands Overview<a class="headerlink" href="#commands-overview" title="Permanent link">¤</a></h2>
+<div class="highlight"><pre><span></span><code>pytube
+├── assistant     # Interactive assistant
+├── setup         # Configuration wizard
+├── records       # Manage Pretalx records
+├── youtube       # YouTube operations
+├── notify        # Monitor and send notifications
+├── video         # Video file operations
+└── status        # Show system status
+</code></pre></div>
+<h2 id="interactive-assistant">Interactive Assistant<a class="headerlink" href="#interactive-assistant" title="Permanent link">¤</a></h2>
+<h3 id="pytube-assistant">pytube assistant<a class="headerlink" href="#pytube-assistant" title="Permanent link">¤</a></h3>
+<p>Launch the interactive PyTube assistant for guided workflows.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>assistant
+</code></pre></div>
+<p><strong>Features:</strong>
+- <strong>Named command support</strong>: Type command names (e.g., 'setup', 'process') or numbers
+- <strong>Context-aware menus</strong>: Shows relevant options based on system state
+- <strong>Workflow management</strong>: Save and resume multi-step workflows
+- <strong>Better navigation</strong>: Breadcrumbs and clear menu organization
+- <strong>Progress persistence</strong>: Automatically resume interrupted workflows
+- <strong>Step selection</strong>: Choose which workflow steps to execute</p>
+<p><strong>Navigation Tips:</strong>
+- Use command names or numbers to navigate
+- Type 'help <command>' for detailed help on any command
+- Use 'back' or 'b' to go back in menus
+- Workflow progress is automatically saved</p>
+<h3 id="pytube-setup">pytube setup<a class="headerlink" href="#pytube-setup" title="Permanent link">¤</a></h3>
+<p>Run the configuration wizard to set up PyTube.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>setup<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--validate-only<span class="w">   </span>Only<span class="w"> </span>validate<span class="w"> </span>existing<span class="w"> </span>configuration<span class="w"> </span>without<span class="w"> </span>setup
+<span class="w">  </span>--fix<span class="w">             </span>Attempt<span class="w"> </span>to<span class="w"> </span>fix<span class="w"> </span>any<span class="w"> </span>validation<span class="w"> </span>issues<span class="w"> </span>found
+<span class="w">  </span>--json<span class="w">            </span>Output<span class="w"> </span>results<span class="w"> </span><span class="k">in</span><span class="w"> </span>JSON<span class="w"> </span>format<span class="w"> </span><span class="o">(</span>AI-friendly<span class="o">)</span>
+<span class="w">  </span>--help<span class="w">            </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p>The setup wizard will guide you through:
+- Event information (name, URL, program link)
+- Pretalx connection configuration
+- YouTube API credentials
+- AI service selection (OpenAI, Anthropic, Google, Cohere)
+- Social media platform configuration
+- Storage directory setup</p>
+<p><strong>Context-Aware Setup:</strong>
+Each configuration section now explains:
+- ✓ <strong>What's enabled</strong>: Features that work with this configuration
+- ✗ <strong>What's disabled</strong>: Limitations without the configuration
+- 🎯 <strong>Required vs Optional</strong>: Clear indicators for critical vs enhancement features</p>
+<p><strong>Enhanced Reconfiguration Features:</strong>
+When running setup with an existing configuration, the wizard will:
+- Display current values for each setting
+- Provide options to <strong>[K]eep</strong>, <strong>[C]hange</strong>, or <strong>[R]emove</strong> values
+- Mask sensitive information (API keys show as <code>sk-...XXX</code>)
+- Preserve settings you don't modify
+- Allow partial updates without losing other configuration</p>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code>Event slug
+  Current value: pyconde-pydata-2025
+  [K]eep, [C]hange, or [R]emove? k
+  ✓ Keeping existing value
+
+OpenAI API key
+  Current value: sk-p...nop
+  [K]eep, [C]hange, or [R]emove? c
+  New value: ****
+  ✓ Changed
+</code></pre></div></p>
+<h2 id="records-commands">Records Commands<a class="headerlink" href="#records-commands" title="Permanent link">¤</a></h2>
+<h3 id="pytube-records-fetch">pytube records fetch<a class="headerlink" href="#pytube-records-fetch" title="Permanent link">¤</a></h3>
+<p>Fetch all sessions and speakers from Pretalx.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>records<span class="w"> </span>fetch<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--replace-descriptions<span class="w">    </span>Replace<span class="w"> </span>existing<span class="w"> </span>AI-generated<span class="w"> </span>descriptions
+<span class="w">  </span>--skip-descriptions<span class="w">      </span>Skip<span class="w"> </span>AI<span class="w"> </span>description<span class="w"> </span>generation
+<span class="w">  </span>--help<span class="w">                   </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Fetch all data and generate descriptions</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch
+
+<span class="c1"># Fetch data but skip AI descriptions</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch<span class="w"> </span>--skip-descriptions
+
+<span class="c1"># Re-generate all descriptions</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch<span class="w"> </span>--replace-descriptions
+</code></pre></div></p>
+<h3 id="pytube-records-enhance">pytube records enhance<a class="headerlink" href="#pytube-records-enhance" title="Permanent link">¤</a></h3>
+<p>Add or update AI-generated descriptions for existing records.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>records<span class="w"> </span>enhance<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>what<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>updated<span class="w"> </span>without<span class="w"> </span>making<span class="w"> </span>changes
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<h3 id="pytube-records-show">pytube records show<a class="headerlink" href="#pytube-records-show" title="Permanent link">¤</a></h3>
+<p>Display record details.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>records<span class="w"> </span>show<span class="w"> </span><span class="o">[</span>SESSION_ID<span class="o">]</span>
+
+Arguments:
+<span class="w">  </span>SESSION_ID<span class="w">    </span>Optional<span class="w"> </span>session<span class="w"> </span>ID<span class="w"> </span>to<span class="w"> </span>show<span class="w"> </span>details<span class="w"> </span><span class="k">for</span>
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># List all records</span>
+pytube<span class="w"> </span>records<span class="w"> </span>show
+
+<span class="c1"># Show specific record</span>
+pytube<span class="w"> </span>records<span class="w"> </span>show<span class="w"> </span>ABC123
+</code></pre></div></p>
+<h2 id="youtube-commands">YouTube Commands<a class="headerlink" href="#youtube-commands" title="Permanent link">¤</a></h2>
+<h3 id="pytube-youtube-map">pytube youtube map<a class="headerlink" href="#pytube-youtube-map" title="Permanent link">¤</a></h3>
+<p>Map uploaded YouTube videos to Pretalx sessions.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>youtube<span class="w"> </span>map<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--channel<span class="w"> </span>TEXT<span class="w">             </span>YouTube<span class="w"> </span>channel<span class="w"> </span>name<span class="w"> </span>from<span class="w"> </span>config
+<span class="w">  </span>--include-do-not-record<span class="w">    </span>Include<span class="w"> </span>videos<span class="w"> </span>marked<span class="w"> </span>as<span class="w"> </span>do_not_record<span class="w"> </span><span class="o">(</span>dangerous!<span class="o">)</span>
+<span class="w">  </span>--filter-channel<span class="w"> </span>TEXT<span class="w">      </span>Only<span class="w"> </span>map<span class="w"> </span>videos<span class="w"> </span>assigned<span class="w"> </span>to<span class="w"> </span>this<span class="w"> </span>channel
+<span class="w">  </span>--help<span class="w">                     </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Map videos (automatically skips do_not_record)</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map
+
+<span class="c1"># Map videos for specific YouTube channel</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map<span class="w"> </span>--channel<span class="w"> </span>pycon
+
+<span class="c1"># Only map videos assigned to pydata channel</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map<span class="w"> </span>--filter-channel<span class="w"> </span>pydata
+
+<span class="c1"># Include do_not_record videos (NOT RECOMMENDED)</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map<span class="w"> </span>--include-do-not-record
+</code></pre></div></p>
+<p>This command:
+- Retrieves video IDs from YouTube playlists
+- Matches videos to Pretalx sessions by filename
+- <strong>Automatically skips videos marked as do_not_record</strong>
+- <strong>Respects channel assignments from video organization</strong>
+- <strong>Warns about videos that shouldn't be on YouTube</strong>
+- Creates mapping files for further processing</p>
+<h3 id="pytube-youtube-update">pytube youtube update<a class="headerlink" href="#pytube-youtube-update" title="Permanent link">¤</a></h3>
+<p>Update YouTube video metadata from records.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>youtube<span class="w"> </span>update<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--template<span class="w"> </span>TEXT<span class="w">      </span>Jinja2<span class="w"> </span>template<span class="w"> </span>file<span class="w"> </span><span class="k">for</span><span class="w"> </span>descriptions<span class="w"> </span><span class="o">[</span>default:<span class="w"> </span>youtube_2024.txt<span class="o">]</span>
+<span class="w">  </span>--event-name<span class="w"> </span>TEXT<span class="w">    </span>Event<span class="w"> </span>name<span class="w"> </span><span class="k">for</span><span class="w"> </span>the<span class="w"> </span>template
+<span class="w">  </span>--channel<span class="w"> </span>TEXT<span class="w">       </span>Target<span class="w"> </span>YouTube<span class="w"> </span>channel
+<span class="w">  </span>--dry-run<span class="w">           </span>Preview<span class="w"> </span>changes<span class="w"> </span>without<span class="w"> </span>updating<span class="w"> </span>YouTube
+<span class="w">  </span>--help<span class="w">              </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Update with default template</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update
+
+<span class="c1"># Use custom template and event name</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update<span class="w"> </span>--template<span class="w"> </span>custom.txt<span class="w"> </span>--event-name<span class="w"> </span><span class="s2">&quot;PyCon 2024&quot;</span>
+
+<span class="c1"># Preview changes</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update<span class="w"> </span>--dry-run
+</code></pre></div></p>
+<h3 id="pytube-youtube-schedule">pytube youtube schedule<a class="headerlink" href="#pytube-youtube-schedule" title="Permanent link">¤</a></h3>
+<p>Set publishing schedule for videos.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--start<span class="w"> </span>TEXT<span class="w">      </span>Start<span class="w"> </span>date/time<span class="w"> </span><span class="o">(</span>ISO<span class="w"> </span>format<span class="w"> </span>or<span class="w"> </span><span class="s1">&#39;now+5m&#39;</span><span class="o">)</span>
+<span class="w">  </span>--interval<span class="w"> </span>TEXT<span class="w">   </span>Publishing<span class="w"> </span>interval<span class="w"> </span><span class="o">(</span>e.g.,<span class="w"> </span>4h,<span class="w"> </span>1d,<span class="w"> </span>30m<span class="o">)</span><span class="w"> </span><span class="o">[</span>default:<span class="w"> </span>4h<span class="o">]</span>
+<span class="w">  </span>--preview<span class="w">        </span>Show<span class="w"> </span>publishing<span class="w"> </span>schedule<span class="w"> </span>without<span class="w"> </span>applying
+<span class="w">  </span>--help<span class="w">           </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Schedule to start in 5 minutes, publish every 4 hours</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span>now+5m<span class="w"> </span>--interval<span class="w"> </span>4h
+
+<span class="c1"># Schedule for specific date/time</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;2024-05-01T10:00:00&quot;</span><span class="w"> </span>--interval<span class="w"> </span>6h
+
+<span class="c1"># Preview schedule</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--preview
+</code></pre></div></p>
+<h3 id="pytube-youtube-channels">pytube youtube channels<a class="headerlink" href="#pytube-youtube-channels" title="Permanent link">¤</a></h3>
+<p>List configured YouTube channels.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>youtube<span class="w"> </span>channels
+</code></pre></div>
+<h2 id="notify-commands">Notify Commands<a class="headerlink" href="#notify-commands" title="Permanent link">¤</a></h2>
+<h3 id="pytube-notify-check">pytube notify check<a class="headerlink" href="#pytube-notify-check" title="Permanent link">¤</a></h3>
+<p>Check for recently published videos and process notifications.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--auto-post<span class="w">    </span>Automatically<span class="w"> </span>post<span class="w"> </span>to<span class="w"> </span>social<span class="w"> </span>media<span class="w"> </span>and<span class="w"> </span>send<span class="w"> </span>emails
+<span class="w">  </span>--channel<span class="w"> </span>TEXT<span class="w"> </span>YouTube<span class="w"> </span>channel<span class="w"> </span>to<span class="w"> </span>monitor
+<span class="w">  </span>--offline<span class="w">      </span>Use<span class="w"> </span>offline<span class="w"> </span>mode<span class="w"> </span><span class="o">(</span>no<span class="w"> </span>YouTube<span class="w"> </span>API<span class="w"> </span>calls<span class="o">)</span>
+<span class="w">  </span>--help<span class="w">         </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check and show pending notifications</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check
+
+<span class="c1"># Check and automatically send all notifications</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+
+<span class="c1"># Check specific channel in offline mode</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--channel<span class="w"> </span>pycon<span class="w"> </span>--offline
+</code></pre></div></p>
+<h3 id="pytube-notify-email">pytube notify email<a class="headerlink" href="#pytube-notify-email" title="Permanent link">¤</a></h3>
+<p>Send pending speaker email notifications.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>notify<span class="w"> </span>email<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>what<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>sent<span class="w"> </span>without<span class="w"> </span>sending
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<h3 id="pytube-notify-social">pytube notify social<a class="headerlink" href="#pytube-notify-social" title="Permanent link">¤</a></h3>
+<p>Post pending social media updates.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>notify<span class="w"> </span>social<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>what<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>posted<span class="w"> </span>without<span class="w"> </span>posting
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<h3 id="pytube-notify-run">pytube notify run<a class="headerlink" href="#pytube-notify-run" title="Permanent link">¤</a></h3>
+<p>Run the complete notification workflow (equivalent to the original notify.py script).</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>notify<span class="w"> </span>run
+</code></pre></div>
+<h2 id="video-commands">Video Commands<a class="headerlink" href="#video-commands" title="Permanent link">¤</a></h2>
+<h3 id="pytube-video-download">pytube video download<a class="headerlink" href="#pytube-video-download" title="Permanent link">¤</a></h3>
+<p>Download videos from Vimeo.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>download<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--client-id<span class="w"> </span>TEXT<span class="w">    </span>Vimeo<span class="w"> </span>client<span class="w"> </span>ID<span class="w"> </span><span class="o">(</span><span class="k">if</span><span class="w"> </span>using<span class="w"> </span>multiple<span class="o">)</span>
+<span class="w">  </span>--limit<span class="w"> </span>INTEGER<span class="w">     </span>Limit<span class="w"> </span>number<span class="w"> </span>of<span class="w"> </span>videos<span class="w"> </span>to<span class="w"> </span>download
+<span class="w">  </span>--help<span class="w">             </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<h3 id="pytube-video-assign-channels">pytube video assign-channels<a class="headerlink" href="#pytube-video-assign-channels" title="Permanent link">¤</a></h3>
+<p>Assign videos to YouTube channels based on track information.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>assign-channels<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>what<span class="w"> </span>channels<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>assigned<span class="w"> </span>without<span class="w"> </span>creating<span class="w"> </span>files
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Assign videos to channels</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels
+
+<span class="c1"># Preview assignments without creating files</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels<span class="w"> </span>--dry-run
+</code></pre></div></p>
+<p>This command:
+- Analyzes confirmed sessions from Pretalx
+- Determines which YouTube channel (PyData/PyCon) each video should be uploaded to
+- Creates mapping files: <code>tracks.json</code> and <code>tracks_map.json</code>
+- Uses track names and custom mappings from configuration
+- Optionally uses AI (Claude/OpenAI) to analyze unmatched videos
+- Handles <code>do_not_record</code> sessions → <code>no_publishing</code> channel</p>
+<h3 id="pytube-video-move">pytube video move<a class="headerlink" href="#pytube-video-move" title="Permanent link">¤</a></h3>
+<p>Move videos to channel directories based on assignments.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>what<span class="w"> </span>would<span class="w"> </span>be<span class="w"> </span>moved<span class="w"> </span>without<span class="w"> </span>actually<span class="w"> </span>moving<span class="w"> </span>files
+<span class="w">  </span>--force<span class="w">      </span>Move<span class="w"> </span>files<span class="w"> </span>even<span class="w"> </span><span class="k">if</span><span class="w"> </span>destination<span class="w"> </span>already<span class="w"> </span>exists
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Move videos to channel directories</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move
+
+<span class="c1"># Preview moves without actually moving files</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span>--dry-run
+
+<span class="c1"># Force move even if files exist at destination</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span>--force
+</code></pre></div></p>
+<p>This command:
+- Moves videos from <code>downloads/</code> to channel-specific directories
+- Creates sibling directories: <code>pycon/</code>, <code>pydata/</code>
+- Moves do-not-record videos to <code>do_not_release/</code>
+- Keeps unmatched videos in <code>downloads/</code></p>
+<h3 id="pytube-video-report">pytube video report<a class="headerlink" href="#pytube-video-report" title="Permanent link">¤</a></h3>
+<p>Generate a report of unassigned videos.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>report
+</code></pre></div>
+<p>This command:
+- Lists all videos that could not be assigned to a channel
+- Shows session codes, titles, and tracks
+- Saves detailed report to <code>unassigned_videos_report.json</code>
+- Helps identify videos needing manual channel assignment</p>
+<h3 id="pytube-video-organize-deprecated">pytube video organize (Deprecated)<a class="headerlink" href="#pytube-video-organize-deprecated" title="Permanent link">¤</a></h3>
+<p><strong>[DEPRECATED]</strong> Use <code>assign-channels</code> instead.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>organize<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--dry-run<span class="w">    </span>Show<span class="w"> </span>channel<span class="w"> </span>assignments<span class="w"> </span>without<span class="w"> </span>creating<span class="w"> </span>files
+<span class="w">  </span>--help<span class="w">       </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p>This command is deprecated. Use the new workflow:
+1. <code>pytube video assign-channels</code> - Assign videos to channels
+2. <code>pytube video move</code> - Move videos to channel directories</p>
+<h3 id="pytube-video-list">pytube video list<a class="headerlink" href="#pytube-video-list" title="Permanent link">¤</a></h3>
+<p>List video files in the configured directory.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>list
+</code></pre></div>
+<h3 id="pytube-video-status">pytube video status<a class="headerlink" href="#pytube-video-status" title="Permanent link">¤</a></h3>
+<p>Show video processing status.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>video<span class="w"> </span>status
+</code></pre></div>
+<h2 id="status-command">Status Command<a class="headerlink" href="#status-command" title="Permanent link">¤</a></h2>
+<h3 id="pytube-status">pytube status<a class="headerlink" href="#pytube-status" title="Permanent link">¤</a></h3>
+<p>Show overall system status and statistics.</p>
+<div class="highlight"><pre><span></span><code>pytube<span class="w"> </span>status<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+
+Options:
+<span class="w">  </span>--detailed<span class="w">    </span>Show<span class="w"> </span>detailed<span class="w"> </span>status<span class="w"> </span>information
+<span class="w">  </span>--help<span class="w">        </span>Show<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message
+</code></pre></div>
+<p><strong>Example:</strong>
+<div class="highlight"><pre><span></span><code><span class="c1"># Basic status overview</span>
+pytube<span class="w"> </span>status
+
+<span class="c1"># Detailed status with next steps</span>
+pytube<span class="w"> </span>status<span class="w"> </span>--detailed
+</code></pre></div></p>
+<h2 id="common-workflows">Common Workflows<a class="headerlink" href="#common-workflows" title="Permanent link">¤</a></h2>
+<h3 id="initial-setup-and-first-run">Initial Setup and First Run<a class="headerlink" href="#initial-setup-and-first-run" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 1. Fetch data from Pretalx</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch
+
+<span class="c1"># 2. Assign videos to channels based on track information</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels
+
+<span class="c1"># 3. Move videos to channel-specific directories</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span>--dry-run<span class="w">  </span><span class="c1"># Preview first</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w">            </span><span class="c1"># Actually move files</span>
+
+<span class="c1"># 4. Generate report of any unassigned videos</span>
+pytube<span class="w"> </span>video<span class="w"> </span>report
+
+<span class="c1"># 5. Upload videos to YouTube manually from channel directories</span>
+<span class="c1"># Upload from pycon/ directory to PyCon channel</span>
+<span class="c1"># Upload from pydata/ directory to PyData channel</span>
+
+<span class="c1"># 6. Map videos to sessions</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map
+
+<span class="c1"># 7. Update video metadata</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update
+
+<span class="c1"># 8. Schedule publishing</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;2024-05-01T10:00:00&quot;</span><span class="w"> </span>--interval<span class="w"> </span>6h
+
+<span class="c1"># 9. Monitor and notify</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+</code></pre></div>
+<h3 id="video-organization-workflow">Video Organization Workflow<a class="headerlink" href="#video-organization-workflow" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check current status</span>
+pytube<span class="w"> </span>video<span class="w"> </span>status
+
+<span class="c1"># Assign videos to channels (dry-run first)</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels<span class="w"> </span>--dry-run
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels
+
+<span class="c1"># Preview what files will be moved</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span>--dry-run
+
+<span class="c1"># Move videos to channel directories</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move
+
+<span class="c1"># Check for any unassigned videos</span>
+pytube<span class="w"> </span>video<span class="w"> </span>report
+</code></pre></div>
+<h3 id="daily-monitoring">Daily Monitoring<a class="headerlink" href="#daily-monitoring" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check system status</span>
+pytube<span class="w"> </span>status
+
+<span class="c1"># Process new publications and send notifications</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+</code></pre></div>
+<h3 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check detailed status</span>
+pytube<span class="w"> </span>status<span class="w"> </span>--detailed
+
+<span class="c1"># Preview operations without making changes</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update<span class="w"> </span>--dry-run
+pytube<span class="w"> </span>notify<span class="w"> </span>email<span class="w"> </span>--dry-run
+
+<span class="c1"># Use verbose mode for debugging</span>
+pytube<span class="w"> </span>-v<span class="w"> </span>records<span class="w"> </span>fetch
+</code></pre></div>
+<h2 id="environment-variables">Environment Variables<a class="headerlink" href="#environment-variables" title="Permanent link">¤</a></h2>
+<p>The CLI respects these environment variables:</p>
+<ul>
+<li><code>PYTUBE_CONFIG</code>: Path to alternative config file</li>
+<li><code>PYTUBE_VERBOSE</code>: Set to "1" for verbose output by default</li>
+<li><code>NO_COLOR</code>: Disable colored output</li>
+</ul>
+<h2 id="exit-codes">Exit Codes<a class="headerlink" href="#exit-codes" title="Permanent link">¤</a></h2>
+<ul>
+<li><code>0</code>: Success</li>
+<li><code>1</code>: General error</li>
+<li><code>2</code>: Configuration error</li>
+<li><code>3</code>: API error</li>
+<li><code>4</code>: File not found</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © 2024-2026 Pioneers Hub gGmbH – <a href="#__consent">Change cookie settings</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+      <div class="md-consent" data-md-component="consent" id="__consent" hidden>
+        <div class="md-consent__overlay"></div>
+        <aside class="md-consent__inner">
+          <form class="md-consent__form md-grid md-typeset" name="consent">
+            
+
+
+
+<h4>Cookie consent</h4>
+<p>We use cookies to recognize your repeated visits and preferences, as well as to measure the effectiveness of our documentation and whether users find what they're searching for. With your consent, you're helping us to make our documentation better.</p>
+<input class="md-toggle" type="checkbox" id="__settings" >
+<div class="md-consent__settings">
+  <ul class="task-list">
+    
+    
+      
+    
+    
+      
+        
+  
+  
+    
+    
+  
+  <li class="task-list-item">
+    <label class="task-list-control">
+      <input type="checkbox" name="github" checked>
+      <span class="task-list-indicator"></span>
+      GitHub
+    </label>
+  </li>
+
+      
+    
+    
+  </ul>
+</div>
+<div class="md-consent__controls">
+  
+    
+      <button class="md-button md-button--primary">Accept</button>
+    
+    
+    
+  
+    
+    
+    
+      <label class="md-button" for="__settings">Manage settings</label>
+    
+  
+</div>
+          </form>
+        </aside>
+      </div>
+      <script>var consent=__md_get("__consent");if(consent)for(var input of document.forms.consent.elements)input.name&&(input.checked=consent[input.name]||!1);else"file:"!==location.protocol&&setTimeout((function(){document.querySelector("[data-md-component=consent]").hidden=!1}),250);var form=document.forms.consent;for(var action of["submit","reset"])form.addEventListener(action,(function(e){if(e.preventDefault(),"reset"===e.type)for(var n of document.forms.consent.elements)n.name&&(n.checked=!1);__md_set("__consent",Object.fromEntries(Array.from(new FormData(form).keys()).map((function(e){return[e,!0]})))),location.hash="",location.reload()}))</script>
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../js/open_in_new_tab.js"></script>
+      
+    
+  <script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(() => { lightbox.reload() });
+</script></body>
+</html>

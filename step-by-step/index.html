@@ -1,0 +1,2298 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx.">
+      
+      
+        <meta name="author" content="Alexander Hendorf">
+      
+      
+        <link rel="canonical" href="https://pioneershub.github.io/pytube/step-by-step/">
+      
+      
+        <link rel="prev" href="../installation/">
+      
+      
+        <link rel="next" href="../cli-reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Step by Step Guide - Py Tube</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Step by Step Guide - Py Tube" />
+<meta property="og:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="og:image" content="https://pioneershub.github.io/pytube/assets/images/social/step-by-step.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://pioneershub.github.io/pytube/step-by-step/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Step by Step Guide - Py Tube" />
+<meta property="twitter:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="twitter:image" content="https://pioneershub.github.io/pytube/assets/images/social/step-by-step.png" />
+ <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#step-by-step-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Py Tube" class="md-header__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Py Tube
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Step by Step Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Py Tube" class="md-nav__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    Py Tube
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Conference Videos on YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step by Step Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step by Step Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites Checklist
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#conference-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conference Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api-access-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API Access Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#youtube-channel-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube Channel Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-initial-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Initial Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1: Initial Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-install-pytube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Install PyTube
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-configure-local-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Configure Local Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-set-up-pytanis-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Set Up Pytanis Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-load-conference-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Load Conference Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2: Load Conference Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-fetch-data-from-pretalx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Fetch Data from Pretalx
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-review-generated-descriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Review Generated Descriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-organize-video-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Organize Video Files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3: Organize Video Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-prepare-video-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Prepare Video Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-assign-videos-to-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Assign Videos to Channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-move-videos-to-channel-directories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Move Videos to Channel Directories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-review-unassigned-videos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Review Unassigned Videos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-upload-videos-to-youtube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Upload Videos to YouTube
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 4: Upload Videos to YouTube">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-manual-upload-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Manual Upload Process
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-verify-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Verify Upload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-process-videos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Process Videos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 5: Process Videos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-map-videos-to-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Map Videos to Sessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-customize-publishing-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Customize Publishing Schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-verify-video-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Verify Video Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-monitor-and-notify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Monitor and Notify
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 6: Monitor and Notify">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-set-up-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Set Up Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-what-happens-on-publish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 What Happens on Publish
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-monitor-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Monitor Progress
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 6: Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#status-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#important-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next Steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metadata
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Metadata
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pre-Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Descriptions with NLP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../video-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-Cut Pipeline
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Auto-Cut Pipeline
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auto-cut-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vimeo_download/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vimeo Bulk Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../presentation_detector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Presentation Detector (internals)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../youtube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spread the Word
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spread the Word
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linkedin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LinkedIn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://pioneershub.org/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pioneers Hub website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites Checklist
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Prerequisites Checklist">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#conference-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conference Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#technical-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Technical Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#api-access-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API Access Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#youtube-channel-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        YouTube Channel Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-1-initial-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Initial Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 1: Initial Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-install-pytube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Install PyTube
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-configure-local-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Configure Local Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-set-up-pytanis-credentials" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Set Up Pytanis Credentials
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-2-load-conference-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Load Conference Data
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 2: Load Conference Data">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-fetch-data-from-pretalx" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 Fetch Data from Pretalx
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-review-generated-descriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 Review Generated Descriptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-3-organize-video-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Organize Video Files
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 3: Organize Video Files">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-prepare-video-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 Prepare Video Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-assign-videos-to-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 Assign Videos to Channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-move-videos-to-channel-directories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Move Videos to Channel Directories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-review-unassigned-videos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Review Unassigned Videos
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-4-upload-videos-to-youtube" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Upload Videos to YouTube
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 4: Upload Videos to YouTube">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#41-manual-upload-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.1 Manual Upload Process
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#42-verify-upload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4.2 Verify Upload
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-5-process-videos" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Process Videos
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 5: Process Videos">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#51-map-videos-to-sessions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.1 Map Videos to Sessions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#52-customize-publishing-schedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.2 Customize Publishing Schedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#53-verify-video-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5.3 Verify Video Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-monitor-and-notify" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Monitor and Notify
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 6: Monitor and Notify">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#61-set-up-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.1 Set Up Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#62-what-happens-on-publish" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.2 What Happens on Publish
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#63-monitor-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6.3 Monitor Progress
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-6-troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 6: Troubleshooting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase 6: Troubleshooting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-issues" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Issues
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-recovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Recovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#status-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Flow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#important-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Important Files
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next Steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="step-by-step-guide">Step-by-Step Guide<a class="headerlink" href="#step-by-step-guide" title="Permanent link">¤</a></h1>
+<p>This guide walks through the complete process of publishing conference videos using PyTube.</p>
+<h2 id="prerequisites-checklist">Prerequisites Checklist<a class="headerlink" href="#prerequisites-checklist" title="Permanent link">¤</a></h2>
+<p>Before starting, ensure you have completed ALL prerequisites:</p>
+<h3 id="conference-prerequisites">Conference Prerequisites<a class="headerlink" href="#conference-prerequisites" title="Permanent link">¤</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Pretalx event created with confirmed sessions</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Video recordings completed</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Video files named with Pretalx session IDs (e.g., <code>ABC123-talk-title.mp4</code>)</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Speaker consent obtained for video publication</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Production plan documenting which recordings map to which sessions</li>
+</ul>
+<h3 id="technical-prerequisites">Technical Prerequisites<a class="headerlink" href="#technical-prerequisites" title="Permanent link">¤</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Python 3.13.1+ installed</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> <code>uv</code> package manager installed</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Git repository cloned locally</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Virtual environment created and activated</li>
+</ul>
+<h3 id="api-access-prerequisites">API Access Prerequisites<a class="headerlink" href="#api-access-prerequisites" title="Permanent link">¤</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Pretalx API credentials (via pytanis)</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Google Cloud Project with YouTube Data API v3 enabled</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> YouTube OAuth2 credentials downloaded as JSON</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> OpenAI API key with available credits</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> LinkedIn API access (optional, for social media)</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Helpdesk access (optional, for speaker emails)</li>
+</ul>
+<h3 id="youtube-channel-setup">YouTube Channel Setup<a class="headerlink" href="#youtube-channel-setup" title="Permanent link">¤</a></h3>
+<ul class="task-list">
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Manager/owner access to YouTube channel</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Upload defaults configured (empty title)</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Hidden playlist created for staging videos</li>
+<li class="task-list-item"><label class="task-list-control"><input type="checkbox" disabled/><span class="task-list-indicator"></span></label> Channel ID and playlist ID documented</li>
+</ul>
+<h2 id="phase-1-initial-setup">Phase 1: Initial Setup<a class="headerlink" href="#phase-1-initial-setup" title="Permanent link">¤</a></h2>
+<h3 id="11-install-pytube">1.1 Install PyTube<a class="headerlink" href="#11-install-pytube" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/PioneersHub/pytube.git
+<span class="nb">cd</span><span class="w"> </span>pytube
+
+<span class="c1"># Create and activate virtual environment</span>
+uv<span class="w"> </span>venv
+<span class="nb">source</span><span class="w"> </span>.venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: .venv\Scripts\activate</span>
+
+<span class="c1"># Install with all dependencies</span>
+uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[all]&quot;</span>
+</code></pre></div>
+<h3 id="12-configure-local-settings">1.2 Configure Local Settings<a class="headerlink" href="#12-configure-local-settings" title="Permanent link">¤</a></h3>
+<p>Create <code>config_local.yaml</code> with your settings:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Directories</span>
+<span class="nt">dirs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">work_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./_tmp&quot;</span>
+<span class="w">  </span><span class="nt">video_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/video/files&quot;</span><span class="w">  </span><span class="c1"># Optional</span>
+
+<span class="c1"># Pretalx configuration</span>
+<span class="nt">pretalx</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">event_slug</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pycon-2024&quot;</span><span class="w">  </span><span class="c1"># Your event slug</span>
+<span class="w">  </span><span class="nt">questions_map</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">company</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3012</span><span class="w">  </span><span class="c1"># Map custom question IDs</span>
+<span class="w">    </span><span class="nt">job</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3013</span>
+<span class="w">    </span><span class="nt">linkedin</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3017</span>
+
+<span class="w">  </span><span class="c1"># Track to channel mapping (if using multiple channels)</span>
+<span class="w">  </span><span class="nt">track_to_channel</span><span class="p">:</span>
+<span class="w">    </span><span class="s">&quot;Python</span><span class="nv"> </span><span class="s">Basics&quot;</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;pycon&quot;</span>
+<span class="w">    </span><span class="s">&quot;Data</span><span class="nv"> </span><span class="s">Science&quot;</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">&quot;pydata&quot;</span>
+
+<span class="c1"># YouTube configuration</span>
+<span class="nt">youtube</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">client_secrets_file</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/client_secrets.json&quot;</span>
+<span class="w">  </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;YOUR_API_KEY&quot;</span><span class="w">  </span><span class="c1"># For read operations</span>
+<span class="w">  </span><span class="nt">channels</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">pycon</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;UCji5VWDkGzuRenyRQZ9OpFQ&quot;</span>
+<span class="w">      </span><span class="nt">playlist_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;PLHd2BPBhxqRLZOcMUtgVeK2eE5sBksNhQ&quot;</span>
+
+<span class="c1"># OpenAI for descriptions</span>
+<span class="nt">openai</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">api_key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sk-...&quot;</span>
+
+<span class="c1"># LinkedIn (optional)</span>
+<span class="nt">linkedin</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">access_token</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">  </span><span class="nt">client_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">  </span><span class="nt">client_secret</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">  </span><span class="nt">company_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+</code></pre></div>
+<h3 id="13-set-up-pytanis-credentials">1.3 Set Up Pytanis Credentials<a class="headerlink" href="#13-set-up-pytanis-credentials" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Create pytanis config directory</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>~/.pytanis
+
+<span class="c1"># Add credentials for Pretalx access</span>
+<span class="c1"># See: https://florianwilhelm.info/pytanis/latest/usage/installation/</span>
+</code></pre></div>
+<h2 id="phase-2-load-conference-data">Phase 2: Load Conference Data<a class="headerlink" href="#phase-2-load-conference-data" title="Permanent link">¤</a></h2>
+<h3 id="21-fetch-data-from-pretalx">2.1 Fetch Data from Pretalx<a class="headerlink" href="#21-fetch-data-from-pretalx" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Run the records command to load all session and speaker data</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch
+</code></pre></div>
+<p>This will:
+- Connect to Pretalx API
+- Download all confirmed sessions
+- Download all speaker information
+- Create JSON files in <code>_tmp/records/</code>
+- Generate AI descriptions (if OpenAI is configured)</p>
+<p><strong>Verify</strong>: Check that files exist in <code>_tmp/records/</code>
+<div class="highlight"><pre><span></span><code>ls<span class="w"> </span>-la<span class="w"> </span>_tmp/records/<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-10
+<span class="c1"># Should show JSON files named by session ID (e.g., ABC123.json)</span>
+
+<span class="c1"># Or use the CLI to list records</span>
+pytube<span class="w"> </span>records<span class="w"> </span>show
+</code></pre></div></p>
+<h3 id="22-review-generated-descriptions">2.2 Review Generated Descriptions<a class="headerlink" href="#22-review-generated-descriptions" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check a sample record</span>
+cat<span class="w"> </span>_tmp/records/ABC123.json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.sm_teaser_text, .sm_short_text&#39;</span>
+</code></pre></div>
+<h2 id="phase-3-organize-video-files">Phase 3: Organize Video Files<a class="headerlink" href="#phase-3-organize-video-files" title="Permanent link">¤</a></h2>
+<h3 id="31-prepare-video-files">3.1 Prepare Video Files<a class="headerlink" href="#31-prepare-video-files" title="Permanent link">¤</a></h3>
+<p>Place your video files in the downloads directory:
+- Files must include Pretalx session ID at the start
+- Format: <code>{SESSION_ID}-title.mp4</code>
+- Examples: <code>ABC123-python-basics.mp4</code>, <code>DEF456_advanced_topics.mov</code></p>
+<h3 id="32-assign-videos-to-channels">3.2 Assign Videos to Channels<a class="headerlink" href="#32-assign-videos-to-channels" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Assign videos to channels based on tracks</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels
+
+<span class="c1"># Preview assignments first</span>
+pytube<span class="w"> </span>video<span class="w"> </span>assign-channels<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>This will:
+- Analyze all confirmed sessions
+- Assign videos to pycon/pydata channels based on track patterns
+- Use AI heuristics for unmatched videos (if configured)
+- Handle <code>do_not_record</code> sessions → <code>no_publishing</code> channel
+- Create <code>tracks_map.json</code> with assignments</p>
+<h3 id="33-move-videos-to-channel-directories">3.3 Move Videos to Channel Directories<a class="headerlink" href="#33-move-videos-to-channel-directories" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Preview what will be moved</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move<span class="w"> </span>--dry-run
+
+<span class="c1"># Actually move the files</span>
+pytube<span class="w"> </span>video<span class="w"> </span>move
+</code></pre></div>
+<p>This creates the directory structure:
+<div class="highlight"><pre><span></span><code>video_dir/
+├── downloads/         # Unmatched videos remain here
+├── pycon/            # Videos for PyCon channel
+├── pydata/           # Videos for PyData channel
+└── do_not_release/   # Videos marked do_not_record
+</code></pre></div></p>
+<h3 id="34-review-unassigned-videos">3.4 Review Unassigned Videos<a class="headerlink" href="#34-review-unassigned-videos" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Generate report of unassigned videos</span>
+pytube<span class="w"> </span>video<span class="w"> </span>report
+</code></pre></div>
+<p>For any unassigned videos, add direct mappings to <code>config_local.yaml</code>:
+<div class="highlight"><pre><span></span><code><span class="nt">pretalx</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">video_to_track</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">XYZ789</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pycon&quot;</span><span class="w">  </span><span class="c1"># Add specific session mappings</span>
+</code></pre></div></p>
+<p>Then re-run assignment and move commands.</p>
+<h2 id="phase-4-upload-videos-to-youtube">Phase 4: Upload Videos to YouTube<a class="headerlink" href="#phase-4-upload-videos-to-youtube" title="Permanent link">¤</a></h2>
+<h3 id="41-manual-upload-process">4.1 Manual Upload Process<a class="headerlink" href="#41-manual-upload-process" title="Permanent link">¤</a></h3>
+<p><strong>IMPORTANT</strong>: Only upload videos from the channel-specific directories:
+- <code>pycon/</code> → Upload to PyCon channel
+- <code>pydata/</code> → Upload to PyData channel
+- <strong>NEVER upload from <code>do_not_release/</code></strong> - these are marked as do_not_record!</p>
+<ol>
+<li>Go to <a href="https://studio.youtube.com">YouTube Studio</a></li>
+<li>Click "Create" → "Upload videos"</li>
+<li>Drag and drop up to 15 videos at a time</li>
+<li>For each batch:</li>
+<li>Set visibility to "Unlisted" or "Private"</li>
+<li>Do NOT add titles (let YouTube use filename)</li>
+<li>Add all videos to your hidden playlist</li>
+<li>Do NOT set publish date yet</li>
+</ol>
+<h3 id="42-verify-upload">4.2 Verify Upload<a class="headerlink" href="#42-verify-upload" title="Permanent link">¤</a></h3>
+<p>In YouTube Studio:
+- Check that all videos appear in your channel's content
+- Verify all videos are in the hidden playlist
+- Note that videos show filename as title</p>
+<h2 id="phase-5-process-videos">Phase 5: Process Videos<a class="headerlink" href="#phase-5-process-videos" title="Permanent link">¤</a></h2>
+<h3 id="51-map-videos-to-sessions">5.1 Map Videos to Sessions<a class="headerlink" href="#51-map-videos-to-sessions" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Get YouTube video IDs and create mappings</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map
+
+<span class="c1"># Update video metadata with descriptions</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>update
+
+<span class="c1"># Set publishing schedule</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;2024-05-01T10:00:00&quot;</span><span class="w"> </span>--interval<span class="w"> </span>6h
+</code></pre></div>
+<p>These commands will:
+1. Retrieve your channel ID (if not known)
+2. Get all video IDs from the hidden playlist
+3. Match video IDs to Pretalx session IDs (by filename)
+4. <strong>Skip videos marked as do_not_record (safety check)</strong>
+5. <strong>Warn if any do_not_record videos were accidentally uploaded</strong>
+6. Generate video metadata from templates
+7. Set publishing schedule
+8. Update videos on YouTube</p>
+<h3 id="52-customize-publishing-schedule">5.2 Customize Publishing Schedule<a class="headerlink" href="#52-customize-publishing-schedule" title="Permanent link">¤</a></h3>
+<p>You can customize the publishing schedule using CLI options:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Start in 5 minutes, publish every 4 hours</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span>now+5m<span class="w"> </span>--interval<span class="w"> </span>4h
+
+<span class="c1"># Start at specific time, publish every 6 hours</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;2024-05-01T10:00:00&quot;</span><span class="w"> </span>--interval<span class="w"> </span>6h
+
+<span class="c1"># Preview the schedule before applying</span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule<span class="w"> </span>--start<span class="w"> </span><span class="s2">&quot;2024-05-01T10:00:00&quot;</span><span class="w"> </span>--interval<span class="w"> </span>6h<span class="w"> </span>--preview
+</code></pre></div>
+<h3 id="53-verify-video-updates">5.3 Verify Video Updates<a class="headerlink" href="#53-verify-video-updates" title="Permanent link">¤</a></h3>
+<p>Check YouTube Studio to confirm:
+- Videos now have proper titles and descriptions
+- Scheduled publish dates are set
+- Videos are set to "Private" (required for scheduling)</p>
+<h2 id="phase-6-monitor-and-notify">Phase 6: Monitor and Notify<a class="headerlink" href="#phase-6-monitor-and-notify" title="Permanent link">¤</a></h2>
+<h3 id="61-set-up-monitoring">6.1 Set Up Monitoring<a class="headerlink" href="#61-set-up-monitoring" title="Permanent link">¤</a></h3>
+<p>The notify command should run periodically to check for published videos:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># Test run - check status only</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check
+
+<span class="c1"># Run with auto-posting enabled</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+
+<span class="c1"># Set up cron job to run every hour</span>
+crontab<span class="w"> </span>-e
+<span class="c1"># Add: 0 * * * * cd /path/to/pytube &amp;&amp; /path/to/.venv/bin/pytube notify check --auto-post</span>
+</code></pre></div>
+<h3 id="62-what-happens-on-publish">6.2 What Happens on Publish<a class="headerlink" href="#62-what-happens-on-publish" title="Permanent link">¤</a></h3>
+<p>When a video goes live, the notify script will:
+1. Detect the newly published video
+2. Create a LinkedIn post (if configured)
+3. Queue an email to speakers (if configured)
+4. Move the record to <code>video_published</code> status</p>
+<h3 id="63-monitor-progress">6.3 Monitor Progress<a class="headerlink" href="#63-monitor-progress" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check overall system status</span>
+pytube<span class="w"> </span>status
+
+<span class="c1"># Get detailed status with next steps</span>
+pytube<span class="w"> </span>status<span class="w"> </span>--detailed
+
+<span class="c1"># Manual status checks</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Records: </span><span class="k">$(</span>ls<span class="w"> </span>_tmp/records/<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l<span class="k">)</span><span class="s2">&quot;</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Updated: </span><span class="k">$(</span>ls<span class="w"> </span>_tmp/video_records_updated/<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l<span class="k">)</span><span class="s2">&quot;</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Published: </span><span class="k">$(</span>ls<span class="w"> </span>_tmp/video_published/<span class="w"> </span><span class="p">|</span><span class="w"> </span>wc<span class="w"> </span>-l<span class="k">)</span><span class="s2">&quot;</span>
+
+<span class="c1"># Check for pending notifications</span>
+ls<span class="w"> </span>-la<span class="w"> </span>_tmp/speaker_to_email/
+ls<span class="w"> </span>-la<span class="w"> </span>_tmp/linked_in_to_post/
+</code></pre></div>
+<h2 id="phase-6-troubleshooting">Phase 6: Troubleshooting<a class="headerlink" href="#phase-6-troubleshooting" title="Permanent link">¤</a></h2>
+<h3 id="common-issues">Common Issues<a class="headerlink" href="#common-issues" title="Permanent link">¤</a></h3>
+<p><strong>Videos not found in playlist</strong>
+- Verify playlist ID in config
+- Ensure videos are in the playlist
+- Check playlist visibility settings</p>
+<p><strong>Mapping fails</strong>
+- Confirm Pretalx ID is in video filename
+- Check that YouTube used filename as title
+- Review logs for specific errors</p>
+<p><strong>Scheduling fails</strong>
+- Videos must be "Private" (not "Unlisted")
+- Check YouTube API quotas
+- Verify OAuth token is valid</p>
+<p><strong>Notifications not sending</strong>
+- Check respective API configurations
+- Verify files exist in queue directories
+- Review notify script logs</p>
+<h3 id="manual-recovery">Manual Recovery<a class="headerlink" href="#manual-recovery" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Retry a specific video</span>
+mv<span class="w"> </span>_tmp/video_published/ABC123.json<span class="w"> </span>_tmp/video_records_updated/
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+
+<span class="c1"># Skip problematic video</span>
+mv<span class="w"> </span>_tmp/video_records_updated/ABC123.json<span class="w"> </span>_tmp/video_published/
+
+<span class="c1"># Regenerate descriptions</span>
+rm<span class="w"> </span>_tmp/records/ABC123.json
+pytube<span class="w"> </span>records<span class="w"> </span>fetch
+
+<span class="c1"># Send notifications manually</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>email
+pytube<span class="w"> </span>notify<span class="w"> </span>social
+</code></pre></div>
+<h2 id="quick-reference">Quick Reference<a class="headerlink" href="#quick-reference" title="Permanent link">¤</a></h2>
+<h3 id="status-flow">Status Flow<a class="headerlink" href="#status-flow" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code>records → video_records → video_records_updated → video_published
+                                    ↓
+                          speaker_to_email/linked_in_to_post
+</code></pre></div>
+<h3 id="key-commands">Key Commands<a class="headerlink" href="#key-commands" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Check system status</span>
+pytube<span class="w"> </span>status
+
+<span class="c1"># Load data</span>
+pytube<span class="w"> </span>records<span class="w"> </span>fetch
+
+<span class="c1"># Process videos  </span>
+pytube<span class="w"> </span>youtube<span class="w"> </span>map
+pytube<span class="w"> </span>youtube<span class="w"> </span>update
+pytube<span class="w"> </span>youtube<span class="w"> </span>schedule
+
+<span class="c1"># Monitor &amp; notify</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>check<span class="w"> </span>--auto-post
+
+<span class="c1"># Manual operations</span>
+pytube<span class="w"> </span>notify<span class="w"> </span>email
+pytube<span class="w"> </span>notify<span class="w"> </span>social
+</code></pre></div>
+<h3 id="important-files">Important Files<a class="headerlink" href="#important-files" title="Permanent link">¤</a></h3>
+<ul>
+<li><code>config_local.yaml</code> - Your configuration</li>
+<li><code>_tmp/records/*.json</code> - Session data</li>
+<li><code>_tmp/videos/youtube_pycon.json</code> - Video mappings</li>
+<li><code>./_secret/youtube_token.json</code> - OAuth token</li>
+</ul>
+<h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">¤</a></h2>
+<p>Once comfortable with the basic flow:
+1. Explore custom description templates
+2. Set up video processing for automatic cuts
+3. Customize LinkedIn post formats
+4. Integrate with additional platforms</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © 2024-2026 Pioneers Hub gGmbH – <a href="#__consent">Change cookie settings</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+      <div class="md-consent" data-md-component="consent" id="__consent" hidden>
+        <div class="md-consent__overlay"></div>
+        <aside class="md-consent__inner">
+          <form class="md-consent__form md-grid md-typeset" name="consent">
+            
+
+
+
+<h4>Cookie consent</h4>
+<p>We use cookies to recognize your repeated visits and preferences, as well as to measure the effectiveness of our documentation and whether users find what they're searching for. With your consent, you're helping us to make our documentation better.</p>
+<input class="md-toggle" type="checkbox" id="__settings" >
+<div class="md-consent__settings">
+  <ul class="task-list">
+    
+    
+      
+    
+    
+      
+        
+  
+  
+    
+    
+  
+  <li class="task-list-item">
+    <label class="task-list-control">
+      <input type="checkbox" name="github" checked>
+      <span class="task-list-indicator"></span>
+      GitHub
+    </label>
+  </li>
+
+      
+    
+    
+  </ul>
+</div>
+<div class="md-consent__controls">
+  
+    
+      <button class="md-button md-button--primary">Accept</button>
+    
+    
+    
+  
+    
+    
+    
+      <label class="md-button" for="__settings">Manage settings</label>
+    
+  
+</div>
+          </form>
+        </aside>
+      </div>
+      <script>var consent=__md_get("__consent");if(consent)for(var input of document.forms.consent.elements)input.name&&(input.checked=consent[input.name]||!1);else"file:"!==location.protocol&&setTimeout((function(){document.querySelector("[data-md-component=consent]").hidden=!1}),250);var form=document.forms.consent;for(var action of["submit","reset"])form.addEventListener(action,(function(e){if(e.preventDefault(),"reset"===e.type)for(var n of document.forms.consent.elements)n.name&&(n.checked=!1);__md_set("__consent",Object.fromEntries(Array.from(new FormData(form).keys()).map((function(e){return[e,!0]})))),location.hash="",location.reload()}))</script>
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../js/open_in_new_tab.js"></script>
+      
+    
+  <script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(() => { lightbox.reload() });
+</script></body>
+</html>

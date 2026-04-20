@@ -1,0 +1,2063 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx.">
+      
+      
+        <meta name="author" content="Alexander Hendorf">
+      
+      
+        <link rel="canonical" href="https://pioneershub.github.io/pytube/auto-cut-pipeline/">
+      
+      
+        <link rel="prev" href="../video-organization/">
+      
+      
+        <link rel="next" href="../vimeo_download/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Overview - Py Tube</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Overview - Py Tube" />
+<meta property="og:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="og:image" content="https://pioneershub.github.io/pytube/assets/images/social/auto-cut-pipeline.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:url" content="https://pioneershub.github.io/pytube/auto-cut-pipeline/" />
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:title" content="Overview - Py Tube" />
+<meta property="twitter:description" content="Manage and release conference videos on YouTube using the talk and speaker information in Pretalx." />
+<meta property="twitter:image" content="https://pioneershub.github.io/pytube/assets/images/social/auto-cut-pipeline.png" />
+ <link href="../assets/stylesheets/glightbox.min.css" rel="stylesheet"/><style>
+    html.glightbox-open { overflow: initial; height: 100%; }
+    .gslide-title { margin-top: 0px; user-select: text; }
+    .gslide-desc { color: #666; user-select: text; }
+    .gslide-image img { background: white; }
+    .gscrollbar-fixer { padding-right: 15px; }
+    .gdesc-inner { font-size: 0.75rem; }
+    body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color);}
+    body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color);}
+    body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color);}</style> <script src="../assets/javascripts/glightbox.min.js"></script></head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#auto-cut-pipeline-from-vimeo-livestream-to-per-session-clips" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Py Tube" class="md-header__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Py Tube
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Py Tube" class="md-nav__button md-logo" aria-label="Py Tube" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M549.7 124.1c-6.2-23.7-24.8-42.3-48.3-48.6C458.9 64 288.1 64 288.1 64S117.3 64 74.7 75.5c-23.5 6.3-42 24.9-48.3 48.6C15 167 15 256.4 15 256.4s0 89.4 11.4 132.3c6.3 23.6 24.8 41.5 48.3 47.8C117.3 448 288.1 448 288.1 448s170.8 0 213.4-11.5c23.5-6.3 42-24.2 48.3-47.8 11.4-42.9 11.4-132.3 11.4-132.3s0-89.4-11.4-132.3zM232.2 337.6V175.2l142.7 81.2z"/></svg>
+
+    </a>
+    Py Tube
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/PioneersHub/pytube" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    PioneersHub/pytube
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Release Conference Videos on YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../step-by-step/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Step by Step Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Scripts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Metadata
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Metadata
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../processing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pre-Processing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../openai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Descriptions with NLP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../video-organization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Video Organization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auto-Cut Pipeline
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Auto-Cut Pipeline
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-vimeo-bulk-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — Vimeo bulk download
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 1 — Vimeo bulk download">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-vimeoraw_sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure vimeo.raw_sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-bulk-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run bulk-download
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-removed-blocklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The removed/ blocklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-build-the-sessionrecording-mapping-parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — Build the session→recording mapping (Parquet)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — Build the session→recording mapping (Parquet)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-the-pretalx-sessions-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Get the Pretalx sessions CSV
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3-prepare-break-screen-reference-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3 — Prepare break-screen reference images
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 3 — Prepare break-screen reference images">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-auto-detect-first-event-no-references-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A — auto-detect (first event, no references yet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-use-existing-reference-images-recurring-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B — use existing reference images (recurring event)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-4-run-the-auto-cutter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4 — Run the auto-cutter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 4 — Run the auto-cutter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-detector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the detector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-detector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the detector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-5-hand-off-to-the-existing-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 5 — Hand off to the existing workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vimeo_download/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vimeo Bulk Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../presentation_detector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Presentation Detector (internals)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../youtube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YouTube
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spread the Word
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Spread the Word
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linkedin/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LinkedIn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Email
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../license/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    License
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://pioneershub.org/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pioneers Hub website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-vimeo-bulk-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — Vimeo bulk download
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 1 — Vimeo bulk download">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-vimeoraw_sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure vimeo.raw_sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-bulk-download" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run bulk-download
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-removed-blocklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The removed/ blocklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 1
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-build-the-sessionrecording-mapping-parquet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — Build the session→recording mapping (Parquet)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — Build the session→recording mapping (Parquet)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-the-pretalx-sessions-csv" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Get the Pretalx sessions CSV
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#configure-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure paths
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 2
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3-prepare-break-screen-reference-images" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3 — Prepare break-screen reference images
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 3 — Prepare break-screen reference images">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#option-a-auto-detect-first-event-no-references-yet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option A — auto-detect (first event, no references yet)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-b-use-existing-reference-images-recurring-event" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option B — use existing reference images (recurring event)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tuning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tuning
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-4-run-the-auto-cutter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4 — Run the auto-cutter
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 4 — Run the auto-cutter">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configure-the-detector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configure the detector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run-the-detector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run the detector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verify-stage-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verify Stage 4
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-5-hand-off-to-the-existing-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 5 — Hand off to the existing workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="auto-cut-pipeline-from-vimeo-livestream-to-per-session-clips">Auto-Cut Pipeline: From Vimeo Livestream to Per-Session Clips<a class="headerlink" href="#auto-cut-pipeline-from-vimeo-livestream-to-per-session-clips" title="Permanent link">¤</a></h1>
+<p>This guide walks through the full path from raw Vimeo livestream recordings
+to per-session <code>.mp4</code> / <code>.mp3</code> clips whose filenames carry the Pretalx session
+code. After this guide the clips are ready for the existing channel-assignment
+and YouTube publishing flow documented in the
+<a href="../step-by-step/">Step-by-Step Guide</a>.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">¤</a></h2>
+<p>The pipeline has four operator-run stages. Each stage produces an artifact that
+the next stage consumes:</p>
+<div class="highlight"><pre><span></span><code>Vimeo source accounts
+   │  pytube video bulk-download              (Stage 1)
+   ▼
+raw .mp4 long streams  (+ _metadata/, removed/)
+   │  process_talk_list.py                    (Stage 2)
+   ▼
+sessions_processed.parquet  (sessions ↔ recording filenames)
+   │  (optional) auto-detect break slides     (Stage 3)
+   ▼
+break_slides/*.png  (reference images)
+   │  presentation_detector.py                (Stage 4)
+   ▼
+per-session clips .mp4 + .mp3 — &quot;NNN - Title [CODE].mp4&quot;
+   │
+   ▼  hand off to step-by-step.md Phase 3
+</code></pre></div>
+<p>The one invariant that ties the stages together is <strong>filenames</strong>. The Vimeo
+title becomes the raw filename, which Stage 2 matches against the Pretalx
+schedule, which Stage 4 uses to name each extracted clip. Don't rename files
+between stages.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">¤</a></h2>
+<p>Before you start, make sure the following are in place:</p>
+<ul>
+<li><strong>Python 3.13+</strong> with uv.</li>
+</ul>
+<p>The stages below use <code>uv run --extra &lt;name&gt; python ...</code> so the required
+  extras are pulled in per invocation — you don't need a separate install
+  step. Two extras are used:</p>
+<ul>
+<li><code>video_processor</code> — OpenCV (<code>cv2</code>) and Polars (for Stages 2 + 4).</li>
+<li><code>vimeo</code> — the Vimeo SDK (for Stage 1, but the <code>pytube</code> CLI loads this
+    on demand).</li>
+</ul>
+<p>If you prefer to install once and drop the <code>--extra</code> flag in every
+  command, run <code>uv sync --extra video_processor --extra vimeo</code> once and use
+  plain <code>uv run python ...</code> afterwards.</p>
+<ul>
+<li><strong>FFmpeg</strong> on your <code>PATH</code>. Install instructions are in
+  <a href="../presentation_detector/#installation">presentation_detector.md</a>.</li>
+<li><strong>Vimeo developer credentials</strong> — one app per source account, each with an
+  access token scoped to <code>private</code> + download permissions. See
+  <a href="../api-credentials/">API Credentials</a> for the setup.</li>
+<li><strong>Pretalx sessions CSV</strong> — see
+  <a href="#get-the-pretalx-sessions-csv">Get the Pretalx sessions CSV</a> for
+  required columns.</li>
+</ul>
+<p>Create (or update) <code>config_local.yaml</code> in the repo root — this is where all the
+per-environment settings live and it must never be committed.</p>
+<hr />
+<h2 id="stage-1-vimeo-bulk-download">Stage 1 — Vimeo bulk download<a class="headerlink" href="#stage-1-vimeo-bulk-download" title="Permanent link">¤</a></h2>
+<p>Pulls raw livestream recordings from any number of Vimeo source accounts into
+the folder the auto-cutter later reads.</p>
+<h3 id="configure-vimeoraw_sources">Configure <code>vimeo.raw_sources</code><a class="headerlink" href="#configure-vimeoraw_sources" title="Permanent link">¤</a></h3>
+<p>In <code>config_local.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">vimeo</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">raw_sources</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">accounts</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;main-stage&quot;</span>
+<span class="w">        </span><span class="nt">client_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">client_secret</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">access_token</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">user_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;12345678&quot;</span><span class="w">           </span><span class="c1"># required only with selection.folder_id</span>
+<span class="w">        </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">folder_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;98765432&quot;</span><span class="w">       </span><span class="c1"># choose EXACTLY ONE of these three</span>
+<span class="w">          </span><span class="c1"># title_contains: &quot;PyConDE 2026&quot;</span>
+<span class="w">          </span><span class="c1"># title_regex: &quot;PyConDE .* 2026&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;side-track&quot;</span>
+<span class="w">        </span><span class="nt">client_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">client_secret</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">access_token</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;...&quot;</span>
+<span class="w">        </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">title_contains</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;PyConDE</span><span class="nv"> </span><span class="s">2026&quot;</span>
+<span class="w">    </span><span class="nt">download</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/videos/input&quot;</span>
+<span class="w">      </span><span class="nt">quality</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;best&quot;</span><span class="w">                 </span><span class="c1"># best | 1080p | 720p | 480p</span>
+<span class="w">      </span><span class="nt">max_concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">               </span><span class="c1"># per-account concurrent downloads</span>
+<span class="w">      </span><span class="nt">max_accounts_concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">      </span><span class="c1"># accounts in parallel (1 = serial)</span>
+<span class="w">      </span><span class="nt">retry_max_attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">      </span><span class="nt">skip_existing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p><strong>Selection</strong> — each account uses exactly one of <code>folder_id</code>, <code>title_contains</code>,
+or <code>title_regex</code>. <code>folder_id</code> requires <code>user_id</code> on the same account. If you
+misconfigure this the CLI fails with a clear error (validator:
+<a href="../src/manager/config.py">src/manager/config.py</a>).</p>
+<p><strong>Critical:</strong> <code>download.output_dir</code> MUST equal the auto-cutter's
+<code>input.folder</code> in <a href="../src/video_processor/config.yaml">src/video_processor/config.yaml</a>.
+Filenames flow through unchanged so that Stage 2's <code>find_recording()</code> can
+still match them.</p>
+<h3 id="run-bulk-download">Run bulk-download<a class="headerlink" href="#run-bulk-download" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Preview the rename plan without fetching anything</span>
+pytube<span class="w"> </span>video<span class="w"> </span>bulk-download<span class="w"> </span>--dry-run
+
+<span class="c1"># Fetch everything</span>
+pytube<span class="w"> </span>video<span class="w"> </span>bulk-download
+
+<span class="c1"># Smoke-test a single account with a tiny budget</span>
+pytube<span class="w"> </span>video<span class="w"> </span>bulk-download<span class="w"> </span>--account<span class="w"> </span>main-stage<span class="w"> </span>--limit<span class="w"> </span><span class="m">2</span>
+</code></pre></div>
+<p>The downloader streams each video to <code>{target}.mp4.part</code> and atomically
+renames to <code>{target}.mp4</code> on success. Per-video metadata is written to
+<code>{output_dir}/_metadata/{vimeo_id}.json</code> for audit. Transient errors retry
+with exponential backoff (<code>retry_max_attempts</code>); videos with no download link
+(live-event shells) are skipped without retry.</p>
+<h3 id="the-removed-blocklist">The <code>removed/</code> blocklist<a class="headerlink" href="#the-removed-blocklist" title="Permanent link">¤</a></h3>
+<p>Operators drop unwanted streams (break-slide-only recordings, test streams,
+re-uploads) into <code>{output_dir}/removed/</code>. Anything present there is
+permanently skipped on subsequent runs. Match is by sanitized filename or by
+<code>_{vimeo_id}</code> suffix. See
+<a href="../src/manager/scripts/vimeo_raw_download.py">load_blocklist()</a>.</p>
+<h3 id="verify-stage-1">Verify Stage 1<a class="headerlink" href="#verify-stage-1" title="Permanent link">¤</a></h3>
+<ul>
+<li><code>output_dir</code> contains raw <code>.mp4</code>s named after the sanitized Vimeo title, e.g.
+  <code>PyConDE &amp; PyData 2026 - Dynamicum - Monday Morning.mp4</code>.</li>
+<li><code>output_dir/_metadata/</code> contains one JSON sidecar per video.</li>
+<li><code>ls {output_dir} | wc -l</code> matches the plan you saw in <code>--dry-run</code>, minus any
+  entries in <code>removed/</code>.</li>
+</ul>
+<hr />
+<h2 id="stage-2-build-the-sessionrecording-mapping-parquet">Stage 2 — Build the session→recording mapping (Parquet)<a class="headerlink" href="#stage-2-build-the-sessionrecording-mapping-parquet" title="Permanent link">¤</a></h2>
+<p>Maps each Pretalx session to the raw recording filename that contains its
+talk. The output is a Parquet file the auto-cutter consumes to name each
+extracted clip after the session code.</p>
+<p>Reference: <a href="../src/video_processor/process_talk_list.py">src/video_processor/process_talk_list.py</a>.</p>
+<h3 id="get-the-pretalx-sessions-csv">Get the Pretalx sessions CSV<a class="headerlink" href="#get-the-pretalx-sessions-csv" title="Permanent link">¤</a></h3>
+<p>Download the confirmed-sessions CSV from Pretalx's organiser backend
+(Schedule/Submissions → Export → CSV). Required columns:</p>
+<table>
+<thead>
+<tr>
+<th>Room</th>
+<th>Start (date)</th>
+<th>Start (time)</th>
+<th>Proposal title</th>
+<th>ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dynamicum</td>
+<td>2026-04-20</td>
+<td>09:30</td>
+<td>Neural Networks From Scratch</td>
+<td>ABC123</td>
+</tr>
+</tbody>
+</table>
+<p>Column names must match exactly (including parentheses). Extra columns are
+preserved.</p>
+<h3 id="configure-paths">Configure paths<a class="headerlink" href="#configure-paths" title="Permanent link">¤</a></h3>
+<p>Add to <code>config_local.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">pretalx</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">sessions_csv</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/pyconde-pydata-2026_sessions.csv&quot;</span>
+<span class="w">  </span><span class="nt">recording_mapping_yaml</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/pyconde-pydata-2026_recording_mapping.yaml&quot;</span>
+<span class="w">  </span><span class="c1"># Pretalx Room -&gt; short-form mapping. Generated once by process_talk_list.py;</span>
+<span class="w">  </span><span class="c1"># default transform is &quot;strip [brackets], strip, lowercase&quot;. Hand-edit values</span>
+<span class="w">  </span><span class="c1"># to override per room (e.g. &quot;Merck Plenary (Spectrum)&quot; -&gt; &quot;spectrum&quot;).</span>
+<span class="w">  </span><span class="nt">room_mapping_yaml</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/pyconde-pydata-2026_room_mapping.yaml&quot;</span>
+
+<span class="nt">vimeo</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">raw_sources</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">download</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># MUST equal the folder Stage 1 wrote into.</span>
+<span class="w">      </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/videos/input&quot;</span>
+
+<span class="nt">event</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># 24-hour. Sessions before this hour are classified Morning, on/after Afternoon.</span>
+<span class="w">  </span><span class="nt">lunch_break_cut</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">13</span>
+</code></pre></div>
+<h3 id="run-it">Run it<a class="headerlink" href="#run-it" title="Permanent link">¤</a></h3>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--extra<span class="w"> </span>video_processor<span class="w"> </span>python<span class="w"> </span>src/video_processor/process_talk_list.py
+</code></pre></div>
+<p>The script runs in two phases — it stops between them so you can
+hand-edit the mapping before the Parquet is produced.</p>
+<p><strong>Step 1: filename → (room, day, period) mapping.</strong> If
+<code>recording_mapping_yaml</code> doesn't exist, the script scans the raw filenames
+for <code>{day, room, AM|PM|Morning|Afternoon}</code> tokens, writes the YAML, and
+<strong>exits</strong>. Anything it can't classify is emitted as a commented
+placeholder at the bottom. Hand-edit to fix typos (e.g. a recording titled
+<code>Wedesday</code> needs <code>day: Wednesday</code>) or unusual filenames, then re-run.</p>
+<p>If the YAML already exists and you run in an interactive terminal, the
+script prompts before regenerating (<code>[y/N]</code>, default <code>N</code>). Non-interactive
+runs keep the existing file unconditionally — use
+<code>pytube video map-recordings --force</code> to explicitly regenerate.</p>
+<p><strong>Step 2: session → recording match.</strong> Once the YAML exists (and you've
+re-run), the script matches each Pretalx session against it and writes
+the outputs below.</p>
+<p>Example mapping YAML:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">recordings</span><span class="p">:</span>
+<span class="w">  </span><span class="s">&quot;PyConDE</span><span class="nv"> </span><span class="s">&amp;</span><span class="nv"> </span><span class="s">PyData</span><span class="nv"> </span><span class="s">2026</span><span class="nv"> </span><span class="s">Dynamicum</span><span class="nv"> </span><span class="s">Tuesday</span><span class="nv"> </span><span class="s">AM.mp4&quot;</span><span class="p p-Indicator">:</span>
+<span class="w">    </span><span class="nt">room</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dynamicum</span>
+<span class="w">    </span><span class="nt">day</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Tuesday</span>
+<span class="w">    </span><span class="nt">period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Morning</span>
+<span class="w">  </span><span class="s">&quot;PyConDE</span><span class="nv"> </span><span class="s">&amp;</span><span class="nv"> </span><span class="s">PyData</span><span class="nv"> </span><span class="s">2026</span><span class="nv"> </span><span class="s">Dynamicum</span><span class="nv"> </span><span class="s">Wedesday</span><span class="nv"> </span><span class="s">PM.mp4&quot;</span><span class="p p-Indicator">:</span>
+<span class="w">    </span><span class="nt">room</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Dynamicum</span>
+<span class="w">    </span><span class="nt">day</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Wednesday</span><span class="w">    </span><span class="c1"># typo corrected by hand</span>
+<span class="w">    </span><span class="nt">period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Afternoon</span>
+</code></pre></div>
+<p>For each session the script looks up the recording by <code>(Room, Day,
+Morning|Afternoon)</code> in the mapping YAML. Bracketed room annotations from
+Pretalx (e.g. <code>Europium [3rd Floor]</code>) are stripped before lookup. Two
+output files are written next to the input CSV:</p>
+<ul>
+<li><code>{sessions_csv_stem}_processed.parquet</code> — the main exchange file with
+  <code>Recording</code> / <code>Output_Folder</code> / <code>Sequential_Filename</code> columns.</li>
+<li><code>{sessions_csv_stem}_processed_missing.yaml</code> — every session whose
+  <code>Recording</code> came back null, with its ID, title, Room, Day, TimePeriod,
+  and original Pretalx date/time. Open this to see what to add or fix in
+  <code>recording_mapping_yaml</code>.</li>
+</ul>
+<h3 id="verify-stage-2">Verify Stage 2<a class="headerlink" href="#verify-stage-2" title="Permanent link">¤</a></h3>
+<p>The log prints:</p>
+<div class="highlight"><pre><span></span><code>Matched N out of M sessions (P%)
+</code></pre></div>
+<p>Open the resulting <code>*_processed.parquet</code> and confirm these columns are
+populated for the sessions you expect:</p>
+<ul>
+<li><code>Recording</code> — the raw filename from Stage 1</li>
+<li><code>Output_Folder</code> — e.g. <code>Monday-Morning-Dynamicum</code></li>
+<li><code>Sequential_Filename</code> — e.g. <code>001 - My Talk Title [ABC123].mp4</code></li>
+</ul>
+<p>If <code>Recording</code> is null for most rows, the raw filenames don't match the
+expected template — see Troubleshooting.</p>
+<hr />
+<h2 id="stage-3-prepare-break-screen-reference-images">Stage 3 — Prepare break-screen reference images<a class="headerlink" href="#stage-3-prepare-break-screen-reference-images" title="Permanent link">¤</a></h2>
+<p>The auto-cutter finds transitions between talks by detecting the "break" slide
+shown between sessions (logo cards, sponsor loops, "we'll be right back"
+screens). You provide reference images; every sampled frame is compared to
+them using OpenCV template matching or histogram correlation.</p>
+<p>Reference:
+<a href="../src/video_processor/presentation_detector.py">load_break_images()</a>,
+<a href="../src/video_processor/presentation_detector.py">detect_break_screens()</a>.</p>
+<p>There are two ways to get the reference images. Pick one.</p>
+<h3 id="option-a-auto-detect-first-event-no-references-yet">Option A — auto-detect (first event, no references yet)<a class="headerlink" href="#option-a-auto-detect-first-event-no-references-yet" title="Permanent link">¤</a></h3>
+<p>Use the detector itself to harvest candidate break frames, then curate.</p>
+<ol>
+<li>In <a href="../src/video_processor/config.yaml">src/video_processor/config.yaml</a>:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="nt">break_detection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">images_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">                  </span><span class="c1"># empty → auto-detect mode</span>
+<span class="w">  </span><span class="nt">auto_detect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">detected_screens_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/break_screens_detected&quot;</span>
+<span class="w">  </span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.95</span>
+<span class="w">  </span><span class="nt">comparison_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;template&quot;</span><span class="w">   </span><span class="c1"># or &quot;histogram&quot;</span>
+</code></pre></div>
+<ol>
+<li>Run the detector on one representative stream (see Stage 4 for the
+   command). The detector clusters similar frames across the video and writes
+   the dominant clusters to <code>detected_screens_dir</code> as
+   <code>break_screen_1.jpg</code>, <code>break_screen_2.jpg</code>, ...</li>
+<li>Review the images. Keep the ones that are actually break slides; delete
+   close-ups of speakers, title cards, etc.</li>
+<li>Copy the kept images into a new <code>images_dir</code> and re-run with:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><span class="nt">break_detection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">images_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/break_slides&quot;</span>
+<span class="w">  </span><span class="nt">auto_detect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+<p>This gives you consistent detection across all the streams.</p>
+<h3 id="option-b-use-existing-reference-images-recurring-event">Option B — use existing reference images (recurring event)<a class="headerlink" href="#option-b-use-existing-reference-images-recurring-event" title="Permanent link">¤</a></h3>
+<p>If you already have break-slide PNGs from a previous run, or can export them
+from the venue's OBS/vMix setup:</p>
+<ol>
+<li>Drop PNG/JPG files into <code>break_detection.images_dir</code>.</li>
+<li>Set <code>auto_detect: false</code>.</li>
+</ol>
+<h3 id="tuning">Tuning<a class="headerlink" href="#tuning" title="Permanent link">¤</a></h3>
+<ul>
+<li><code>threshold</code> — similarity cutoff (0–1). 0.95 is a safe default for
+  <code>comparison_method: "template"</code>; lower it a little for <code>"histogram"</code> or if
+  break frames vary slightly (animated sponsor loop).</li>
+<li><code>comparison_method: "template"</code> uses normalized cross-correlation
+  (<code>cv2.matchTemplate</code> with <code>TM_CCOEFF_NORMED</code>) — precise but pickier.</li>
+<li><code>comparison_method: "histogram"</code> uses 8×8×8 RGB histograms — faster and more
+  tolerant of minor visual drift.</li>
+</ul>
+<p>For what makes a <em>good</em> break slide (contrast, consistency, avoid confusables)
+see the
+<a href="../presentation_detector/#best-practices">Best Practices</a>
+section of the detector deep-dive.</p>
+<hr />
+<h2 id="stage-4-run-the-auto-cutter">Stage 4 — Run the auto-cutter<a class="headerlink" href="#stage-4-run-the-auto-cutter" title="Permanent link">¤</a></h2>
+<p>Detects break→presentation and presentation→break transitions with a binary
+search, then uses FFmpeg to extract each presentation as a standalone clip.</p>
+<p>Reference:
+<a href="../src/video_processor/presentation_detector.py">src/video_processor/presentation_detector.py</a>
+(class <code>VideoPresenterDetector</code>).</p>
+<h3 id="configure-the-detector">Configure the detector<a class="headerlink" href="#configure-the-detector" title="Permanent link">¤</a></h3>
+<p>In <a href="../src/video_processor/config.yaml">src/video_processor/config.yaml</a>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">input</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">folder</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/videos/input&quot;</span><span class="w">          </span><span class="c1"># = Stage 1 output_dir</span>
+<span class="w">  </span><span class="nt">extensions</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mp4,mkv,avi,mov,webm&quot;</span>
+<span class="w">  </span><span class="nt">mapping_file</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/pyconde-pydata-2026_sessions_processed.yaml&quot;</span><span class="w">  </span><span class="c1"># = Stage 2 output (YAML)</span>
+
+<span class="nt">video</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enable_resize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">              </span><span class="c1"># true → downscale before detection (faster, less accurate)</span>
+<span class="w">  </span><span class="nt">processing_size</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">320</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">180</span><span class="p p-Indicator">]</span>
+
+<span class="nt">break_detection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">images_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/break_slides&quot;</span>
+<span class="w">  </span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.95</span>
+<span class="w">  </span><span class="nt">comparison_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;template&quot;</span>
+<span class="w">  </span><span class="nt">auto_detect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="nt">presentation_detection</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">min_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">                   </span><span class="c1"># binary-search precision, seconds</span>
+<span class="w">  </span><span class="nt">chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span><span class="w">                   </span><span class="c1"># initial coarse window (5 min)</span>
+<span class="w">  </span><span class="nt">sampling_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">             </span><span class="c1"># seconds between sampled frames</span>
+<span class="w">  </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">200</span><span class="w">                  </span><span class="c1"># cap for very long videos</span>
+<span class="w">  </span><span class="nt">cluster_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.90</span><span class="w">           </span><span class="c1"># used only in auto-detect mode</span>
+
+<span class="nt">output</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">folder</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/Volumes/DATA/_pyconde2026/videos/output&quot;</span>
+<span class="w">  </span><span class="nt">make_processing_plan</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">       </span><span class="c1"># write a plan JSON and stop (debug only)</span>
+<span class="w">  </span><span class="nt">extract_presentations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">extract_audio</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">save_metadata</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>The defaults under <code>presentation_detection</code> are fine for a first run — only
+tune them if detection misses cuts or over-splits.</p>
+<h3 id="run-the-detector">Run the detector<a class="headerlink" href="#run-the-detector" title="Permanent link">¤</a></h3>
+<p>With <code>input.folder</code>, <code>output.extract_presentations</code>, and
+<code>output.extract_audio</code> already set in <code>src/video_processor/config.yaml</code>, the
+happy-path command is simply:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--extra<span class="w"> </span>video_processor<span class="w"> </span>python<span class="w"> </span>src/video_processor/presentation_detector.py
+</code></pre></div>
+<p>Process a single stream (overrides <code>input.folder</code>):</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--extra<span class="w"> </span>video_processor<span class="w"> </span>python<span class="w"> </span>src/video_processor/presentation_detector.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>/path/to/stream.mp4
+</code></pre></div>
+<p>On a cold start (no <code>processing_plan.json</code> yet), detection runs automatically
+before extraction. On subsequent runs the existing plan is reused — handy for
+iterating on FFmpeg output options without paying detection cost again.</p>
+<div class="admonition tip">
+<p class="admonition-title">Inspect cuts before FFmpeg runs</p>
+<p>Set <code>output.make_processing_plan: true</code> and
+<code>output.extract_presentations: false</code> in
+<code>src/video_processor/config.yaml</code>, run the detector, and open
+<code>{output.folder}/processing_plan.json</code>. Each entry's
+<code>presentations_index</code> field lists the detected <code>(start_sec, end_sec)</code>
+tuples. Once you're happy, flip <code>extract_presentations</code> back to <code>true</code>
+and re-run to cut the clips without re-detecting.</p>
+</div>
+<p>All CLI flags are pure overrides of config keys — use them only when you
+want to deviate from the YAML:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Overrides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--config PATH</code></td>
+<td>config file path (default: <code>config.yaml</code> in cwd)</td>
+</tr>
+<tr>
+<td><code>--input-folder PATH</code></td>
+<td><code>input.folder</code></td>
+</tr>
+<tr>
+<td><code>--output PATH</code></td>
+<td><code>output.folder</code></td>
+</tr>
+<tr>
+<td><code>--break-images PATH</code></td>
+<td><code>break_detection.images_dir</code></td>
+</tr>
+<tr>
+<td><code>--extract</code></td>
+<td>forces <code>output.extract_presentations = true</code></td>
+</tr>
+<tr>
+<td><code>--audio</code></td>
+<td>forces <code>output.extract_audio = true</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../presentation_detector/">presentation_detector.md</a> for the full CLI
+reference.</p>
+<h3 id="verify-stage-4">Verify Stage 4<a class="headerlink" href="#verify-stage-4" title="Permanent link">¤</a></h3>
+<p>For each processed stream you get a subfolder:</p>
+<div class="highlight"><pre><span></span><code>{output.folder}/
+└── PyConDE &amp; PyData 2026 - Dynamicum - Monday Morning/
+    ├── presentations.txt
+    ├── metadata.yaml
+    ├── 001 - Talk Title [ABC123].mp4
+    ├── 001 - Talk Title [ABC123].mp3
+    ├── 002 - Next Talk [DEF456].mp4
+    └── 002 - Next Talk [DEF456].mp3
+</code></pre></div>
+<p><code>metadata.yaml</code> is validated at write time by
+<a href="../src/video_processor/models.py"><code>VideoMetadata</code></a>. It records per-clip
+<code>start_seconds</code>, <code>end_seconds</code>, <code>duration</code>, and the source plan entry —
+useful for spot-checking cuts against the source stream.</p>
+<hr />
+<h2 id="stage-5-hand-off-to-the-existing-workflow">Stage 5 — Hand off to the existing workflow<a class="headerlink" href="#stage-5-hand-off-to-the-existing-workflow" title="Permanent link">¤</a></h2>
+<p>Once each clip filename contains <code>[SESSION_CODE]</code>, the rest of the pipeline is
+already documented. Continue with the
+<a href="../step-by-step/">Step-by-Step Guide</a> starting at <strong>Phase 3 — Organize Video
+Files</strong>:</p>
+<ol>
+<li>Move clips into <code>{video_dir}/downloads/</code>.</li>
+<li><code>pytube video map-to-channels</code> — assign each clip to a YouTube channel.</li>
+<li><code>pytube video move-to-channel-dirs</code> — move into <code>pycon/</code>, <code>pydata/</code>, or
+   <code>do_not_release/</code>.</li>
+<li>Manual upload to YouTube Studio.</li>
+<li><code>pytube youtube map</code> → <code>update</code> → <code>schedule</code>.</li>
+<li><code>pytube notify check --auto-post</code> for notifications.</li>
+</ol>
+<hr />
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">¤</a></h2>
+<p><strong><code>No vimeo.raw_sources.accounts configured</code></strong>
+Your <code>config_local.yaml</code> is missing the <code>accounts</code> list, or it's empty. Add
+at least one account under <code>vimeo.raw_sources.accounts</code>.</p>
+<p><strong><code>no download link available (probably a live-event shell)</code></strong>
+The Vimeo entry is a live-event stub without a rendered recording. Not
+retryable. Either wait until Vimeo finishes rendering, or move the shell into
+<code>{output_dir}/removed/</code> to skip it permanently.</p>
+<p><strong>Most sessions show <code>Recording: null</code> in the parquet</strong>
+The raw filenames don't match the template
+<code>{prefix} - {Room} - {Day} {Morning|Afternoon}.mp4</code>. Do NOT edit
+<code>find_recording()</code> — instead, fix the Vimeo titles at source (the downloader
+propagates them through <code>sanitize_title</code>). If you inherited the streams, a
+one-off <code>mv</code> to the expected names is fine; just don't make it a habit.</p>
+<p><strong>Auto-cutter misses transitions or over-splits</strong>
+Usually a break-image problem. Run Option A (auto-detect) on the specific day
+that's misbehaving and add the new break variants to <code>images_dir</code>. If the
+detection is close but off by seconds, drop <code>min_interval</code> to 1. If it's wildly
+off, the <code>threshold</code> is likely wrong for your <code>comparison_method</code>.</p>
+<p><strong>Filename collision on download</strong>
+Two Vimeo videos share the same title. The downloader falls back to
+<code>{title}_{vimeo_id}.mp4</code> (see <code>plan_filenames()</code>), but that collision-suffix
+breaks <code>find_recording()</code> in Stage 2. De-duplicate on Vimeo before
+re-downloading.</p>
+<p><strong><code>FileNotFoundError: Recordings directory not found</code></strong> (Stage 2)
+<code>_recordings_dir</code> in <code>process_talk_list.py</code> doesn't exist yet — either Stage 1
+hasn't run, or the two paths don't agree. They must be the same folder.</p>
+<p><strong>My Pretalx export has different column names (e.g. <code>Session code</code> instead
+of <code>ID</code>)</strong>
+Pretalx's export column labels vary by version and can be customized by the
+event organiser. Rename the columns in the XLSX to match the required names
+(<a href="#get-the-pretalx-sessions-csv">Get the Pretalx sessions CSV</a>) before
+running Stage 2, or patch the column references inside
+<a href="../src/video_processor/process_talk_list.py">process_talk_list.py</a> if you'd
+rather adapt the code.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright © 2024-2026 Pioneers Hub gGmbH – <a href="#__consent">Change cookie settings</a>
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+      <div class="md-consent" data-md-component="consent" id="__consent" hidden>
+        <div class="md-consent__overlay"></div>
+        <aside class="md-consent__inner">
+          <form class="md-consent__form md-grid md-typeset" name="consent">
+            
+
+
+
+<h4>Cookie consent</h4>
+<p>We use cookies to recognize your repeated visits and preferences, as well as to measure the effectiveness of our documentation and whether users find what they're searching for. With your consent, you're helping us to make our documentation better.</p>
+<input class="md-toggle" type="checkbox" id="__settings" >
+<div class="md-consent__settings">
+  <ul class="task-list">
+    
+    
+      
+    
+    
+      
+        
+  
+  
+    
+    
+  
+  <li class="task-list-item">
+    <label class="task-list-control">
+      <input type="checkbox" name="github" checked>
+      <span class="task-list-indicator"></span>
+      GitHub
+    </label>
+  </li>
+
+      
+    
+    
+  </ul>
+</div>
+<div class="md-consent__controls">
+  
+    
+      <button class="md-button md-button--primary">Accept</button>
+    
+    
+    
+  
+    
+    
+    
+      <label class="md-button" for="__settings">Manage settings</label>
+    
+  
+</div>
+          </form>
+        </aside>
+      </div>
+      <script>var consent=__md_get("__consent");if(consent)for(var input of document.forms.consent.elements)input.name&&(input.checked=consent[input.name]||!1);else"file:"!==location.protocol&&setTimeout((function(){document.querySelector("[data-md-component=consent]").hidden=!1}),250);var form=document.forms.consent;for(var action of["submit","reset"])form.addEventListener(action,(function(e){if(e.preventDefault(),"reset"===e.type)for(var n of document.forms.consent.elements)n.name&&(n.checked=!1);__md_set("__consent",Object.fromEntries(Array.from(new FormData(form).keys()).map((function(e){return[e,!0]})))),location.hash="",location.reload()}))</script>
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "stable", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../js/open_in_new_tab.js"></script>
+      
+    
+  <script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(() => { lightbox.reload() });
+</script></body>
+</html>
