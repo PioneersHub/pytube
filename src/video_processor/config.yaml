@@ -203,6 +203,9 @@ output:
   save_metadata: true
   # If true, FFmpeg uses -ss before -i for faster stream-copy (less frame-accurate than -ss after -i)
   fast_input_seek: false
+  # save cut session here
+  upload_folder: "/Volumes/DATA4T/2026/upload"
+
 
 # Event info like lunch break
 event:

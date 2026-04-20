@@ -3136,68 +3136,155 @@ class VideoPresenterDetector:
                 logger.info(f"Video already exists: {output_video}, skipping...")
                 continue
 
-            # Duration in seconds
-            duration = end - start
-
             logger.info(f"Extracting presentation {i + 1} video...")
-            fast_seek = bool(OmegaConf.select(self.cfg.output, "fast_input_seek", default=False))
-            if fast_seek:
-                video_cmd = [
-                    "ffmpeg",
-                    "-ss",
-                    str(int(start)),
-                    "-i",
-                    plan["input_video"],
-                    "-t",
-                    str(int(duration)),
-                    "-c",
-                    "copy",
-                    str(output_video),
-                ]
-            else:
-                video_cmd = [
-                    "ffmpeg",
-                    "-i",
-                    plan["input_video"],
-                    "-ss",
-                    str(int(start)),
-                    "-t",
-                    str(int(duration)),
-                    "-c",
-                    "copy",
-                    str(output_video),
-                ]
-            logger.info(f"Command: {' '.join(video_cmd)}")
-            result = subprocess.run(video_cmd, capture_output=True, text=True, check=False)
-            if result.returncode != 0:
-                logger.error(f"FFmpeg error: {result.stderr}")
-            else:
-                logger.info(f"✅ Extracted video: {output_video}")
-
-            # Extract audio if configured
-            if self.cfg.output.extract_audio:
-                audio_cmd = [
-                    "ffmpeg",
-                    "-i",
-                    output_video,
-                    "-vn",
-                    "-ar",
-                    "44100",
-                    "-ac",
-                    "2",
-                    "-ab",
-                    "192k",
-                    "-f",
-                    "mp3",
-                    output_audio,
-                ]
+            ok = self._ffmpeg_extract_segment(
+                input_video=plan["input_video"],
+                start=int(start),
+                end=int(end),
+                output_video=output_video,
+            )
+            if ok and self.cfg.output.extract_audio:
                 logger.info(f"Extracting audio for presentation {i + 1}...")
-                logger.info(f"Command: {' '.join(audio_cmd)}")
-                result = subprocess.run(audio_cmd, capture_output=True, text=True, check=False)
-                if result.returncode != 0:
-                    logger.error(f"FFmpeg audio error: {result.stderr}")
-                else:
-                    logger.info(f"✅ Extracted audio: {output_audio}")
+                self._ffmpeg_extract_audio(output_video, output_audio)
+
+    def _ffmpeg_extract_segment(
+        self, input_video: str, start: int, end: int, output_video: Path
+    ) -> bool:
+        """Stream-copy ``[start, end)`` seconds from ``input_video`` to ``output_video``.
+
+        Respects ``cfg.output.fast_input_seek`` (``-ss`` before ``-i`` is faster
+        but less frame-accurate than ``-ss`` after ``-i``). Returns True on
+        success; False on FFmpeg non-zero exit so the caller can decide whether
+        to skip the audio companion step.
+        """
+        duration = int(end - start)
+        fast_seek = bool(OmegaConf.select(self.cfg.output, "fast_input_seek", default=False))
+        if fast_seek:
+            cmd = [
+                "ffmpeg", "-ss", str(int(start)), "-i", input_video,
+                "-t", str(duration), "-c", "copy", str(output_video),
+            ]
+        else:
+            cmd = [
+                "ffmpeg", "-i", input_video, "-ss", str(int(start)),
+                "-t", str(duration), "-c", "copy", str(output_video),
+            ]
+        logger.info(f"Command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            logger.error(f"FFmpeg error: {result.stderr}")
+            return False
+        logger.info(f"✅ Extracted video: {output_video}")
+        return True
+
+    def _ffmpeg_extract_audio(self, output_video: Path, output_audio: Path) -> bool:
+        """Extract a 44.1 kHz / 2 ch / 192 k MP3 companion from an already-cut clip."""
+        cmd = [
+            "ffmpeg", "-i", str(output_video), "-vn", "-ar", "44100",
+            "-ac", "2", "-ab", "192k", "-f", "mp3", str(output_audio),
+        ]
+        logger.info(f"Command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            logger.error(f"FFmpeg audio error: {result.stderr}")
+            return False
+        logger.info(f"✅ Extracted audio: {output_audio}")
+        return True
+
+    @staticmethod
+    def _build_upload_filename(row: dict) -> str | None:
+        """Return ``{pretalx_id}-{title}-{room_short}-{period}-{start}`` with ``:`` and ``/`` stripped.
+
+        Returns None if any required field is missing or blank — caller logs and
+        skips the row rather than writing a truncated filename.
+        """
+        required = ("pretalx_id", "Proposal title", "room_short", "time_period", "Start (time)")
+        parts = [row.get(k) for k in required]
+        if any(p is None or str(p).strip() == "" for p in parts):
+            return None
+        name = "-".join(str(p) for p in parts)
+        return name.replace(":", "").replace("/", "")
+
+    def extract_from_metadata_yaml(self) -> None:
+        """Cut each ``output.folder/*/metadata.yaml`` into ``output.upload_folder``.
+
+        Target filenames use ``{pretalx_id}-{Proposal title}-{room_short}-
+        {time_period}-{Start (time)}{ext}`` (with ``:`` and ``/`` removed).
+        Pairs ``video.scheduled_rows[i]`` with ``presentations_index[i]``; a
+        length mismatch skips the folder (fail loud, no silent fallbacks).
+        """
+        upload_cfg = OmegaConf.select(self.cfg.output, "upload_folder", default="")
+        if not upload_cfg:
+            raise ValueError(
+                "cfg.output.upload_folder is not set in src/video_processor/config.yaml. "
+                "Required as the destination for cut session files."
+            )
+        upload_folder = Path(str(upload_cfg)).expanduser()
+        upload_folder.mkdir(parents=True, exist_ok=True)
+
+        metadata_files = sorted(self.video_output_folder.glob("*/metadata.yaml"))
+        if not metadata_files:
+            logger.info(
+                f"No metadata.yaml under {self.video_output_folder} — "
+                "run detection first (see --schedule-match / --detect-only)."
+            )
+            return
+
+        for meta_path in metadata_files:
+            self._extract_one_metadata_folder(meta_path, upload_folder)
+
+    def _extract_one_metadata_folder(self, meta_path: Path, upload_folder: Path) -> None:
+        """Cut all presentations from one ``metadata.yaml`` into ``upload_folder``."""
+        with meta_path.open() as f:
+            raw = yaml.safe_load(f) or {}
+        try:
+            metadata = VideoMetadata(**raw)
+        except Exception as exc:
+            logger.error(f"{meta_path}: invalid metadata.yaml — {exc}")
+            return
+
+        rows = metadata.video.get("scheduled_rows") or []
+        if len(rows) != len(metadata.presentations_index):
+            logger.error(
+                f"{meta_path}: scheduled_rows ({len(rows)}) != "
+                f"presentations_index ({len(metadata.presentations_index)}) — skipping folder."
+            )
+            return
+
+        input_video = metadata.video.get("input_video")
+        if not input_video:
+            logger.error(f"{meta_path}: video.input_video missing — skipping folder.")
+            return
+        if not Path(input_video).exists():
+            logger.error(f"{meta_path}: input video not found on disk: {input_video}")
+            return
+
+        extract_audio = bool(OmegaConf.select(self.cfg.output, "extract_audio", default=True))
+        done = 0
+        for row, segment in zip(rows, metadata.presentations_index, strict=True):
+            name = self._build_upload_filename(row)
+            if name is None:
+                logger.error(
+                    f"{meta_path}: row index={segment.index} missing required fields — skipping row."
+                )
+                continue
+            out_video = upload_folder / f"{name}.mp4"
+            if out_video.exists():
+                logger.info(f"Upload video already exists: {out_video}, skipping...")
+                done += 1
+                continue
+            ok = self._ffmpeg_extract_segment(
+                input_video=input_video,
+                start=segment.start_seconds,
+                end=segment.end_seconds,
+                output_video=out_video,
+            )
+            if not ok:
+                continue
+            if extract_audio:
+                self._ffmpeg_extract_audio(out_video, out_video.with_suffix(".mp3"))
+            done += 1
+        logger.info(f"extracted {done}/{len(rows)} presentations from {meta_path.parent}")
 
     def _load_mapping_data(self):
         """Load the session->recording mapping YAML from disk.
@@ -3551,16 +3638,16 @@ def _run_inverse_cli(  # noqa: PLR0913
         logger.info(f"  {r['video']}: {r['n']} span(s) — {spans_str}")
 
 
-def _am_pm(time_period: str | None) -> str | None:
+def _am_pm(time_period: str | None) -> str:
     """Map Pretalx ``TimePeriod`` values (``Morning`` / ``Afternoon``) to ``AM`` / ``PM``."""
     if not time_period:
-        return None
+        return "unknown"
     tp = str(time_period).strip().lower()
     if tp in {"morning", "am"}:
         return "AM"
     if tp in {"afternoon", "pm"}:
         return "PM"
-    return None
+    return "unknown"
 
 
 def _room_short(room: str | None) -> str | None:
@@ -3780,6 +3867,16 @@ def main():  # noqa: PLR0911, PLR0912, PLR0915
         help="FFmpeg extract only from existing processing_plan.yaml (requires prior successful detection).",
     )
     parser.add_argument(
+        "--extract-from-metadata",
+        action="store_true",
+        help=(
+            "FFmpeg extract using output.folder/*/metadata.yaml as the source of truth. "
+            "Writes files flat into output.upload_folder named "
+            "{pretalx_id}-{Proposal title}-{room_short}-{time_period}-{Start (time)}.mp4 "
+            "(with ':' and '/' removed). No detection."
+        ),
+    )
+    parser.add_argument(
         "--emit-templates",
         action="store_true",
         help=(
@@ -3979,6 +4076,10 @@ def main():  # noqa: PLR0911, PLR0912, PLR0915
         logger.error("Use only one of --extract-only or --detect-only.")
         return
 
+    if args.extract_from_metadata and (args.detect_only or args.extract_only):
+        logger.error("--extract-from-metadata cannot be combined with --detect-only or --extract-only.")
+        return
+
     template_modes = sum(1 for flag in (args.emit_templates, args.apply_templates) if flag)
     if template_modes > 1:
         logger.error("Use only one of --emit-templates or --apply-templates.")
@@ -4002,6 +4103,10 @@ def main():  # noqa: PLR0911, PLR0912, PLR0915
             emit_templates(plan_entries, detector.video_output_folder, force=args.force_emit_templates)
         else:
             apply_templates(plan_entries, detector.video_output_folder)
+        return
+
+    if args.extract_from_metadata:
+        detector.extract_from_metadata_yaml()
         return
 
     if args.extract_only:
