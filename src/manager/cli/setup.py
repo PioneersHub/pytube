@@ -105,15 +105,18 @@ class SetupWizard:
             self.console.print("[dim]AI generates engaging descriptions and social media posts[/dim]")
             ai_service_result = self._configure_ai_service()
             if ai_service_result["success"]:
-                config["ai_service"] = ai_service_result["data"]["service"]
+                service = ai_service_result["data"]["service"]
+                # Single nested ai_service: block (provider + per-provider config)
+                ai_block: dict[str, Any] = {"provider": service}
 
                 # Configure the selected AI service
-                if ai_service_result["data"]["service"] == "openai":
+                if service == "openai":
                     self.console.print("\n[bold]OpenAI Configuration[/bold]")
                     openai_result = self._configure_openai()
                     if openai_result["success"] and openai_result.get("data"):
-                        config["openai"] = openai_result["data"]
+                        ai_block["openai"] = openai_result["data"]
                 # Add other AI services here when implemented
+                config["ai_service"] = ai_block
 
             # Social Media configuration
             self.console.print(
@@ -566,8 +569,9 @@ class SetupWizard:
         result = {"success": False, "data": {}, "error": None}
 
         try:
-            # Get existing values
-            existing_openai = self.existing_config.get("openai", {}) if self.existing_config else {}
+            # Get existing values from the nested ai_service block
+            existing_ai = self.existing_config.get("ai_service", {}) if self.existing_config else {}
+            existing_openai = existing_ai.get("openai", {}) if isinstance(existing_ai, dict) else {}
 
             # API key
             current_key = existing_openai.get("api_key")
@@ -702,7 +706,13 @@ class SetupWizard:
 
         try:
             # Get current selection
-            current_service = self.existing_config.get("ai_service", "openai") if self.existing_config else "openai"
+            existing_ai = self.existing_config.get("ai_service", {}) if self.existing_config else {}
+            if isinstance(existing_ai, str):
+                current_service = existing_ai
+            elif isinstance(existing_ai, dict):
+                current_service = existing_ai.get("provider", "openai")
+            else:
+                current_service = "openai"
 
             self.console.print("\n[green]✓ What's enabled with AI:[/green]")
             self.console.print("  • Auto-generated engaging video descriptions")
@@ -1017,7 +1027,9 @@ class SetupWizard:
         """
         result = {"valid": True, "message": "Optional service", "details": {}, "fix_suggestions": []}
 
-        if config.get("openai", {}).get("api_key"):
+        ai_service = config.get("ai_service", {})
+        openai_key = ai_service.get("openai", {}).get("api_key") if hasattr(ai_service, "get") else None
+        if openai_key:
             result["message"] = "API key present (for AI descriptions)"
             result["details"]["configured"] = True
             result["details"]["purpose"] = "Generates video descriptions and social media posts"

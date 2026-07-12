@@ -60,10 +60,12 @@ pretalx:
     data: "pydata"      # Tracks containing "data" → PyData channel
 
 # Optional: AI heuristics for unmatched videos
-openai:
-  api_key: "sk-..."
-anthropic:
-  api_key: "sk-..."
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."
+  anthropic:
+    api_key: "sk-ant-..."
 ```
 
 ### Special Cases

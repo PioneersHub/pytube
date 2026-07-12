@@ -173,11 +173,16 @@ class ConfigChecker:
         else:
             checks.append(("YouTube Channels", "[red]✗ Not configured[/red]"))
 
-        # API Keys
-        if self.config.get("openai.api_key"):
-            checks.append(("OpenAI API", "✓ Configured"))
+        # AI Service (active provider under ai_service:)
+        provider = self.config.get("ai_service.provider")
+        if provider:
+            lookup = "google" if str(provider).lower() == "gemini" else str(provider).lower()
+            if self.config.get(f"ai_service.{lookup}.api_key"):
+                checks.append(("AI Service", f"✓ {provider}"))
+            else:
+                checks.append(("AI Service", f"[yellow]⚠ {provider}: no API key[/yellow]"))
         else:
-            checks.append(("OpenAI API", "[yellow]⚠ Not configured[/yellow]"))
+            checks.append(("AI Service", "[yellow]⚠ Not configured[/yellow]"))
 
         if self.config.get("linkedin.access_token"):
             checks.append(("LinkedIn API", "✓ Configured"))

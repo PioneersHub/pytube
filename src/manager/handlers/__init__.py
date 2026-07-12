@@ -1,5 +1,5 @@
+from .ai_service import sized_text, summary_from_transcript, teaser_text
 from .linkedin import LinkedInPost
-from .nlpservice import sized_text, summary_from_transcript, teaser_text
 from .publisher import Publisher
 from .records import Records
 

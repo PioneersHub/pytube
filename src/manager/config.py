@@ -170,12 +170,17 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
         if not has_api_key and not has_client_secrets:
             warnings.append("No YouTube API key or client secrets configured - YouTube operations will fail")
 
-    # Check optional service configurations
-    if config.get("openai") and not config.openai.get("api_key"):
-        warnings.append("OpenAI configured but no API key provided")
-
-    if config.get("anthropic") and not config.anthropic.get("api_key"):
-        warnings.append("Anthropic configured but no API key provided")
+    # Check AI service configuration (single nested ai_service: block)
+    ai_service = config.get("ai_service")
+    if ai_service:
+        provider = ai_service.get("provider")
+        if not provider:
+            warnings.append("ai_service configured but ai_service.provider is not set")
+        else:
+            lookup = "google" if str(provider).lower() == "gemini" else str(provider).lower()
+            provider_cfg = ai_service.get(lookup)
+            if not provider_cfg or not provider_cfg.get("api_key"):
+                warnings.append(f"AI provider '{provider}' selected but no api_key in ai_service.{lookup}")
 
     if config.get("linkedin"):
         if not config.linkedin.get("access_token"):

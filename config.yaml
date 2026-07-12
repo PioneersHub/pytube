@@ -135,30 +135,6 @@ bluesky:
   app_password: ""  # Use app-specific password
   
 # ########################################
-# # Prompts for descriptions
-prompts:
-  teaser: >
-    You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2026.
-    Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
-    Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
-
-  description: >
-    You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2026.
-    Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
-    Keep the tone professional, concise, and relevant to a tech audience.
-    Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
-    Avoid the verb “delve.”
-    Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
-
-  # Used ONLY when a transcript is available for the talk (see `transcripts:` below).
-  # Produces the YouTube description from the actual talk content.
-  description_from_transcript: >
-    You are a senior technical editor. Using the talk transcript below, write a concise, high-quality
-    summary of what the talk covered, in excellent English: technically precise yet easy to follow,
-    in a neutral, factual voice. No hype, no marketing language, no second person, and do not write
-    phrases like "in this talk" or "the speaker". Aim for roughly {max_tokens} tokens. Focus on the
-    problem addressed, the approach taken, and the key takeaways.
-# ########################################
 # Transcripts (optional): if a talk transcript is available, generate the
 # description from it instead of the abstract. Layout: one folder per talk named
 # with the 6-char Pretalx code, containing `transcript.md`.
@@ -166,58 +142,78 @@ transcripts:
   dir: ""            # root folder; empty => feature disabled
   max_chars: 48000   # truncate very long transcripts before summarizing
 # ########################################
-# AI Service Configuration
-# Configure your preferred AI service in config_local.yaml
+# AI Service Configuration — SINGLE source of truth.
+# Everything AI lives under `ai_service:`: the active provider, its per-provider
+# credentials/params, and the generation prompts. Put secrets in config_local.yaml.
 # For setup instructions, see: docs/api-credentials.md
-# Quick start guide: docs/quick-setup-services.md
 # ########################################
+ai_service:
+  # Active provider - options: openai, anthropic, google, cohere
+  provider: "openai"
 
-# Active AI service - options: openai, anthropic, google, cohere
-ai_service: "openai"
+  # Generation prompts (provider-independent)
+  prompts:
+    teaser: >
+      You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2026.
+      Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
+      Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
 
-# OpenAI Configuration
-openai:
-  api_key: ""
-  # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
-  model: "gpt-3.5-turbo"
-  # Temperature settings for different tasks
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Optional: Organization ID
-  organization: ""
+    description: >
+      You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2026.
+      Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
+      Keep the tone professional, concise, and relevant to a tech audience.
+      Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
+      Avoid the verb “delve.”
+      Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
 
-# Anthropic Claude Configuration
-anthropic:
-  api_key: ""
-  # Models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
-  model: "claude-3-sonnet-20240229"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Max tokens for Claude (different from OpenAI)
-  max_tokens: 1000
+    # Used ONLY when a transcript is available for the talk (see `transcripts:` above).
+    # Produces the YouTube description from the actual talk content.
+    description_from_transcript: >
+      You are a senior technical editor. Using the talk transcript below, write a concise, high-quality
+      summary of what the talk covered, in excellent English: technically precise yet easy to follow,
+      in a neutral, factual voice. No hype, no marketing language, no second person, and do not write
+      phrases like "in this talk" or "the speaker". Aim for roughly {max_tokens} tokens. Focus on the
+      problem addressed, the approach taken, and the key takeaways.
 
-# Google Gemini Configuration
-google:
-  api_key: ""
-  # Models: gemini-pro, gemini-pro-vision
-  model: "gemini-pro"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Safety settings
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+  # OpenAI
+  openai:
+    api_key: ""
+    # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
+    model: "gpt-4-turbo"
+    organization: ""   # optional
+    temperature:
+      teaser: 0.7
+      description: 0.9
 
-# Cohere Configuration
-cohere:
-  api_key: ""
-  # Models: command, command-light, command-nightly
-  model: "command"
-  temperature:
-    teaser: 0.7
-    description: 0.9
+  # Anthropic Claude
+  anthropic:
+    api_key: ""
+    # Models: claude-sonnet-5, claude-3-5-sonnet-20241022, claude-3-opus-20240229
+    model: "claude-sonnet-5"
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3   # lower = more focused, concise summaries
+
+  # Google Gemini
+  google:
+    api_key: ""
+    # Models: gemini-pro, gemini-pro-vision
+    model: "gemini-pro"
+    temperature:
+      teaser: 0.7
+      description: 0.9
+    safety_settings:
+      harassment: "BLOCK_MEDIUM_AND_ABOVE"
+      hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+
+  # Cohere
+  cohere:
+    api_key: ""
+    # Models: command, command-light, command-nightly
+    model: "command"
+    temperature:
+      teaser: 0.7
+      description: 0.9
 
 # ########################################

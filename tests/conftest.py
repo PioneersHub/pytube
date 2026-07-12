@@ -49,7 +49,19 @@ def mock_config() -> DictConfig:
             "default_category": "28",  # Science & Technology
             "track_to_channel": {"Python Basics": "main", "Advanced Topics": "secondary"},
         },
-        "openai": {"api_key": "sk-test-key", "model": "gpt-4", "max_tokens": 1000},
+        "ai_service": {
+            "provider": "openai",
+            "prompts": {
+                "teaser": "Teaser: {max_tokens}",
+                "description": "Describe in {max_tokens} tokens.",
+                "description_from_transcript": "Summarize in {max_tokens} tokens.",
+            },
+            "openai": {
+                "api_key": "sk-test-key",
+                "model": "gpt-4",
+                "temperature": {"teaser": 0.7, "description": 0.9},
+            },
+        },
         "linkedin": {"access_token": "test-linkedin-token", "person_urn": "urn:li:person:test123"},
         "dirs": {
             "root": Path("/tmp/pytube-test"),

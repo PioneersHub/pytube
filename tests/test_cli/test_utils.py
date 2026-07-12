@@ -310,7 +310,7 @@ class TestConfigChecker:
         assert len(results) == 5  # All 5 checks
         assert any("Pretalx Event" in item[0] for item in results)
         assert any("YouTube Channels" in item[0] for item in results)
-        assert any("OpenAI API" in item[0] for item in results)
+        assert any("AI Service" in item[0] for item in results)
         assert any("LinkedIn API" in item[0] for item in results)
         assert any("Video Directory" in item[0] for item in results)
 

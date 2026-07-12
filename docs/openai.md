@@ -15,8 +15,10 @@ Attributes added to the session records:
 Add your API key for Open AI to `config_local.yaml`.
 
 ```yaml
-openai:
-  api_key: "your-api-key..."
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "your-api-key..."
 ```
 
 The API key can be found [in your OpenAI account](https://platform.openai.com/api-keys)

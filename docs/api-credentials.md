@@ -30,11 +30,12 @@ This guide explains how to obtain API credentials for all supported AI and socia
 
 **Configuration**:
 ```yaml
-ai_service: "openai"
-openai:
-  api_key: "sk-..."
-  model: "gpt-3.5-turbo"  # or gpt-4, gpt-4o
-  organization: "org-..."  # Optional
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."
+    model: "gpt-4-turbo"  # or gpt-4o, gpt-3.5-turbo
+    organization: "org-..."  # Optional
 ```
 
 **Pricing**: 
@@ -54,11 +55,15 @@ openai:
 
 **Configuration**:
 ```yaml
-ai_service: "anthropic"
-anthropic:
-  api_key: "sk-ant-..."
-  model: "claude-3-sonnet-20240229"  # or claude-3-opus-20240229, claude-3-haiku-20240307
-  max_tokens: 1000
+ai_service:
+  provider: "anthropic"
+  anthropic:
+    api_key: "sk-ant-..."
+    model: "claude-sonnet-5"  # or claude-3-5-sonnet-20241022
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3   # lower = more focused, concise summaries
 ```
 
 **Pricing**:
@@ -78,13 +83,14 @@ anthropic:
 
 **Configuration**:
 ```yaml
-ai_service: "google"
-google:
-  api_key: "AIza..."
-  model: "gemini-pro"  # or gemini-pro-vision for multimodal
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+ai_service:
+  provider: "google"
+  google:
+    api_key: "AIza..."
+    model: "gemini-pro"  # or gemini-pro-vision for multimodal
+    safety_settings:
+      harassment: "BLOCK_MEDIUM_AND_ABOVE"
+      hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
 ```
 
 **Pricing**:
@@ -103,10 +109,11 @@ google:
 
 **Configuration**:
 ```yaml
-ai_service: "cohere"
-cohere:
-  api_key: "..."
-  model: "command"  # or command-light, command-nightly
+ai_service:
+  provider: "cohere"
+  cohere:
+    api_key: "..."
+    model: "command"  # or command-light, command-nightly
 ```
 
 **Pricing**:
@@ -241,8 +248,10 @@ export TWITTER_API_KEY="..."
 
 Then reference in your config:
 ```yaml
-openai:
-  api_key: ${OPENAI_API_KEY}
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: ${OPENAI_API_KEY}
 ```
 
 ## Troubleshooting

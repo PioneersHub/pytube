@@ -82,9 +82,11 @@ youtube:
       id: "UCji5VWDkGzuRenyRQZ9OpFQ"
       playlist_id: "PLHd2BPBhxqRLZOcMUtgVeK2eE5sBksNhQ"
 
-# OpenAI for descriptions
-openai:
-  api_key: "sk-..."
+# AI service for descriptions (single ai_service: block)
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."
 
 # LinkedIn (optional)
 linkedin:

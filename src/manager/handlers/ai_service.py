@@ -1,27 +1,73 @@
 """
 Multi-provider AI service for generating text descriptions.
 
-This module provides a unified interface for multiple AI providers:
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- Google (Gemini)
-- Cohere
+Single source of truth: ALL AI configuration lives under one nested `ai_service:`
+block in config.yaml / config_local.yaml:
 
-Configuration in config.yaml/config_local.yaml:
-    ai_service: "openai"  # Active service selection
+    ai_service:
+      provider: "anthropic"          # active provider (openai|anthropic|google|cohere)
+      prompts:
+        teaser: >
+        description: >
+        description_from_transcript: >
+      openai:    { api_key, model, organization, temperature: {teaser, description} }
+      anthropic: { api_key, model, max_tokens, temperature: {teaser, description} }
+      google:    { api_key, model, safety_settings, temperature: {teaser, description} }
+      cohere:    { api_key, model, temperature: {teaser, description} }
 
-    openai:
-        api_key: "your-api-key"
-        model: "gpt-3.5-turbo"
-        temperature:
-            teaser: 0.7
-            description: 0.9
+All readers go through the accessors below, so there is exactly one place that
+resolves the active provider, its credentials, and the prompts. Missing config
+fails fast (ValueError) — no silent fallbacks.
 """
 
 from abc import ABC, abstractmethod
 
 from manager import conf, logger
 from manager.utils.common import SafeConfig
+
+# ---------------------------------------------------------------------------
+# Single-point-of-truth config accessors
+# ---------------------------------------------------------------------------
+
+
+def active_provider_name() -> str:
+    """Return the active provider name from `ai_service.provider` (fail-fast).
+
+    `gemini` is accepted as an alias for `google`.
+    """
+    name = SafeConfig(conf).get("ai_service.provider")
+    if not name:
+        raise ValueError(
+            "ai_service.provider not configured. Set `ai_service.provider` "
+            "(openai|anthropic|google|cohere) in config_local.yaml."
+        )
+    name = str(name).lower()
+    return "google" if name == "gemini" else name
+
+
+def active_provider_config(name: str | None = None):
+    """Return the sub-config for the active (or named) provider (fail-fast)."""
+    name = name or active_provider_name()
+    provider_config = SafeConfig(conf).get(f"ai_service.{name}")
+    if not provider_config:
+        raise ValueError(f"ai_service.{name} configuration not found in config.")
+    return provider_config
+
+
+def provider_prompt(key: str, default: str | None = None) -> str | None:
+    """Return a generation prompt from `ai_service.prompts.<key>`."""
+    return SafeConfig(conf).get(f"ai_service.prompts.{key}", default)
+
+
+def provider_temperature(task: str, default: float) -> float:
+    """Return the temperature for a task (`teaser`/`description`) of the active provider."""
+    name = active_provider_name()
+    return SafeConfig(conf).get(f"ai_service.{name}.temperature.{task}", default)
+
+
+# ---------------------------------------------------------------------------
+# Providers (each receives its own resolved sub-config)
+# ---------------------------------------------------------------------------
 
 
 class AIProvider(ABC):
@@ -30,29 +76,25 @@ class AIProvider(ABC):
     @abstractmethod
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
         """Generate text based on prompts."""
-        pass
 
 
 class OpenAIProvider(AIProvider):
     """OpenAI GPT provider."""
 
-    def __init__(self):
+    def __init__(self, provider_config):
         try:
             from openai import OpenAI
+        except ImportError as exc:
+            raise ImportError("Please install openai: pip install openai") from exc
 
-            safe_conf = SafeConfig(conf)
-            api_key = safe_conf.get("openai.api_key")
-            if not api_key:
-                raise ValueError("OpenAI API key not configured. Please set openai.api_key in config_local.yaml")
-
-            organization = safe_conf.get("openai.organization")
-            self.client = OpenAI(api_key=api_key, organization=organization)
-            self.model = safe_conf.get("openai.model", "gpt-3.5-turbo")
-        except ImportError:
-            raise ImportError("Please install openai: pip install openai")
+        api_key = provider_config.get("api_key")
+        if not api_key:
+            raise ValueError("api_key not found in ai_service.openai configuration")
+        organization = provider_config.get("organization")
+        self.client = OpenAI(api_key=api_key, organization=organization)
+        self.model = provider_config.get("model", "gpt-4-turbo")
 
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        """Generate text using OpenAI."""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
@@ -68,24 +110,20 @@ class OpenAIProvider(AIProvider):
 class AnthropicProvider(AIProvider):
     """Anthropic Claude provider."""
 
-    def __init__(self):
+    def __init__(self, provider_config):
         try:
             from anthropic import Anthropic
+        except ImportError as exc:
+            raise ImportError("Please install anthropic: pip install anthropic") from exc
 
-            safe_conf = SafeConfig(conf)
-            api_key = safe_conf.get("anthropic.api_key")
-            if not api_key:
-                raise ValueError("Anthropic API key not configured. Please set anthropic.api_key in config_local.yaml")
-
-            self.client = Anthropic(api_key=api_key)
-            self.model = safe_conf.get("anthropic.model", "claude-3-sonnet-20240229")
-            self.max_tokens = safe_conf.get("anthropic.max_tokens", 1000)
-        except ImportError:
-            raise ImportError("Please install anthropic: pip install anthropic")
+        api_key = provider_config.get("api_key")
+        if not api_key:
+            raise ValueError("api_key not found in ai_service.anthropic configuration")
+        self.client = Anthropic(api_key=api_key)
+        self.model = provider_config.get("model", "claude-sonnet-5")
+        self.max_tokens = provider_config.get("max_tokens", 1000)
 
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        """Generate text using Claude."""
-        # Claude uses a different message format
         message = self.client.messages.create(
             model=self.model,
             max_tokens=min(max_tokens, self.max_tokens),
@@ -99,32 +137,22 @@ class AnthropicProvider(AIProvider):
 class GoogleProvider(AIProvider):
     """Google Gemini provider."""
 
-    def __init__(self):
+    def __init__(self, provider_config):
         try:
             import google.generativeai as genai
+        except ImportError as exc:
+            raise ImportError("Please install google-generativeai: pip install google-generativeai") from exc
 
-            safe_conf = SafeConfig(conf)
-            api_key = safe_conf.get("google.api_key")
-            if not api_key:
-                raise ValueError("Google API key not configured. Please set google.api_key in config_local.yaml")
-
-            genai.configure(api_key=api_key)
-            model_name = safe_conf.get("google.model", "gemini-pro")
-            self.model = genai.GenerativeModel(model_name)
-            self.safety_settings = safe_conf.get("google.safety_settings", {})
-        except ImportError:
-            raise ImportError("Please install google-generativeai: pip install google-generativeai")
+        api_key = provider_config.get("api_key")
+        if not api_key:
+            raise ValueError("api_key not found in ai_service.google configuration")
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel(provider_config.get("model", "gemini-pro"))
+        self.safety_settings = provider_config.get("safety_settings", {})
 
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        """Generate text using Gemini."""
-        # Combine prompts for Gemini
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
-
-        generation_config = {
-            "temperature": temperature,
-            "max_output_tokens": max_tokens,
-        }
-
+        generation_config = {"temperature": temperature, "max_output_tokens": max_tokens}
         response = self.model.generate_content(
             full_prompt, generation_config=generation_config, safety_settings=self.safety_settings
         )
@@ -134,25 +162,20 @@ class GoogleProvider(AIProvider):
 class CohereProvider(AIProvider):
     """Cohere provider."""
 
-    def __init__(self):
+    def __init__(self, provider_config):
         try:
             import cohere
+        except ImportError as exc:
+            raise ImportError("Please install cohere: pip install cohere") from exc
 
-            safe_conf = SafeConfig(conf)
-            api_key = safe_conf.get("cohere.api_key")
-            if not api_key:
-                raise ValueError("Cohere API key not configured. Please set cohere.api_key in config_local.yaml")
-
-            self.client = cohere.Client(api_key)
-            self.model = safe_conf.get("cohere.model", "command")
-        except ImportError:
-            raise ImportError("Please install cohere: pip install cohere")
+        api_key = provider_config.get("api_key")
+        if not api_key:
+            raise ValueError("api_key not found in ai_service.cohere configuration")
+        self.client = cohere.Client(api_key)
+        self.model = provider_config.get("model", "command")
 
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        """Generate text using Cohere."""
-        # Combine prompts for Cohere
         prompt = f"{system_prompt}\n\n{user_prompt}"
-
         response = self.client.generate(
             model=self.model,
             prompt=prompt,
@@ -162,43 +185,38 @@ class CohereProvider(AIProvider):
         return response.generations[0].text.strip()
 
 
-# Factory function to get the appropriate provider
+_PROVIDERS = {
+    "openai": OpenAIProvider,
+    "anthropic": AnthropicProvider,
+    "google": GoogleProvider,
+    "cohere": CohereProvider,
+}
+
+
 def get_ai_provider() -> AIProvider:
-    """Get the configured AI provider."""
-    safe_conf = SafeConfig(conf)
-    service = safe_conf.get("ai_service", "openai").lower()
-
-    providers = {
-        "openai": OpenAIProvider,
-        "anthropic": AnthropicProvider,
-        "google": GoogleProvider,
-        "gemini": GoogleProvider,  # Alias
-        "cohere": CohereProvider,
-    }
-
-    if service not in providers:
-        raise ValueError(f"Unknown AI service: {service}. Options: {list(providers.keys())}")
-
+    """Instantiate the configured AI provider from the single `ai_service:` block."""
+    name = active_provider_name()
+    if name not in _PROVIDERS:
+        raise ValueError(f"Unknown AI service: {name}. Options: {list(_PROVIDERS)}")
+    provider_config = active_provider_config(name)
     try:
-        return providers[service]()
+        return _PROVIDERS[name](provider_config)
     except Exception as e:
-        logger.error(f"Failed to initialize {service} provider: {e}")
+        logger.error(f"Failed to initialize {name} provider: {e}")
         raise
 
 
-# Main functions that use the selected provider
+# ---------------------------------------------------------------------------
+# Text-generation entry points
+# ---------------------------------------------------------------------------
+
+
 def teaser_text(text: str, max_tokens: int = 50, temperature: float | None = None) -> str:
     """Generate a teaser text using the configured AI provider."""
     provider = get_ai_provider()
-    safe_conf = SafeConfig(conf)
-    service = safe_conf.get("ai_service", "openai").lower()
-
-    # Use temperature from config if not specified
     if temperature is None:
-        temperature = safe_conf.get(f"{service}.temperature.teaser", 0.7)
-
-    system_prompt = safe_conf.get("prompts.teaser", "Generate a teaser for the following text:")
-
+        temperature = provider_temperature("teaser", 0.7)
+    system_prompt = provider_prompt("teaser", "Generate a teaser for the following text:")
     return provider.generate_text(
         system_prompt=system_prompt, user_prompt=text, max_tokens=max_tokens, temperature=temperature
     )
@@ -207,16 +225,10 @@ def teaser_text(text: str, max_tokens: int = 50, temperature: float | None = Non
 def sized_text(text: str, max_tokens: int = 100, temperature: float | None = None) -> str:
     """Generate a sized description text using the configured AI provider."""
     provider = get_ai_provider()
-    safe_conf = SafeConfig(conf)
-    service = safe_conf.get("ai_service", "openai").lower()
-
-    # Use temperature from config if not specified
     if temperature is None:
-        temperature = safe_conf.get(f"{service}.temperature.description", 0.9)
-
-    prompt_template = safe_conf.get("prompts.description", "Generate a description with max {max_tokens} tokens:")
+        temperature = provider_temperature("description", 0.9)
+    prompt_template = provider_prompt("description", "Generate a description with max {max_tokens} tokens:")
     system_prompt = prompt_template.format(max_tokens=max_tokens)
-
     return provider.generate_text(
         system_prompt=system_prompt, user_prompt=text, max_tokens=max_tokens, temperature=temperature
     )
@@ -227,25 +239,20 @@ def summary_from_transcript(
 ) -> str:
     """Summarize a talk from its transcript using the configured AI provider.
 
-    Used only when a transcript is available. Uses the `prompts.description_from_transcript`
-    system prompt for a neutral, technically precise summary. The transcript is truncated to
-    `transcripts.max_chars` to bound context/cost. `grounding` (e.g. title/speakers) anchors
-    the model to the correct talk.
+    Used only when a transcript is available. Uses the
+    `ai_service.prompts.description_from_transcript` system prompt for a neutral,
+    technically precise summary. The transcript is truncated to `transcripts.max_chars`
+    to bound context/cost. `grounding` (e.g. title/speakers) anchors the model.
     """
     provider = get_ai_provider()
-    safe_conf = SafeConfig(conf)
-    service = safe_conf.get("ai_service", "openai").lower()
-
     if temperature is None:
-        temperature = safe_conf.get(f"{service}.temperature.description", 0.9)
-
-    prompt_template = safe_conf.get(
-        "prompts.description_from_transcript",
-        "Summarize the following talk transcript in about {max_tokens} tokens:",
+        temperature = provider_temperature("description", 0.9)
+    prompt_template = provider_prompt(
+        "description_from_transcript", "Summarize the following talk transcript in about {max_tokens} tokens:"
     )
     system_prompt = prompt_template.format(max_tokens=max_tokens)
 
-    max_chars = safe_conf.get("transcripts.max_chars", 48000)
+    max_chars = SafeConfig(conf).get("transcripts.max_chars", 48000)
     clipped = transcript[:max_chars] if max_chars else transcript
     user_prompt = f"{grounding}\n\nTranscript:\n{clipped}" if grounding else f"Transcript:\n{clipped}"
 
