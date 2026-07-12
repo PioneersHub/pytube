@@ -156,7 +156,7 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
 @youtube.command()
 @click.option(
     "--template",
-    default="youtube_2024.txt",
+    default="youtube_2026.txt",
     help="Jinja2 template file for descriptions",
 )
 @click.option(

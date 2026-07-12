@@ -220,3 +220,35 @@ def sized_text(text: str, max_tokens: int = 100, temperature: float | None = Non
     return provider.generate_text(
         system_prompt=system_prompt, user_prompt=text, max_tokens=max_tokens, temperature=temperature
     )
+
+
+def summary_from_transcript(
+    transcript: str, grounding: str = "", max_tokens: int = 300, temperature: float | None = None
+) -> str:
+    """Summarize a talk from its transcript using the configured AI provider.
+
+    Used only when a transcript is available. Uses the `prompts.description_from_transcript`
+    system prompt for a neutral, technically precise summary. The transcript is truncated to
+    `transcripts.max_chars` to bound context/cost. `grounding` (e.g. title/speakers) anchors
+    the model to the correct talk.
+    """
+    provider = get_ai_provider()
+    safe_conf = SafeConfig(conf)
+    service = safe_conf.get("ai_service", "openai").lower()
+
+    if temperature is None:
+        temperature = safe_conf.get(f"{service}.temperature.description", 0.9)
+
+    prompt_template = safe_conf.get(
+        "prompts.description_from_transcript",
+        "Summarize the following talk transcript in about {max_tokens} tokens:",
+    )
+    system_prompt = prompt_template.format(max_tokens=max_tokens)
+
+    max_chars = safe_conf.get("transcripts.max_chars", 48000)
+    clipped = transcript[:max_chars] if max_chars else transcript
+    user_prompt = f"{grounding}\n\nTranscript:\n{clipped}" if grounding else f"Transcript:\n{clipped}"
+
+    return provider.generate_text(
+        system_prompt=system_prompt, user_prompt=user_prompt, max_tokens=max_tokens, temperature=temperature
+    )

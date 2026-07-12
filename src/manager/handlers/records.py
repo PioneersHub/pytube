@@ -16,9 +16,25 @@ from pytanis.pretalx.models import Submission
 
 from manager import conf, logger
 from manager.config import get_event_dir
-from manager.handlers import sized_text, teaser_text
+from manager.handlers import sized_text, summary_from_transcript, teaser_text
 from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
+
+
+def load_transcript(code: str, root: Path | None) -> str | None:
+    """Return the transcript text for a talk, or None if unavailable.
+
+    Layout: one folder per talk named with the 6-char Pretalx code, containing
+    `transcript.md`. Matches the first directory whose name starts with the code.
+    """
+    if not root:
+        return None
+    for d in sorted(root.iterdir()):
+        if d.is_dir() and d.name[:6] == code:
+            transcript_file = d / "transcript.md"
+            if transcript_file.exists():
+                return transcript_file.read_text()
+    return None
 
 
 class Records:
@@ -346,6 +362,41 @@ class Records:
 
         return is_new
 
+    @staticmethod
+    def _apply_descriptions(data: SessionRecord, replace: bool, transcripts_root: Path | None) -> bool:
+        """Generate teaser/short/long texts for one record in place.
+
+        If a transcript is available for the talk, the short/long descriptions are
+        summarized from it; otherwise they use the abstract-based prompt. The teaser
+        always uses the abstract-based prompt. Returns whether any text was (re)generated.
+        """
+        # noinspection PyUnresolvedReferences
+        speakers = "\n".join([f"{s.name} ({s.job}\nbiography:\n{s.biography})" for s in data.speakers])
+        info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
+
+        need_teaser = not data.sm_teaser_text or replace
+        need_short = not data.sm_short_text or replace
+        need_long = not data.sm_long_text or replace
+
+        if need_teaser:
+            data.sm_teaser_text = teaser_text(info, max_tokens=50)
+
+        transcript = load_transcript(data.pretalx_id, transcripts_root)
+        if transcript:
+            grounding = f"Title: {data.title}\nSpeakers: {', '.join(s.name for s in data.speakers)}"
+            logger.info(f"Using transcript summary for {data.pretalx_id}")
+            if need_short:
+                data.sm_short_text = summary_from_transcript(transcript, grounding, max_tokens=100)
+            if need_long:
+                data.sm_long_text = summary_from_transcript(transcript, grounding, max_tokens=300)
+        else:
+            if need_short:
+                data.sm_short_text = sized_text(info, max_tokens=100)
+            if need_long:
+                data.sm_long_text = sized_text(info, max_tokens=300)
+
+        return need_teaser or need_short or need_long
+
     def add_descriptions(self, replace=False) -> dict[str, int]:
         """Add descriptions to all confirmed sessions.
 
@@ -361,6 +412,16 @@ class Records:
 
         logger.info(f"Adding AI-generated descriptions to {total_records} records...")
 
+        # Optional transcript-based summaries: if `transcripts.dir` is set, talks that
+        # have a transcript get a high-quality summary from it; others keep the
+        # abstract-based description. A configured-but-missing dir is a config error.
+        transcripts_dir = SafeConfig(conf).get("transcripts.dir", "")
+        transcripts_root = Path(transcripts_dir).expanduser() if transcripts_dir else None
+        if transcripts_root and not transcripts_root.is_dir():
+            raise FileNotFoundError(f"transcripts.dir is set but not a directory: {transcripts_root}")
+        if transcripts_root:
+            logger.info(f"Transcript summaries enabled from {transcripts_root}")
+
         for idx, x in enumerate(records, 1):
             try:
                 data = SessionRecord.model_validate_json(x.read_text())
@@ -373,23 +434,7 @@ class Records:
                 except Exception:
                     logger.error(f"Error adding descriptions to {x.name}: {e}")
                 continue
-            # noinspection PyUnresolvedReferences
-            speakers = "\n".join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
-            info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
-            if not data.sm_teaser_text or replace:
-                data.sm_teaser_text = teaser_text(info, max_tokens=50)
-            if not data.sm_short_text or replace:
-                data.sm_short_text = sized_text(info, max_tokens=100)
-            if not data.sm_long_text or replace:
-                data.sm_long_text = sized_text(info, max_tokens=300)
-            # Check if any descriptions were actually added
-            descriptions_added = False
-            if not data.sm_teaser_text or replace:
-                descriptions_added = True
-            if not data.sm_short_text or replace:
-                descriptions_added = True
-            if not data.sm_long_text or replace:
-                descriptions_added = True
+            descriptions_added = self._apply_descriptions(data, replace, transcripts_root)
 
             (self.records / f"{data.pretalx_id}.json").write_text(data.model_dump_json(indent=4))
 

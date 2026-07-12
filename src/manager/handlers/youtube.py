@@ -575,6 +575,7 @@ class PrepareVideoMetadata:
 
     def render_description(self, description: str, record: SessionRecord):
         """Provides commonly used values for rendering the description"""
+        safe_conf = SafeConfig(conf)
         description_kwargs = {
             "date": record.recorded_date.strftime("%d.%m.%Y"),
             "session_link": f"{safe_conf.get('event.program_url', '')}{record.pretalx_id}/",

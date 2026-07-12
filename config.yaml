@@ -138,17 +138,33 @@ bluesky:
 # # Prompts for descriptions
 prompts:
   teaser: >
-    You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2025.
+    You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2026.
     Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
     Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
 
   description: >
-    You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2025.
+    You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2026.
     Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
     Keep the tone professional, concise, and relevant to a tech audience.
     Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
     Avoid the verb “delve.”
     Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
+
+  # Used ONLY when a transcript is available for the talk (see `transcripts:` below).
+  # Produces the YouTube description from the actual talk content.
+  description_from_transcript: >
+    You are a senior technical editor. Using the talk transcript below, write a concise, high-quality
+    summary of what the talk covered, in excellent English: technically precise yet easy to follow,
+    in a neutral, factual voice. No hype, no marketing language, no second person, and do not write
+    phrases like "in this talk" or "the speaker". Aim for roughly {max_tokens} tokens. Focus on the
+    problem addressed, the approach taken, and the key takeaways.
+# ########################################
+# Transcripts (optional): if a talk transcript is available, generate the
+# description from it instead of the abstract. Layout: one folder per talk named
+# with the 6-char Pretalx code, containing `transcript.md`.
+transcripts:
+  dir: ""            # root folder; empty => feature disabled
+  max_chars: 48000   # truncate very long transcripts before summarizing
 # ########################################
 # AI Service Configuration
 # Configure your preferred AI service in config_local.yaml

@@ -23,7 +23,7 @@ use_multi_provider = conf.get("ai_service") is not None
 
 if use_multi_provider:
     # Use the new multi-provider system
-    from .ai_service import sized_text, teaser_text
+    from .ai_service import sized_text, summary_from_transcript, teaser_text
 else:
     # Maintain backward compatibility with direct OpenAI usage
     from openai import OpenAI
@@ -47,6 +47,30 @@ else:
         )
         gtp_text = response.choices[0].message.content
         return gtp_text
+
+    def summary_from_transcript(transcript, grounding="", max_tokens=300, temperature=None):
+        """Summarize a talk from its transcript (legacy direct-OpenAI path)."""
+        if temperature is None:
+            temperature = conf.openai.get("temperature", {}).get("description", 0.9)
+
+        prompt_template = conf.get(
+            "prompts.description_from_transcript",
+            "Summarize the following talk transcript in about {max_tokens} tokens:",
+        )
+        max_chars = conf.get("transcripts", {}).get("max_chars", 48000)
+        clipped = transcript[:max_chars] if max_chars else transcript
+        user_prompt = f"{grounding}\n\nTranscript:\n{clipped}" if grounding else f"Transcript:\n{clipped}"
+
+        response = client.chat.completions.create(
+            model=conf.openai.get("model", "gpt-3.5-turbo"),
+            messages=[
+                {"role": "system", "content": prompt_template.format(max_tokens=max_tokens)},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return response.choices[0].message.content
 
     def sized_text(text, max_tokens=100, temperature=None):
         # Use temperature from config if not specified
