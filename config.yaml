@@ -100,8 +100,23 @@ session_images: ""
 youtube:
   client_secrets_file: "~/code/pioneershub/py_tube/_secret/client_secrets.json"
   api_key: ""
+  # Longest description YouTube accepts; longer texts fall back to sm_short_text.
   max_description_length: 5000
+  # Where the OAuth token is cached after the first browser authorization.
   token_path: "~/code/pioneershub/py_tube/_secret/youtube_token.json"
+  # REQUIRED — configuration is rejected without at least one channel.
+  # The key is the channel token: it must match the values used in
+  # pretalx.video_to_track / track_to_channel and becomes the upload directory
+  # name under dirs.video_dir. `do_not_release` is reserved and must not be used.
+  # Define the real ids in config_local.yaml, for example:
+  # channels:
+  #   pyconde:
+  #     id: "UC..."            # YouTube channel id
+  #     playlist_id: "PL..."   # hidden staging playlist
+  #   pydata:
+  #     id: "UC..."
+  #     playlist_id: "PL..."
+  channels: {}
 # ########################################
 # Social Media Configuration
 # For API setup instructions, see: docs/api-credentials.md
@@ -148,7 +163,8 @@ transcripts:
 # For setup instructions, see: docs/api-credentials.md
 # ########################################
 ai_service:
-  # Active provider - options: openai, anthropic, google, cohere
+  # Active provider. Options: openai, anthropic, google (alias: gemini), cohere,
+  # mlx (local OpenAI-compatible server), claude_code (local Claude Code CLI).
   provider: "openai"
 
   # Generation prompts (provider-independent)

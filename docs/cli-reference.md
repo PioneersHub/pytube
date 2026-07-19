@@ -20,20 +20,48 @@ These options can be used with any command:
 
 - `-v, --verbose`: Enable verbose output for debugging
 - `-q, --quiet`: Suppress non-essential output
+- `--version`: Show the installed version
 - `--help`: Show help for any command
 
 ## Commands Overview
 
-```
-pytube
-├── assistant     # Interactive assistant
-├── setup         # Configuration wizard
-├── records       # Manage Pretalx records
-├── youtube       # YouTube operations
-├── notify        # Monitor and send notifications
-├── video         # Video file operations
-└── status        # Show system status
-```
+Every command, with its options. Details follow in the sections below.
+
+| Command | Options | Purpose |
+|---|---|---|
+| `pytube assistant` | — | Interactive, guided workflows |
+| `pytube setup` | `--validate-only` `--fix` `--json` | Configuration wizard |
+| `pytube validate` | `--fix` | Validate config; `--fix` creates missing directories |
+| `pytube status` | `--detailed` | Overall pipeline status |
+| **Records** | | |
+| `pytube records fetch` | — | Download sessions + speakers from Pretalx |
+| `pytube records generate-descriptions` | `--replace` `--dry-run` | Generate teaser/short/long texts |
+| `pytube records show [SESSION_ID]` | — | List records or show one |
+| **Video files** | | |
+| `pytube video bulk-download` | `--account` (repeatable) `--limit` `--dry-run` | Download raw streams from Vimeo accounts |
+| `pytube video map-recordings` | `--dry-run` `--force` | Write the filename → room/day/period mapping |
+| `pytube video map-to-channels` | `--dry-run` | Assign sessions to channels → `tracks_map.json` |
+| `pytube video move-to-channel-dirs` | `--dry-run` `--force` | Move files into the channel upload folders |
+| `pytube video report` | — | List videos without a channel assignment |
+| `pytube video list` | — | List video files found |
+| `pytube video status` | — | Video processing status |
+| `pytube video organize` | `--dry-run` | **Deprecated** — use `map-to-channels` |
+| `pytube video download` | `--client-id` `--limit` | **Not implemented** — use `bulk-download` |
+| **YouTube** | | |
+| `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
+| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` | Write titles/descriptions to YouTube |
+| `pytube youtube schedule` | `--start` `--interval` `--preview` | Set publishing schedule |
+| `pytube youtube channels` | — | List configured channels |
+| **Notifications** | | |
+| `pytube notify check` | `--auto-post` `--channel` `--offline` | Detect published videos, queue notifications |
+| `pytube notify email` | `--dry-run` | Send queued speaker emails |
+| `pytube notify social` | `--dry-run` | Post queued social media updates |
+| `pytube notify run` | — | Full notification workflow |
+
+Commands that need network access: `records fetch` (Pretalx), `video bulk-download`
+(Vimeo), all `youtube` commands and `notify` (unless `--offline`). The first
+`youtube` command opens a browser for OAuth and caches the token at
+`youtube.token_path`.
 
 ## Interactive Assistant
 
@@ -158,7 +186,7 @@ pytube records generate-descriptions --dry-run
 **Transcript-based summaries (optional):** if `transcripts.dir` is set in config,
 each talk that has a transcript (`<transcripts.dir>/<CODE…>/transcript.md`) gets
 its short/long description summarized from the transcript via the
-`prompts.description_from_transcript` prompt (recommended provider: Anthropic
+`ai_service.prompts.description_from_transcript` prompt (recommended provider: Anthropic
 Claude). Talks without a transcript keep the abstract-based description; the
 teaser always uses the abstract-based prompt. A configured-but-missing
 `transcripts.dir` is treated as a configuration error.
@@ -194,7 +222,6 @@ pytube youtube map [OPTIONS]
 
 Options:
   --channel TEXT             YouTube channel name from config
-  --include-do-not-record    Include videos marked as do_not_record (dangerous!)
   --filter-channel TEXT      Only map videos assigned to this channel
   --help                     Show help message
 ```
@@ -210,8 +237,6 @@ pytube youtube map --channel pycon
 # Only map videos assigned to pydata channel
 pytube youtube map --filter-channel pydata
 
-# Include do_not_record videos (NOT RECOMMENDED)
-pytube youtube map --include-do-not-record
 ```
 
 This command:
@@ -349,7 +374,9 @@ pytube notify run
 
 ### pytube video download
 
-Download videos from Vimeo.
+**Not implemented.** The per-video download loop was never written; the command
+used to print a success message without fetching anything and now exits with an
+error instead. Use [`pytube video bulk-download`](#pytube-video-bulk-download).
 
 ```bash
 pytube video download [OPTIONS]
@@ -499,6 +526,23 @@ Show video processing status.
 pytube video status
 ```
 
+## Validate Command
+
+### pytube validate
+
+Validate the configuration without running the setup wizard.
+
+```bash
+pytube validate [OPTIONS]
+
+Options:
+  --fix     Attempt to fix issues (creates missing directories)
+  --help    Show help message
+```
+
+Not to be confused with `pytube setup --validate-only`, which runs the wizard's
+validation and can emit JSON. `pytube validate` is the quick standalone check.
+
 ## Status Command
 
 ### pytube status
@@ -603,16 +647,12 @@ pytube -v records fetch
 
 ## Environment Variables
 
-The CLI respects these environment variables:
-
-- `PYTUBE_CONFIG`: Path to alternative config file
-- `PYTUBE_VERBOSE`: Set to "1" for verbose output by default
-- `NO_COLOR`: Disable colored output
+The CLI itself reads no environment variables. `NO_COLOR` works because the
+underlying `rich` console honours it. Verbosity is controlled with `-v/--verbose`
+and `-q/--quiet`, the config file with `config_local.yaml` — there is no
+`PYTUBE_CONFIG` override.
 
 ## Exit Codes
 
 - `0`: Success
-- `1`: General error
-- `2`: Configuration error
-- `3`: API error
-- `4`: File not found
+- `1`: Any error (configuration, API, missing file — all use the same code)

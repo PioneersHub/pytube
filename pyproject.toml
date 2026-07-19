@@ -113,15 +113,17 @@ vimeo = [
 anthropic = [
     "anthropic>=0.40.0"
 ]
-google = [
-    "google-generativeai>=0.8.0"
-]
+# NOTE: there is deliberately no `google` extra. Every google-generativeai release
+# requires protobuf<4.21.0, which contradicts the pinned protobuf>=6.31.1 above.
+# uv resolves all extras together for the lockfile, so merely declaring it makes
+# the whole project unresolvable. The GoogleProvider in ai_service.py therefore
+# cannot be used until that pin is relaxed; install the SDK manually at your own
+# risk if you need it.
 cohere = [
     "cohere>=5.0.0"
 ]
 ai-all = [
     "video_manager[anthropic]",
-    "video_manager[google]",
     "video_manager[cohere]",
 ]
 

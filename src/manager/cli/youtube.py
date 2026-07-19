@@ -23,11 +23,6 @@ def youtube():
     help="YouTube channel name from config",
 )
 @click.option(
-    "--include-do-not-record",
-    is_flag=True,
-    help="Include videos marked as do_not_record (dangerous!)",
-)
-@click.option(
     "--filter-channel",
     default=None,
     help="Only map videos assigned to this channel",

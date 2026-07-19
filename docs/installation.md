@@ -73,7 +73,22 @@ The pyproject.toml file contains several optional dependency groups:
 - `video_processor`: Dependencies for video processing (opencv, numpy, etc.)
 - `tests`: Dependencies for testing (pytest)
 - `dev`: Development dependencies
-- `all`: Installs all optional dependencies
+- `vimeo`: Vimeo downloads (`pyvimeo`)
+- `anthropic` / `google` / `cohere`: SDK for the matching AI provider
+- `ai-all`: all three AI provider SDKs at once
+- `all`: Installs all optional dependencies (includes `ai-all`)
+
+**AI providers.** Only `openai` is a core dependency. Selecting any other hosted
+provider in `ai_service.provider` requires its extra, otherwise the run fails with
+`ImportError: Please install <package>`:
+
+```bash
+uv pip install -e ".[anthropic]"   # for ai_service.provider: anthropic
+uv pip install -e ".[ai-all]"      # anthropic + google + cohere
+```
+
+The `mlx` (local server) and `claude_code` (local CLI) providers need no extra
+package — see [API Credentials](api-credentials.md).
 
 You can install specific groups using:
 ```bash

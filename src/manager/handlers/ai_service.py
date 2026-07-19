@@ -5,7 +5,7 @@ Single source of truth: ALL AI configuration lives under one nested `ai_service:
 block in config.yaml / config_local.yaml:
 
     ai_service:
-      provider: "anthropic"          # active provider (openai|anthropic|google|cohere)
+      provider: "anthropic"          # openai|anthropic|google|cohere|mlx|claude_code
       prompts:
         teaser: >
         description: >
@@ -41,7 +41,7 @@ def active_provider_name() -> str:
     if not name:
         raise ValueError(
             "ai_service.provider not configured. Set `ai_service.provider` "
-            "(openai|anthropic|google|cohere) in config_local.yaml."
+            "(openai|anthropic|google|cohere|mlx|claude_code) in config_local.yaml."
         )
     name = str(name).lower()
     return "google" if name == "gemini" else name

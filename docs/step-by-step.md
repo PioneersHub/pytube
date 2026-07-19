@@ -82,11 +82,19 @@ youtube:
       id: "UCji5VWDkGzuRenyRQZ9OpFQ"
       playlist_id: "PLHd2BPBhxqRLZOcMUtgVeK2eE5sBksNhQ"
 
-# AI service for descriptions (single ai_service: block)
+# AI service for descriptions (single ai_service: block).
+# Providers: openai | anthropic | google | cohere | mlx | claude_code
+# Anything but openai needs its extra, e.g. uv pip install -e ".[anthropic]"
 ai_service:
   provider: "openai"
   openai:
     api_key: "sk-..."
+
+# Optional: generate descriptions from talk transcripts instead of abstracts.
+# Layout: <dir>/<6-char-code>…/transcript.md — see docs/openai.md
+transcripts:
+  dir: ""            # empty disables the feature
+  max_chars: 48000
 
 # LinkedIn (optional)
 linkedin:

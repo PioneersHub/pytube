@@ -32,11 +32,12 @@ def video():
     help="Limit number of videos to download",
 )
 @click.pass_context
-def download(ctx: click.Context, client_id: str | None, limit: int | None) -> None:
-    """Download videos from Vimeo.
+def download(ctx: click.Context, client_id: str | None, limit: int | None) -> None:  # noqa: ARG001
+    """Download videos from Vimeo — NOT IMPLEMENTED.
 
-    Downloads videos from Vimeo based on the manifest file.
-    Videos are saved to the configured video directory.
+    The per-video download loop was never written. The options are kept so the
+    documented interface stays stable, but the command exits with an error.
+    Use `pytube video bulk-download` instead.
     """
     console = ctx.obj["console"]
     
@@ -68,19 +69,14 @@ def download(ctx: click.Context, client_id: str | None, limit: int | None) -> No
             total_videos = min(total_videos, limit)
 
         progress.update(task, description=f"Found {total_videos} videos to download")
-
-        # Create Vimeo client
-        progress.update(task, description="Connecting to Vimeo...")
-        client = vimeo_download.make_vimeo_client(client_id)
-
-        # Download videos
-        progress.update(task, description="Starting downloads...")
-        # Note: Actual download implementation would go here
-        # This is a placeholder for the download logic
-
         progress.stop()
 
-    console.print("✓ Video download completed", style="green")
+    # The per-video download loop was never implemented here; this command used to
+    # report success without fetching anything. Fail loudly instead of lying.
+    console.print(f"[red]'pytube video download' is not implemented (manifest lists {total_videos} videos).[/red]")
+    console.print("[yellow]Use 'pytube video bulk-download' instead — it downloads from the")
+    console.print("vimeo.raw_sources accounts configured in config_local.yaml.[/yellow]")
+    ctx.exit(1)
 
 
 @video.command(name="bulk-download")

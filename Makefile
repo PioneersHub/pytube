@@ -119,15 +119,11 @@ docs-clean:  ## Clean the documentation build directory
 
 # ==================== Video Management Commands ====================
 
-video-separate:  ## Run the complete video separation workflow
-	@echo "Running video separation workflow..."
-	@python separate_videos.py
-
 video-assign:  ## Assign videos to channels based on tracks
-	pytube video assign-channels
+	pytube video map-to-channels
 
 video-move:  ## Move videos to channel directories
-	pytube video move
+	pytube video move-to-channel-dirs
 
 # ==================== Convenience Commands ====================
 
