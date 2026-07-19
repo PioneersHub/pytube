@@ -2,12 +2,18 @@
 
 This guide explains how to obtain API credentials for all supported AI and social media services in PyTube.
 
+Only `openai` ships as a core dependency. Install the SDK for the provider you
+select, e.g. `uv pip install -e ".[anthropic]"` (or `".[ai-all]"` for all of them).
+The local-model and Claude Code providers need no extra package.
+
 ## Table of Contents
 - [AI Services](#ai-services)
   - [OpenAI](#openai)
   - [Anthropic Claude](#anthropic-claude)
   - [Google Gemini](#google-gemini)
   - [Cohere](#cohere)
+  - [Local models (MLX, Ollama, LM Studio, vLLM …)](#local-models-mlx-ollama-lm-studio-vllm-)
+  - [Claude Code CLI](#claude-code-cli)
 - [Social Media Platforms](#social-media-platforms)
   - [LinkedIn](#linkedin)
   - [Twitter/X](#twitterx)
@@ -120,6 +126,74 @@ ai_service:
 - Trial: Free with limited usage
 - Production: Starting at $0.40 per 1M tokens
 - Check [cohere.com/pricing](https://cohere.com/pricing) for details
+
+### Local models (MLX, Ollama, LM Studio, vLLM …)
+
+**Required**: a running local server with an **OpenAI-compatible** `/v1` endpoint.
+
+The `mlx` provider is not tied to MLX — it is a thin wrapper around the OpenAI
+client with a custom `base_url`. Any server that speaks the OpenAI chat-completions
+API works; only `base_url` and `model` change. No data leaves the machine, and
+there are no per-token costs.
+
+```yaml
+ai_service:
+  provider: "mlx"
+  mlx:
+    base_url: "http://127.0.0.1:8000/v1"   # MLX (omlx-server)
+    api_key: "..."                          # whatever the server expects
+    model: "mlx-community--gemma-4-31B-it-qat-8bit"
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3
+```
+
+Endpoints of common servers — put the value into `base_url`:
+
+| Server | `base_url` | `api_key` |
+|---|---|---|
+| MLX (omlx-server) | `http://127.0.0.1:8000/v1` | from the server's settings |
+| Ollama | `http://localhost:11434/v1` | any non-empty string (ignored) |
+| LM Studio | `http://localhost:1234/v1` | any non-empty string (ignored) |
+| vLLM / llama.cpp | `http://localhost:8000/v1` | as configured |
+
+`api_key` must be non-empty even when the server ignores it — the provider fails
+fast on a missing key rather than sending an unauthenticated request.
+
+**Choosing a model.** Transcript summaries send up to `transcripts.max_chars`
+(48 000 characters ≈ 13 000 tokens), so the model needs a context window of 32k or
+more. Two failure modes seen in practice:
+
+- *Reasoning models* (e.g. Qwen3.x "thinking" variants) print their chain of
+  thought into the answer and burn the token budget. Use a plain instruct model.
+- *Oversized weights*: a model larger than the server's memory ceiling is rejected
+  (HTTP 507). Check the ceiling before picking an 8-bit 100B+ model.
+
+**Trade-off.** Local generation is free and private but slower: roughly 40 s per
+call versus 14 s against the hosted Claude API, i.e. about 3 hours for a
+140-session conference.
+
+### Claude Code CLI
+
+**Required**: the `claude` CLI in `PATH` and a signed-in Claude subscription.
+
+Uses the local subscription instead of API credits. The CLI is an agentic tool, so
+the provider pins it to a single turn with all tools disabled.
+
+```yaml
+ai_service:
+  provider: "claude_code"
+  claude_code:
+    binary: "claude"
+    model: "sonnet"
+    timeout: 600
+```
+
+**Caveat**: the CLI exposes neither `max_tokens` nor `temperature`. Length is
+governed by the prompt alone, and in practice the output overshoots the requested
+word count substantially (up to ~2x). Prefer the API provider when predictable
+length matters.
 
 ---
 
