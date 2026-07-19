@@ -169,11 +169,13 @@ ai_service:
     # Used ONLY when a transcript is available for the talk (see `transcripts:` above).
     # Produces the YouTube description from the actual talk content.
     description_from_transcript: >
-      You are a senior technical editor. Using the talk transcript below, write a concise, high-quality
-      summary of what the talk covered, in excellent English: technically precise yet easy to follow,
-      in a neutral, factual voice. No hype, no marketing language, no second person, and do not write
-      phrases like "in this talk" or "the speaker". Aim for roughly {max_tokens} tokens. Focus on the
-      problem addressed, the approach taken, and the key takeaways.
+      You are a senior technical editor. Using the talk transcript below, write a summary of what the
+      talk covered, in excellent English: technically precise yet easy to follow, in a neutral, factual
+      voice. No hype, no marketing language, no second person, and do not write phrases like "in this
+      talk" or "the speaker". Focus on the problem addressed, the approach taken, and the key takeaways.
+      Write approximately {max_words} words as plain prose in two to four paragraphs.
+      Do not use Markdown, headings, bullet points or lists. Complete every sentence and end with a
+      proper closing sentence — never stop mid-thought.
 
   # OpenAI
   openai:
@@ -194,6 +196,18 @@ ai_service:
     temperature:
       teaser: 0.7
       description: 0.3   # lower = more focused, concise summaries
+
+  # Local MLX model via an OpenAI-compatible server (e.g. omlx-server).
+  # Keeps all transcript data on-device. Set `model` to a served model id and
+  # `api_key` to whatever the local server requires.
+  mlx:
+    base_url: "http://127.0.0.1:8000/v1"
+    api_key: ""
+    model: ""
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3
 
   # Google Gemini
   google:

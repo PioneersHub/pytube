@@ -7,6 +7,7 @@ This file can be used for multiple use cases like:
 - etc.
 """
 
+import json
 from contextlib import suppress
 from pathlib import Path
 
@@ -19,6 +20,23 @@ from manager.config import get_event_dir
 from manager.handlers import sized_text, summary_from_transcript, teaser_text
 from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
+
+
+def unmangle_submission_type(data: dict) -> dict:
+    """Restore the pre-validation shape of ``submission_type``.
+
+    pytanis' ``Submission.mangle_submission_type`` validator is not idempotent: it
+    replaces the submission_type object by its ``name``. Validating already-stored
+    (i.e. already mangled) session data a second time therefore hits
+    ``getattr(<MultiLingualStr>, "name", None)`` and silently nulls the field, which
+    makes the resulting record unloadable. Re-nest the value so the validator can
+    unwrap it correctly again.
+    """
+    submission_type = data.get("submission_type")
+    submission_type_id = data.get("submission_type_id")
+    if isinstance(submission_type, dict) and "name" not in submission_type and isinstance(submission_type_id, int):
+        return {**data, "submission_type": {"id": submission_type_id, "name": submission_type}}
+    return data
 
 
 def load_transcript(code: str, root: Path | None) -> str | None:
@@ -299,7 +317,7 @@ class Records:
         p_session = PretalxSession(
             pretalx_id=data["code"],
             title=data["title"],
-            session=Submission.model_validate(data),
+            session=Submission.model_validate(unmangle_submission_type(data)),
             speakers=[x["code"] for x in data["speakers"]],
         )
 
@@ -353,7 +371,17 @@ class Records:
         )
         # Records don't have answers, so pass empty list
         add_attr(record, self.qmap, [])
-        record_path.write_text(record.model_dump_json(indent=4))
+
+        # pytanis' `mangle_submission_type` validator mutates the Submission in place
+        # every time it runs, and running it twice nulls submission_type (see
+        # `unmangle_submission_type`). Restore both fields from the source data so the
+        # stored record stays loadable.
+        record_data = json.loads(record.model_dump_json())
+        session_data = record_data.get("pretalx_session", {}).get("session")
+        if isinstance(session_data, dict):
+            session_data["submission_type"] = data.get("submission_type")
+            session_data["submission_type_id"] = data.get("submission_type_id")
+        record_path.write_text(json.dumps(record_data, indent=4, ensure_ascii=False))
 
         if is_new:
             logger.debug(f"Created new record for {code}")
@@ -386,9 +414,9 @@ class Records:
             grounding = f"Title: {data.title}\nSpeakers: {', '.join(s.name for s in data.speakers)}"
             logger.info(f"Using transcript summary for {data.pretalx_id}")
             if need_short:
-                data.sm_short_text = summary_from_transcript(transcript, grounding, max_tokens=100)
+                data.sm_short_text = summary_from_transcript(transcript, grounding, max_tokens=300, max_words=90)
             if need_long:
-                data.sm_long_text = summary_from_transcript(transcript, grounding, max_tokens=300)
+                data.sm_long_text = summary_from_transcript(transcript, grounding, max_tokens=700, max_words=250)
         else:
             if need_short:
                 data.sm_short_text = sized_text(info, max_tokens=100)

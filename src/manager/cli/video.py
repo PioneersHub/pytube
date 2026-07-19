@@ -419,7 +419,9 @@ def map_to_channels(ctx: click.Context, dry_run: bool) -> None:
             track_details[track] = set()
         channel_stats[track].extend(videos)
         for video in videos:
-            track_name = video.get("track", {}).get("name", {}).get("en", "Unknown")
+            # `track` may be present but null (plenary, panels, lightning talks),
+            # so chain through `or {}` instead of relying on dict.get defaults.
+            track_name = ((video.get("track") or {}).get("name") or {}).get("en") or "Unknown"
             track_details[track].add(track_name)
 
     # Sort channels, putting None last

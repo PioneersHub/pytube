@@ -165,6 +165,7 @@ cython_debug/
 config_local.yml
 _tmp
 _secret
+.secrets
 .idea
 ,pixi
 config_local.yaml

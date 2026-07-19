@@ -79,7 +79,14 @@ class AIProvider(ABC):
 
 
 class OpenAIProvider(AIProvider):
-    """OpenAI GPT provider."""
+    """OpenAI-compatible chat-completions provider.
+
+    Serves the hosted OpenAI API and, via the optional `base_url` setting, any
+    OpenAI-compatible endpoint — e.g. a local MLX server (see `MLXProvider`).
+    """
+
+    config_section = "openai"
+    default_model = "gpt-4-turbo"
 
     def __init__(self, provider_config):
         try:
@@ -89,10 +96,16 @@ class OpenAIProvider(AIProvider):
 
         api_key = provider_config.get("api_key")
         if not api_key:
-            raise ValueError("api_key not found in ai_service.openai configuration")
-        organization = provider_config.get("organization")
-        self.client = OpenAI(api_key=api_key, organization=organization)
-        self.model = provider_config.get("model", "gpt-4-turbo")
+            raise ValueError(f"api_key not found in ai_service.{self.config_section} configuration")
+        model = provider_config.get("model", self.default_model)
+        if not model:
+            raise ValueError(f"model not configured in ai_service.{self.config_section}")
+        self.client = OpenAI(
+            api_key=api_key,
+            organization=provider_config.get("organization"),
+            base_url=provider_config.get("base_url") or None,
+        )
+        self.model = model
 
     def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
         response = self.client.chat.completions.create(
@@ -185,11 +198,23 @@ class CohereProvider(AIProvider):
         return response.generations[0].text.strip()
 
 
+class MLXProvider(OpenAIProvider):
+    """Local MLX model served over an OpenAI-compatible endpoint.
+
+    Keeps generation on-device (no data leaves the machine). Requires `base_url`
+    and `model` in `ai_service.mlx`; `api_key` is whatever the local server expects.
+    """
+
+    config_section = "mlx"
+    default_model = ""  # no sensible default: the served model must be named explicitly
+
+
 _PROVIDERS = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
     "google": GoogleProvider,
     "cohere": CohereProvider,
+    "mlx": MLXProvider,
 }
 
 
@@ -235,7 +260,11 @@ def sized_text(text: str, max_tokens: int = 100, temperature: float | None = Non
 
 
 def summary_from_transcript(
-    transcript: str, grounding: str = "", max_tokens: int = 300, temperature: float | None = None
+    transcript: str,
+    grounding: str = "",
+    max_tokens: int = 700,
+    temperature: float | None = None,
+    max_words: int | None = None,
 ) -> str:
     """Summarize a talk from its transcript using the configured AI provider.
 
@@ -248,9 +277,11 @@ def summary_from_transcript(
     if temperature is None:
         temperature = provider_temperature("description", 0.9)
     prompt_template = provider_prompt(
-        "description_from_transcript", "Summarize the following talk transcript in about {max_tokens} tokens:"
+        "description_from_transcript", "Summarize the following talk transcript in about {max_words} words:"
     )
-    system_prompt = prompt_template.format(max_tokens=max_tokens)
+    # Word count drives the prompt (token limits only cut the response off), so derive a
+    # sensible default from max_tokens when the caller does not specify one.
+    system_prompt = prompt_template.format(max_tokens=max_tokens, max_words=max_words or int(max_tokens / 2.8))
 
     max_chars = SafeConfig(conf).get("transcripts.max_chars", 48000)
     clipped = transcript[:max_chars] if max_chars else transcript
