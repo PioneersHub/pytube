@@ -163,7 +163,7 @@ transcripts:
 # For setup instructions, see: docs/api-credentials.md
 # ########################################
 ai_service:
-  # Active provider. Options: openai, anthropic, google (alias: gemini), cohere,
+  # Active provider. Options: openai, anthropic,
   # mlx (local OpenAI-compatible server), claude_code (local Claude Code CLI).
   provider: "openai"
 
@@ -241,25 +241,6 @@ ai_service:
       teaser: 0.7
       description: 0.3
 
-  # Google Gemini
-  google:
-    api_key: ""
-    # Models: gemini-pro, gemini-pro-vision
-    model: "gemini-pro"
-    temperature:
-      teaser: 0.7
-      description: 0.9
-    safety_settings:
-      harassment: "BLOCK_MEDIUM_AND_ABOVE"
-      hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
 
-  # Cohere
-  cohere:
-    api_key: ""
-    # Models: command, command-light, command-nightly
-    model: "command"
-    temperature:
-      teaser: 0.7
-      description: 0.9
 
 # ########################################

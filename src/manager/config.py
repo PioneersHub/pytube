@@ -177,7 +177,7 @@ def validate_config(config: DictConfig, raise_on_error: bool = False) -> tuple[l
         if not provider:
             warnings.append("ai_service configured but ai_service.provider is not set")
         else:
-            lookup = "google" if str(provider).lower() == "gemini" else str(provider).lower()
+            lookup = str(provider).lower()
             provider_cfg = ai_service.get(lookup)
             if not provider_cfg or not provider_cfg.get("api_key"):
                 warnings.append(f"AI provider '{provider}' selected but no api_key in ai_service.{lookup}")

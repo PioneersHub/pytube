@@ -42,10 +42,6 @@ class TestAccessors:
         with patch.object(ai_service, "conf", _cfg("anthropic")):
             assert ai_service.active_provider_name() == "anthropic"
 
-    def test_gemini_aliases_to_google(self):
-        with patch.object(ai_service, "conf", _cfg("gemini")):
-            assert ai_service.active_provider_name() == "google"
-
     def test_missing_provider_fails_fast(self):
         with (
             patch.object(ai_service, "conf", _cfg(include_provider_key=False)),
@@ -60,8 +56,8 @@ class TestAccessors:
 
     def test_active_provider_config_missing_block_fails_fast(self):
         with (
-            patch.object(ai_service, "conf", _cfg("cohere")),  # no cohere block present
-            pytest.raises(ValueError, match="ai_service.cohere configuration not found"),
+            patch.object(ai_service, "conf", _cfg("mlx")),  # provider registered, but no mlx block in this fixture
+            pytest.raises(ValueError, match="ai_service.mlx configuration not found"),
         ):
             ai_service.active_provider_config()
 

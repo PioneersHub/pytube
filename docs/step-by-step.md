@@ -83,7 +83,7 @@ youtube:
       playlist_id: "PLHd2BPBhxqRLZOcMUtgVeK2eE5sBksNhQ"
 
 # AI service for descriptions (single ai_service: block).
-# Providers: openai | anthropic | google | cohere | mlx | claude_code
+# Providers: openai | anthropic | mlx | claude_code
 # Anything but openai needs its extra, e.g. uv pip install -e ".[anthropic]"
 ai_service:
   provider: "openai"

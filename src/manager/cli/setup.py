@@ -729,17 +729,15 @@ class SetupWizard:
             self.console.print("[bold]Select AI Service for content generation[/bold]")
             self.console.print("  1. OpenAI (GPT-3.5/4)")
             self.console.print("  2. Anthropic Claude")
-            self.console.print("  3. Google Gemini")
-            self.console.print("  4. Cohere")
-            self.console.print("  5. None (manual descriptions)")
+            self.console.print("  3. None (manual descriptions)")
 
             self.console.print(f"\n  Current: [cyan]{current_service}[/cyan]")
 
             if Confirm.ask("  Change AI service?", default=False):
                 choice = Prompt.ask(
-                    "  Select service", choices=["1", "2", "3", "4", "5"], default="1", console=self.console
+                    "  Select service", choices=["1", "2", "3"], default="1", console=self.console
                 )
-                services = ["openai", "anthropic", "google", "cohere", "none"]
+                services = ["openai", "anthropic", "none"]
                 result["data"]["service"] = services[int(choice) - 1]
             else:
                 result["data"]["service"] = current_service

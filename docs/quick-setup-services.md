@@ -44,8 +44,8 @@ bluesky:
 |---------|----------|-----------------|------|
 | **OpenAI** | General use, proven quality | Easy | $$ |
 | **Anthropic** | Longer contexts, nuanced text | Easy | $$$ |
-| **Google** | Free tier, experimentation | Easy | $ |
-| **Cohere** | Budget option | Easy | $ |
+| **Local (MLX/Ollama)** | Privacy, no per-token cost | Medium | free |
+| **Claude Code CLI** | Uses an existing subscription | Easy | subscription |
 
 ### Which Social Platform?
 

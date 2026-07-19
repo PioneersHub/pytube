@@ -176,7 +176,7 @@ class ConfigChecker:
         # AI Service (active provider under ai_service:)
         provider = self.config.get("ai_service.provider")
         if provider:
-            lookup = "google" if str(provider).lower() == "gemini" else str(provider).lower()
+            lookup = str(provider).lower()
             if self.config.get(f"ai_service.{lookup}.api_key"):
                 checks.append(("AI Service", f"✓ {provider}"))
             else:

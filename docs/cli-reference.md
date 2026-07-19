@@ -105,7 +105,7 @@ The setup wizard will guide you through:
 - Event information (name, URL, program link)
 - Pretalx connection configuration
 - YouTube API credentials
-- AI service selection (OpenAI, Anthropic, Google, Cohere)
+- AI service selection (OpenAI, Anthropic)
 - Social media platform configuration
 - Storage directory setup
 

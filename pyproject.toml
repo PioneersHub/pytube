@@ -107,25 +107,16 @@ vimeo = [
     "pyvimeo>=1.1.2"
 ]
 
-# AI providers other than OpenAI (which is a core dependency). The provider
+# AI provider SDKs other than OpenAI (which is a core dependency). The provider
 # classes in src/manager/handlers/ai_service.py import these lazily and raise a
 # clear ImportError when the selected provider is not installed.
 anthropic = [
     "anthropic>=0.40.0"
 ]
-# NOTE: there is deliberately no `google` extra. Every google-generativeai release
-# requires protobuf<4.21.0, which contradicts the pinned protobuf>=6.31.1 above.
-# uv resolves all extras together for the lockfile, so merely declaring it makes
-# the whole project unresolvable. The GoogleProvider in ai_service.py therefore
-# cannot be used until that pin is relaxed; install the SDK manually at your own
-# risk if you need it.
-cohere = [
-    "cohere>=5.0.0"
-]
-ai-all = [
-    "video_manager[anthropic]",
-    "video_manager[cohere]",
-]
+# NOTE: no `google` extra on purpose. Every google-generativeai release requires
+# protobuf<4.21.0, contradicting the pinned protobuf>=6.31.1 above; uv resolves all
+# extras together, so merely declaring it makes the project unresolvable. The
+# Gemini provider was removed for that reason.
 
 # All optional dependencies
 all = [
@@ -133,7 +124,7 @@ all = [
     "video_manager[dev]",
     "video_manager[docs]",
     "video_manager[video_processor]",
-    "video_manager[ai-all]",
+    "video_manager[anthropic]",
 ]
 
 

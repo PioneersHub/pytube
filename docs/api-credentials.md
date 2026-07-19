@@ -2,16 +2,14 @@
 
 This guide explains how to obtain API credentials for all supported AI and social media services in PyTube.
 
-Only `openai` ships as a core dependency. Install the SDK for the provider you
-select, e.g. `uv pip install -e ".[anthropic]"` (or `".[ai-all]"` for all of them).
-The local-model and Claude Code providers need no extra package.
+Only `openai` ships as a core dependency. Using Anthropic requires its extra:
+`uv pip install -e ".[anthropic]"`. The local-model and Claude Code providers need
+no extra package.
 
 ## Table of Contents
 - [AI Services](#ai-services)
   - [OpenAI](#openai)
   - [Anthropic Claude](#anthropic-claude)
-  - [Google Gemini](#google-gemini)
-  - [Cohere](#cohere)
   - [Local models (MLX, Ollama, LM Studio, vLLM …)](#local-models-mlx-ollama-lm-studio-vllm-)
   - [Claude Code CLI](#claude-code-cli)
 - [Social Media Platforms](#social-media-platforms)
@@ -76,56 +74,6 @@ ai_service:
 - Claude 3 Haiku: ~$0.25 per 1M tokens (input), $1.25 per 1M tokens (output)
 - Claude 3 Sonnet: ~$3 per 1M tokens (input), $15 per 1M tokens (output)
 - Claude 3 Opus: ~$15 per 1M tokens (input), $75 per 1M tokens (output)
-
-### Google Gemini
-
-**Required**: `api_key`
-
-1. **Sign up**: Go to [makersuite.google.com](https://makersuite.google.com) (Google AI Studio)
-2. **Get API Key**: Click on "Get API key" in the left sidebar
-3. **Create Key**: Choose "Create API key in new project" or select existing project
-4. **Copy Key**: Save the generated API key
-5. **Enable**: The Gemini API is automatically enabled
-
-**Configuration**:
-```yaml
-ai_service:
-  provider: "google"
-  google:
-    api_key: "AIza..."
-    model: "gemini-pro"  # or gemini-pro-vision for multimodal
-    safety_settings:
-      harassment: "BLOCK_MEDIUM_AND_ABOVE"
-      hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
-```
-
-**Pricing**:
-- Gemini Pro: Free tier available (60 queries per minute)
-- Paid tier: $0.00025 per 1K characters (input), $0.0005 per 1K characters (output)
-
-### Cohere
-
-**Required**: `api_key`
-
-1. **Sign up**: Go to [dashboard.cohere.com](https://dashboard.cohere.com) and create an account
-2. **API Keys**: Navigate to API Keys section
-3. **Create Key**: Click "Create Trial Key" or "Create Production Key"
-4. **Copy Key**: Save the key immediately
-5. **Upgrade**: Trial keys have limited usage; upgrade for production use
-
-**Configuration**:
-```yaml
-ai_service:
-  provider: "cohere"
-  cohere:
-    api_key: "..."
-    model: "command"  # or command-light, command-nightly
-```
-
-**Pricing**:
-- Trial: Free with limited usage
-- Production: Starting at $0.40 per 1M tokens
-- Check [cohere.com/pricing](https://cohere.com/pricing) for details
 
 ### Local models (MLX, Ollama, LM Studio, vLLM …)
 
@@ -363,7 +311,6 @@ For a typical conference with 50 talks:
 - **OpenAI**: [help.openai.com](https://help.openai.com)
 - **Anthropic**: [support.anthropic.com](https://support.anthropic.com)
 - **Google AI**: [ai.google.dev/support](https://ai.google.dev/support)
-- **Cohere**: [docs.cohere.com](https://docs.cohere.com)
 - **LinkedIn**: [linkedin.com/help/linkedin](https://www.linkedin.com/help/linkedin)
 - **Twitter**: [developer.twitter.com/support](https://developer.twitter.com/en/support)
 - **Mastodon**: Instance-specific support

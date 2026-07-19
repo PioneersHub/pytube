@@ -133,7 +133,7 @@ speaker is already named beside the video.
 
 Pick another provider under `ai_service.provider` — see
 [API Credentials](api-credentials.md). Options include hosted APIs (`openai`,
-`anthropic`, `google`, `cohere`), any local OpenAI-compatible server (`mlx`) and
+`anthropic`), any local OpenAI-compatible server (`mlx`) and
 the local Claude Code CLI (`claude_code`).
 
 To add a provider that is not covered, subclass `AIProvider` in

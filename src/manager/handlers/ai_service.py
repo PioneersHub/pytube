@@ -5,15 +5,13 @@ Single source of truth: ALL AI configuration lives under one nested `ai_service:
 block in config.yaml / config_local.yaml:
 
     ai_service:
-      provider: "anthropic"          # openai|anthropic|google|cohere|mlx|claude_code
+      provider: "anthropic"          # openai|anthropic|mlx|claude_code
       prompts:
         teaser: >
         description: >
         description_from_transcript: >
       openai:    { api_key, model, organization, temperature: {teaser, description} }
       anthropic: { api_key, model, max_tokens, temperature: {teaser, description} }
-      google:    { api_key, model, safety_settings, temperature: {teaser, description} }
-      cohere:    { api_key, model, temperature: {teaser, description} }
 
 All readers go through the accessors below, so there is exactly one place that
 resolves the active provider, its credentials, and the prompts. Missing config
@@ -33,18 +31,14 @@ from manager.utils.common import SafeConfig
 
 
 def active_provider_name() -> str:
-    """Return the active provider name from `ai_service.provider` (fail-fast).
-
-    `gemini` is accepted as an alias for `google`.
-    """
+    """Return the active provider name from `ai_service.provider` (fail-fast)."""
     name = SafeConfig(conf).get("ai_service.provider")
     if not name:
         raise ValueError(
             "ai_service.provider not configured. Set `ai_service.provider` "
-            "(openai|anthropic|google|cohere|mlx|claude_code) in config_local.yaml."
+            "(openai|anthropic|mlx|claude_code) in config_local.yaml."
         )
-    name = str(name).lower()
-    return "google" if name == "gemini" else name
+    return str(name).lower()
 
 
 def active_provider_config(name: str | None = None):
@@ -149,55 +143,6 @@ class AnthropicProvider(AIProvider):
         return message.content[0].text
 
 
-class GoogleProvider(AIProvider):
-    """Google Gemini provider."""
-
-    def __init__(self, provider_config):
-        try:
-            import google.generativeai as genai
-        except ImportError as exc:
-            raise ImportError("Please install google-generativeai: pip install google-generativeai") from exc
-
-        api_key = provider_config.get("api_key")
-        if not api_key:
-            raise ValueError("api_key not found in ai_service.google configuration")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(provider_config.get("model", "gemini-pro"))
-        self.safety_settings = provider_config.get("safety_settings", {})
-
-    def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        full_prompt = f"{system_prompt}\n\n{user_prompt}"
-        generation_config = {"temperature": temperature, "max_output_tokens": max_tokens}
-        response = self.model.generate_content(
-            full_prompt, generation_config=generation_config, safety_settings=self.safety_settings
-        )
-        return response.text
-
-
-class CohereProvider(AIProvider):
-    """Cohere provider."""
-
-    def __init__(self, provider_config):
-        try:
-            import cohere
-        except ImportError as exc:
-            raise ImportError("Please install cohere: pip install cohere") from exc
-
-        api_key = provider_config.get("api_key")
-        if not api_key:
-            raise ValueError("api_key not found in ai_service.cohere configuration")
-        self.client = cohere.Client(api_key)
-        self.model = provider_config.get("model", "command")
-
-    def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:
-        prompt = f"{system_prompt}\n\n{user_prompt}"
-        response = self.client.generate(
-            model=self.model,
-            prompt=prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-        return response.generations[0].text.strip()
 
 
 class ClaudeCodeProvider(AIProvider):
@@ -263,8 +208,6 @@ class MLXProvider(OpenAIProvider):
 _PROVIDERS = {
     "openai": OpenAIProvider,
     "anthropic": AnthropicProvider,
-    "google": GoogleProvider,
-    "cohere": CohereProvider,
     "mlx": MLXProvider,
     "claude_code": ClaudeCodeProvider,
 }
