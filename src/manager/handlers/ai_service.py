@@ -20,6 +20,8 @@ resolves the active provider, its credentials, and the prompts. Missing config
 fails fast (ValueError) — no silent fallbacks.
 """
 
+import shutil
+import subprocess
 from abc import ABC, abstractmethod
 
 from manager import conf, logger
@@ -198,6 +200,55 @@ class CohereProvider(AIProvider):
         return response.generations[0].text.strip()
 
 
+class ClaudeCodeProvider(AIProvider):
+    """Generate via the local Claude Code CLI in print mode.
+
+    Uses the machine's Claude subscription instead of API credits. The CLI is an
+    agentic tool, so it is pinned to a single turn with all tools disabled to make
+    it behave as a plain text generator.
+
+    Note: the CLI exposes neither `max_tokens` nor `temperature`; output length is
+    governed by the prompt alone, and both arguments are accepted but ignored.
+    """
+
+    config_section = "claude_code"
+    # Nothing may touch the machine while we only want text back.
+    DISALLOWED_TOOLS = "Bash,Read,Write,Edit,NotebookEdit,WebFetch,WebSearch,Glob,Grep,Task,TodoWrite"
+
+    def __init__(self, provider_config):
+        self.binary = provider_config.get("binary", "claude")
+        if not shutil.which(self.binary):
+            raise ValueError(
+                f"Claude Code CLI '{self.binary}' not found in PATH (ai_service.{self.config_section}.binary)"
+            )
+        self.model = provider_config.get("model", "sonnet")
+        self.timeout = int(provider_config.get("timeout", 600))
+
+    def generate_text(self, system_prompt: str, user_prompt: str, max_tokens: int, temperature: float) -> str:  # noqa: ARG002
+        cmd = [
+            self.binary,
+            "--print",
+            "--system-prompt", system_prompt,
+            "--output-format", "text",
+            "--model", self.model,
+            "--max-turns", "1",
+            "--disallowed-tools", self.DISALLOWED_TOOLS,
+            "--no-session-persistence",
+        ]
+        try:
+            proc = subprocess.run(  # noqa: S603
+                cmd, input=user_prompt, capture_output=True, text=True, timeout=self.timeout, check=False
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"Claude Code CLI timed out after {self.timeout}s") from exc
+        if proc.returncode != 0:
+            raise RuntimeError(f"Claude Code CLI failed (exit {proc.returncode}): {proc.stderr.strip()[:300]}")
+        text = proc.stdout.strip()
+        if not text:
+            raise RuntimeError("Claude Code CLI returned an empty response")
+        return text
+
+
 class MLXProvider(OpenAIProvider):
     """Local MLX model served over an OpenAI-compatible endpoint.
 
@@ -215,6 +266,7 @@ _PROVIDERS = {
     "google": GoogleProvider,
     "cohere": CohereProvider,
     "mlx": MLXProvider,
+    "claude_code": ClaudeCodeProvider,
 }
 
 

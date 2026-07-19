@@ -169,10 +169,18 @@ ai_service:
     # Used ONLY when a transcript is available for the talk (see `transcripts:` above).
     # Produces the YouTube description from the actual talk content.
     description_from_transcript: >
-      You are a senior technical editor. Using the talk transcript below, write a summary of what the
-      talk covered, in excellent English: technically precise yet easy to follow, in a neutral, factual
-      voice. No hype, no marketing language, no second person, and do not write phrases like "in this
-      talk" or "the speaker". Focus on the problem addressed, the approach taken, and the key takeaways.
+      You are a senior technical editor. Using the talk transcript below, write a summary of the subject
+      matter itself, in excellent English: technically precise yet easy to follow, in a neutral, factual
+      voice. Prefer active voice and concrete specifics — name the actual techniques, tools and measured
+      numbers rather than describing them in general terms.
+
+      Write about the topic, never about the presentation or the presenter. Do not mention the speaker,
+      do not use their name, and do not use pronouns for them. Never write meta-openers such as "This
+      analysis", "This summary", "This talk" or "The presentation", and never add a closing paragraph
+      that starts with "In summary", "Overall" or "In conclusion". Start directly with the subject.
+      No hype, no marketing language, no second person.
+
+      Cover the problem addressed, the approach taken, and the key takeaways.
       Write approximately {max_words} words as plain prose in two to four paragraphs.
       Do not use Markdown, headings, bullet points or lists. Complete every sentence and end with a
       proper closing sentence — never stop mid-thought.
@@ -196,6 +204,14 @@ ai_service:
     temperature:
       teaser: 0.7
       description: 0.3   # lower = more focused, concise summaries
+
+  # Claude Code CLI in print mode: uses the machine's Claude subscription instead
+  # of API credits. The CLI exposes neither max_tokens nor temperature, so output
+  # length is governed by the prompt alone.
+  claude_code:
+    binary: "claude"
+    model: "sonnet"
+    timeout: 600
 
   # Local MLX model via an OpenAI-compatible server (e.g. omlx-server).
   # Keeps all transcript data on-device. Set `model` to a served model id and
