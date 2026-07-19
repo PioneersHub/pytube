@@ -72,6 +72,36 @@ ai_service:
 
 - **Do Not Record**: Videos marked with `do_not_record: true` in Pretalx are automatically moved to `do_not_release/` directory
 - **No Publishing**: These videos are tracked but not uploaded or published
+- **No track**: sessions whose `track` is present but `null` (plenaries, panels, lightning talks) are reported as `Unknown` in the assignment table; assign them explicitly via `pretalx.video_to_track`
+
+### Converting symlinks to APFS clones (macOS)
+
+Symlinks are ideal while only the pipeline handles the files, but YouTube Studio
+refuses a multi-file drag & drop of symlinks — the channel folders need real files
+for the manual upload. On APFS, `cp -c` creates a clone that shares blocks with the
+original, so this costs no additional disk space (verify as shown in
+[Step by Step](step-by-step.md#sourcing-files-from-cloud-storage-macos)).
+
+```bash
+for dir in _tmp/videos/pyconde _tmp/videos/pydata; do
+  for link in "$dir"/*; do
+    [ -L "$link" ] || continue                 # already a real file, skip
+    target=$(readlink "$link")
+    tmp="$link.cloning"
+    if cp -c "$target" "$tmp" 2>/dev/null \
+       && [ "$(stat -f%z "$tmp")" = "$(stat -f%z "$target")" ]; then
+      mv -f "$tmp" "$link"                     # atomic replace, same filename
+    else
+      rm -f "$tmp"; echo "FAILED: $(basename "$link")"
+    fi
+  done
+done
+```
+
+The clone is written to a temporary name and only replaces the link after its size
+matches, so a failure leaves the symlink intact. Filenames are unchanged, so
+nothing downstream is affected — `youtube map` matches on the YouTube title, not on
+local files.
 
 !!! danger "Important Safety Note"
     **NEVER upload videos from the `do_not_release/` directory to YouTube!**

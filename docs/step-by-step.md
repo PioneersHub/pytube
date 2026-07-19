@@ -167,6 +167,47 @@ Place your video files in the downloads directory:
 - Format: `{SESSION_ID}-title.mp4`
 - Examples: `ABC123-python-basics.mp4`, `DEF456_advanced_topics.mov`
 
+#### Sourcing files from cloud storage (macOS)
+
+When the finished cuts live in a cloud folder (Google Drive, Dropbox …), do **not**
+copy them naively — a conference easily reaches 100+ GB. Two approaches, in order
+of preference:
+
+**Symlinks** are enough while only the pipeline touches the files:
+
+```bash
+mkdir -p _tmp/videos/downloads
+find "<SOURCE>" -type f \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.mkv' \) \
+  -exec ln -sf {} "$PWD/_tmp/videos/downloads/" \;
+```
+
+`move-to-channel-dirs` moves the links, not the payload, so this costs nothing.
+
+**APFS clones** are required for the manual upload. YouTube Studio does not accept
+a multi-file drag & drop of symlinks, so the channel folders must hold real files.
+On APFS a clone shares its blocks with the original until one of them changes —
+`cp -c` therefore duplicates nothing:
+
+```bash
+# Verify first: free space must not drop after the copy
+df -k /System/Volumes/Data | tail -1 | awk '{print int($4/1024/1024), "GB free"}'
+cp -c "<one source file>" /tmp/clone_test.mp4 && rm /tmp/clone_test.mp4
+df -k /System/Volumes/Data | tail -1 | awk '{print int($4/1024/1024), "GB free"}'
+```
+
+Cloning only works **within one volume**. Cloud folders that are "available
+offline" usually qualify, because the provider stores the payload on the local
+APFS data volume — but verify with the check above instead of assuming it. If the
+free space does drop, fall back to copying in batches: clone ~20 files, upload
+them, delete them, repeat.
+
+To convert an existing tree of symlinks into clones, copy each target and replace
+the link atomically (see `docs/video-organization.md`). Note that `du` will then
+report the full size even though no space is used; only `df` tells the truth.
+
+A clone also survives the cloud provider evicting the original back to
+"online-only", which would leave a symlink dangling.
+
 ### 3.2 Assign Videos to Channels
 
 ```bash
