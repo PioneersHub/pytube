@@ -25,12 +25,25 @@ happens inside an after-validator, no field validation catches it. The validator
 runs again whenever the model is re-validated or the instance is reused, so both
 loading a stored record and building a new one from stored data hit it.
 
-**The two halves of the fix** — both are required:
+**The fix, in three parts** — all are required:
 
-| Half | Location | What it does |
+| Part | Location | What it does |
 |---|---|---|
-| Read side | `unmangle_submission_type()`, applied in `create_record()` | Re-nests the flattened value as `{"id": submission_type_id, "name": <value>}` so the validator can unwrap it correctly again |
-| Write side | end of `create_record()` | Serializes the record, then restores `submission_type` and `submission_type_id` from the source data before writing to disk |
+| Helper | `unmangle_submission_type()` | Re-nests the flattened value as `{"id": submission_type_id, "name": <value>}` so the validator can unwrap it correctly again |
+| Every load | `load_session_record(path)` | Applies the helper before validating. **Use this instead of `SessionRecord.model_validate_json` everywhere** — `add_descriptions`, the YouTube metadata step and the publisher all load records and write them back |
+| Fetch path | end of `create_record()` | Serializes the record, then restores `submission_type` / `submission_type_id` from the source data before writing |
+
+The load-side fix is the important one. Fixing only the fetch path is not enough:
+any code that loads a record and writes it back persists the null. That is exactly
+what happened — after the first repair, `records generate-descriptions` corrupted
+every record it touched, one per generated description, and the count of broken
+records matched the count of generated texts exactly.
+
+**Repairing corrupted records** without losing generated texts: take
+`submission_type` and `submission_type_id` from the raw pytanis dump in
+`{work_dir}/{event_slug}/pretalx/{code}.json` and write them into the matching file
+under `records/`. Do **not** re-run `records fetch` for this — `create_record`
+rebuilds the record with empty `sm_*` fields and would discard the descriptions.
 
 The read-side guard (`isinstance(...) and "name" not in submission_type`) makes the
 helper a no-op on already-correct API data. That is why it looks superfluous — it

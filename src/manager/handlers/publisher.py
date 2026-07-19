@@ -11,6 +11,7 @@ from pytanis.helpdesk import Mail, MailClient, Recipient
 from manager import conf, logger
 from manager.config import get_event_dir
 from manager.handlers import LinkedInPost
+from manager.handlers.records import load_session_record
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.sessions import SessionRecord
 from manager.models.video import YoutubeVideoResource
@@ -165,7 +166,7 @@ class Publisher:
         pretalx_id = random.choice(population)
         video_id = self.pretalx_youtube_id_map.get(pretalx_id)
         record_path = self.video_meta.records_path / f"{pretalx_id}.json"
-        record = SessionRecord.model_validate_json(record_path.read_text())
+        record = load_session_record(record_path)
 
         res = self.release_on_youtube_now(video_id, record.youtube_title, record.youtube_description, "28")
 
@@ -318,7 +319,7 @@ class Publisher:
             video_record.status.privacy_status = youtube_video_status["status"]["privacyStatus"]
             video_record_path.write_text(video_record.model_dump_json(indent=4))
             record_path = self.video_meta.records_path / f"{pretalx_id}.json"
-            record = SessionRecord.model_validate_json(record_path.read_text())
+            record = load_session_record(record_path)
             self.prepare_linkedin_post(record)
             self.prepare_email_speakers(record)
             video_record_path.rename(self.youtube_client.video_records_path_published / record_path.name)

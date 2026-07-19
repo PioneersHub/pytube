@@ -14,7 +14,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from manager import conf, logger
 from manager.config import get_event_dir
-from manager.handlers.records import Records
+from manager.handlers.records import Records, load_session_record
 from manager.models.sessions import SessionRecord
 from manager.models.video import (
     BaseRecordingDetails,
@@ -502,7 +502,7 @@ class PrepareVideoMetadata:
         Collect all metadata for a video and merge it into a single document, store this document in the JSON record.
         """
         # load record
-        record = SessionRecord.model_validate_json((self.records_path / f"{video['pretalx_id']}.json").read_text())
+        record = load_session_record(self.records_path / f"{video['pretalx_id']}.json")
         # update record with video info if necessary
         update_record = False
         youtube_channel = self.pretalx_youtube_channel_map[video["pretalx_id"]]

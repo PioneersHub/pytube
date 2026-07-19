@@ -39,6 +39,25 @@ def unmangle_submission_type(data: dict) -> dict:
     return data
 
 
+def load_session_record(path: Path) -> SessionRecord:
+    """Load a SessionRecord, keeping ``submission_type`` intact.
+
+    Validating a stored record runs pytanis' non-idempotent
+    ``mangle_submission_type`` again, which nulls the field (see
+    ``unmangle_submission_type``). Anything that then writes the record back —
+    ``add_descriptions``, the YouTube metadata step, the publisher — would persist
+    that null and make the record permanently unloadable. Re-nesting the value
+    before validation lets the validator unwrap it correctly instead.
+
+    Use this everywhere instead of ``SessionRecord.model_validate_json``.
+    """
+    raw = json.loads(path.read_text())
+    session = raw.get("pretalx_session", {}).get("session")
+    if isinstance(session, dict):
+        raw["pretalx_session"]["session"] = unmangle_submission_type(session)
+    return SessionRecord.model_validate(raw)
+
+
 def load_transcript(code: str, root: Path | None) -> str | None:
     """Return the transcript text for a talk, or None if unavailable.
 
@@ -462,7 +481,7 @@ class Records:
 
         for idx, x in enumerate(records, 1):
             try:
-                data = SessionRecord.model_validate_json(x.read_text())
+                data = load_session_record(x)
             except Exception as e:
                 stats["processed"] += 1
                 stats["skipped"] += 1
