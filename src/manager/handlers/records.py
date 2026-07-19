@@ -425,15 +425,25 @@ class Records:
 
         return need_teaser or need_short or need_long
 
-    def add_descriptions(self, replace=False) -> dict[str, int]:
+    def add_descriptions(self, replace=False, progress_callback=None) -> dict[str, int]:
         """Add descriptions to all confirmed sessions.
 
         Args:
             replace: Whether to replace existing descriptions
+            progress_callback: Optional callable invoked once per record as
+                ``callback(current, total, code, title, status)`` where status is
+                one of "start", "generated", "skipped" or "error". Generation takes
+                tens of seconds per talk, so callers should report "start" to show
+                which session is running.
 
         Returns:
             Dictionary with statistics: {"processed": int, "added": int, "skipped": int}
         """
+
+        def report(idx, code, title, status):
+            if progress_callback:
+                progress_callback(idx, total_records, code, title, status)
+
         stats = {"processed": 0, "added": 0, "skipped": 0}
         records = list(self.records.glob("*.json"))
         total_records = len(records)
@@ -458,10 +468,14 @@ class Records:
                 stats["skipped"] += 1
                 try:
                     jdata = load_json(x)
-                    logger.error(f"Error adding descriptions to {jdata.get('pretalx_id', 'unknown')}: {e}")
+                    code = jdata.get("pretalx_id", x.stem)
                 except Exception:
-                    logger.error(f"Error adding descriptions to {x.name}: {e}")
+                    code = x.stem
+                logger.error(f"Error adding descriptions to {code}: {e}")
+                report(idx, code, "", "error")
                 continue
+
+            report(idx, data.pretalx_id, data.title, "start")
             descriptions_added = self._apply_descriptions(data, replace, transcripts_root)
 
             (self.records / f"{data.pretalx_id}.json").write_text(data.model_dump_json(indent=4))
@@ -470,9 +484,11 @@ class Records:
             if descriptions_added:
                 stats["added"] += 1
                 logger.info(f"[{idx}/{total_records}] Added descriptions to {data.pretalx_id}")
+                report(idx, data.pretalx_id, data.title, "generated")
             else:
                 stats["skipped"] += 1
                 logger.debug(f"[{idx}/{total_records}] Skipped {data.pretalx_id} (descriptions already exist)")
+                report(idx, data.pretalx_id, data.title, "skipped")
 
         logger.info(f"Description generation complete: {stats['added']} added, {stats['skipped']} skipped")
         return stats

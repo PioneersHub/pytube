@@ -1,5 +1,6 @@
 """System status CLI commands."""
 
+import json
 from datetime import datetime
 
 import click
@@ -72,6 +73,29 @@ def status(ctx: click.Context, detailed: bool) -> None:
             pipeline_table.add_row(stage_name, str(count), description)
         else:
             pipeline_table.add_row(stage_name, "0", f"[red]{description}[/red]")
+
+    # How far along the AI text generation is. This is not a directory stage: the
+    # texts live inside the record files, so `records` alone cannot show progress.
+    records_dir = event_dir / "records"
+    if not records_dir.exists():
+        records_dir = conf.dirs.work_dir / "records"
+    if records_dir.exists():
+        record_files = list(records_dir.glob("*.json"))
+        with_text = unreadable = 0
+        for record_file in record_files:
+            try:
+                data = json.loads(record_file.read_text())
+            except (OSError, json.JSONDecodeError):
+                unreadable += 1
+                continue
+            if (data.get("sm_long_text") or "").strip():
+                with_text += 1
+        total = len(record_files)
+        note = "Records with AI descriptions"
+        if unreadable:
+            note += f" [red]({unreadable} unreadable)[/red]"
+        style = "green" if total and with_text == total else "yellow"
+        pipeline_table.add_row("Descriptions", f"[{style}]{with_text}/{total}[/{style}]", note)
 
     # Configuration Status
     config_table = Table(title="Configuration Status", show_header=False)

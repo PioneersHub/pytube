@@ -1,10 +1,14 @@
 """Records management CLI commands."""
 
+import time
+
 import click
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from manager import conf
 from manager.handlers import Records as RecordsHandler
+
+_TITLE_WIDTH = 60  # truncate session titles in the progress output
 
 
 @click.group()
@@ -154,16 +158,44 @@ def generate_descriptions(ctx: click.Context, replace: bool, dry_run: bool) -> N
         # TODO: Show which records would be updated
         console.print(f"Would process {len(record_files)} records")
     else:
+        # Generation takes tens of seconds per talk, so show which session is running
+        # and print one line per finished session instead of a bare spinner.
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
             console=console,
         ) as progress:
-            progress.add_task("Generating AI descriptions...", total=None)
+            task = progress.add_task("Generating AI descriptions...", total=len(record_files))
+            started: dict[str, float] = {}
+
+            def on_progress(current, total, code, title, status):
+                short_title = title[:_TITLE_WIDTH] + ("…" if len(title) > _TITLE_WIDTH else "")
+                if status == "start":
+                    started[code] = time.monotonic()
+                    # Keep the position visible while a talk is being generated —
+                    # a single call can take a minute on a local model.
+                    progress.update(task, description=f"[{current}/{total}] [cyan]{code}[/cyan] {short_title}")
+                    return
+                seconds = time.monotonic() - started.pop(code, time.monotonic())
+                marks = {
+                    "generated": f"[green]✓[/green] {code} [dim]{short_title}[/dim] [dim]({seconds:.0f}s)[/dim]",
+                    "skipped": f"[yellow]•[/yellow] {code} [dim]{short_title} — already had texts[/dim]",
+                    "error": f"[red]✗[/red] {code} [dim]unreadable record, skipped[/dim]",
+                }
+                progress.console.print(f"[{current}/{total}] {marks[status]}")
+                progress.advance(task)
+
             try:
-                r.add_descriptions(replace=replace)
+                stats = r.add_descriptions(replace=replace, progress_callback=on_progress)
                 progress.stop()
-                console.print("✓ Generated AI descriptions for all records", style="green")
+                console.print(
+                    f"✓ Done: [green]{stats['added']} generated[/green], "
+                    f"[yellow]{stats['skipped']} skipped[/yellow], {stats['processed']} processed",
+                    style="bold",
+                )
             except Exception as e:
                 progress.stop()
                 console.print(f"[red]✗ Failed to generate descriptions: {e}[/red]")

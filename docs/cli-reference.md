@@ -183,6 +183,23 @@ pytube records generate-descriptions --replace
 pytube records generate-descriptions --dry-run
 ```
 
+**Progress output.** Generation takes tens of seconds per talk (a local model needs
+roughly 70 s for the three texts), so the command prints one line per session plus
+a live bar showing which session is currently running:
+
+```
+Found 145 records to process
+[1/145] ✓ 333HDN From Hard Problems to Proven Solutions… (34s)
+[2/145] ✓ 37AESH In Praise of Documentation: Tools, Tips… (37s)
+[3/145] • BQPEUG Opening Session — already had texts
+⠹ 39MHWT From Ticket to Draft… ━━━━━━━━━╸────────── 3/145 0:01:52
+```
+
+`✓` generated, `•` skipped because the fields were already filled, `✗` record
+could not be read. The run is safe to interrupt with `Ctrl-C`: each record is
+written immediately after it is generated, and a later run continues with the
+remaining ones.
+
 **Transcript-based summaries (optional):** if `transcripts.dir` is set in config,
 each talk that has a transcript (`<transcripts.dir>/<CODE…>/transcript.md`) gets
 its short/long description summarized from the transcript via the
