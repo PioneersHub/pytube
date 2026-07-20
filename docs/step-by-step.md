@@ -455,7 +455,9 @@ pytube notify social
 - `config_local.yaml` - Your configuration
 - `_tmp/records/*.json` - Session data
 - `_tmp/videos/youtube_pycon.json` - Video mappings
-- `./_secret/youtube_token.json` - OAuth token
+- `.secrets/token_<channel>.json` - OAuth token, one per channel
+  (`youtube.channels.<name>.token_path`; see
+  [One OAuth token per channel](cli-reference.md#one-oauth-token-per-channel))
 
 ## Next Steps
 

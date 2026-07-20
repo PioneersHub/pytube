@@ -61,7 +61,30 @@ Every command, with its options. Details follow in the sections below.
 Commands that need network access: `records fetch` (Pretalx), `video bulk-download`
 (Vimeo), all `youtube` commands and `notify` (unless `--offline`). The first
 `youtube` command opens a browser for OAuth and caches the token at
-`youtube.token_path`.
+`youtube.channels.<name>.token_path`, falling back to `youtube.token_path`.
+
+### One OAuth token per channel
+
+PyCon DE and PyData are separate YouTube channels owned by **different Google
+accounts**. Give each channel its own `token_path` in `config_local.yaml`:
+
+```yaml
+youtube:
+  channels:
+    pyconde:
+      token_path: ".secrets/token_pyconde.json"
+    pydata:
+      token_path: ".secrets/token_pydata.json"
+```
+
+Without a per-channel path both channels share `youtube.token_path`, and
+authorizing the second channel **overwrites the first channel's token** — the
+first channel then needs a fresh browser authorization on its next command.
+
+`youtube map` creates one client per channel, so `--channel pyconde` only ever
+touches the pyconde token. A run **without** `--channel` walks every configured
+channel and opens a browser authorization for each one in turn; authorize each
+with the matching Google account.
 
 ## Interactive Assistant
 

@@ -46,10 +46,12 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
     ) as progress:
         task = progress.add_task("Initializing YouTube client...", total=None)
 
-        # Use API key authentication for read-only mapping operations
-        yt = YT(youtube_offline=True)
-        # yt.get_authenticated_service_via_api_key()
-        yt.get_authenticated_service()
+        # Read-only mapping: authenticate from the cached token. One YT client per
+        # channel (created in the loop below), because channels usually belong to
+        # different Google accounts and each has its own token.
+        # Do NOT call get_authenticated_service() here — it returns a service without
+        # assigning self._youtube, so its interactive browser flow ran for nothing and
+        # the work then authenticated again via the offline path.
 
         # Skip channel ID retrieval for API key auth - already configured
         progress.update(task, description="Using configured channel IDs...")
@@ -71,6 +73,7 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
         for ch in channels_to_process:
             progress.update(task, description=f"Retrieving videos from {ch} playlist...")
             try:
+                yt = YT(youtube_offline=True, channel=ch)
                 video_count = yt.get_youtube_ids_for_uploads(ch)
                 channel_results[ch] = {"status": "success", "count": video_count, "error": None}
             except Exception as e:

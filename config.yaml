@@ -103,6 +103,9 @@ youtube:
   # Longest description YouTube accepts; longer texts fall back to sm_short_text.
   max_description_length: 5000
   # Where the OAuth token is cached after the first browser authorization.
+  # Fallback only — prefer a per-channel token_path (see channels below), because
+  # channels usually belong to different Google accounts and a shared file means
+  # authorizing one channel destroys the other channel's credentials.
   token_path: "~/code/pioneershub/py_tube/_secret/youtube_token.json"
   # REQUIRED — configuration is rejected without at least one channel.
   # The key is the channel token: it must match the values used in
@@ -111,11 +114,13 @@ youtube:
   # Define the real ids in config_local.yaml, for example:
   # channels:
   #   pyconde:
-  #     id: "UC..."            # YouTube channel id
-  #     playlist_id: "PL..."   # hidden staging playlist
+  #     id: "UC..."                                # YouTube channel id
+  #     playlist_id: "PL..."                       # hidden staging playlist
+  #     token_path: ".secrets/token_pyconde.json"  # own OAuth token for this channel
   #   pydata:
   #     id: "UC..."
   #     playlist_id: "PL..."
+  #     token_path: ".secrets/token_pydata.json"
   channels: {}
 # ########################################
 # Social Media Configuration

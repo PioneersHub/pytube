@@ -6,6 +6,7 @@ from pathlib import Path
 import google_auth_oauthlib.flow
 import googleapiclient.discovery
 import googleapiclient.errors
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -26,12 +27,21 @@ from manager.utils.common import SafeConfig, ensure_directory, load_json, save_j
 
 
 class YT:
-    def __init__(self, youtube_offline: bool = False):
+    def __init__(self, youtube_offline: bool = False, channel: str | None = None):
+        """
+        :param youtube_offline: authenticate from the cached token instead of a browser flow
+        :param channel: channel name from `youtube.channels`. Channels usually belong to
+            different Google accounts and therefore need their own OAuth token; passing the
+            channel selects `youtube.channels.<name>.token_path`. One YT instance serves
+            exactly one channel — authorizing a second channel through the same instance
+            would overwrite the first channel's token.
+        """
         # Set up the necessary scopes and API service
         self.scopes = ["https://www.googleapis.com/auth/youtube.force-ssl"]
         self._youtube = None
 
         self.youtube_offline = youtube_offline
+        self.channel = channel
 
         # Use event-specific directory structure
         self.event_dir = get_event_dir(conf)
@@ -76,6 +86,18 @@ class YT:
 
         return googleapiclient.discovery.build(api_service_name, api_version, credentials=credentials)
 
+    def _token_path_str(self, safe_conf) -> str:
+        """Token file for this instance: per channel if configured, else the global one.
+
+        Channels typically live in different Google accounts, so a single shared token
+        file means authorizing one channel destroys the other channel's credentials.
+        """
+        if self.channel:
+            per_channel = safe_conf.get(f"youtube.channels.{self.channel}.token_path")
+            if per_channel:
+                return per_channel
+        return safe_conf.get("youtube.token_path", "token.json")
+
     def get_authenticated_offline_service(self):
         """Works for limited use cases only due to general restrictions by YouTube,
         >>NOT suitable for updating video metadata<<"""
@@ -88,21 +110,30 @@ class YT:
         if not client_secrets_file:
             raise ValueError("YouTube client secrets file not configured")
         root_dir = Path(safe_conf.get("dirs.root", "."))
-        token_path_str = safe_conf.get("youtube.token_path", "token.json")
-        token_path = root_dir / token_path_str
+        token_path = root_dir / self._token_path_str(safe_conf)
         if token_path.exists():
             creds = Credentials.from_authorized_user_file(str(token_path), self.scopes)
 
         # If no valid credentials are available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                except RefreshError as exc:
+                    # Refresh tokens expire (inactivity, password change, revoked access).
+                    # Without this fallback the command fails permanently and reports a
+                    # misleading "playlist may be private/deleted" error instead of
+                    # simply asking for authorization again.
+                    logger.warning(f"Cached YouTube token could not be refreshed ({exc}); re-authorizing in browser")
+                    creds = None
+
+            if not creds or not creds.valid:
                 # Create a flow object, set the client secrets, and ask for offline access
                 flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, self.scopes)
                 creds = flow.run_local_server(port=0)
 
             # Save the credentials for the next run
+            token_path.parent.mkdir(parents=True, exist_ok=True)
             with token_path.open("w") as token:
                 token.write(creds.to_json())
 
