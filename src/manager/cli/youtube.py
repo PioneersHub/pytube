@@ -1,5 +1,6 @@
 """YouTube management CLI commands."""
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import click
@@ -170,16 +171,31 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
 @click.option(
     "--dry-run",
     is_flag=True,
-    help="Preview changes without updating YouTube",
+    help="Show what would be sent, without touching YouTube or writing any file",
+)
+@click.option(
+    "--show-body",
+    default=1,
+    show_default=True,
+    help="With --dry-run: dump the full request body for the first N videos",
 )
 @click.pass_context
-def update(ctx: click.Context, template: str, event_name: str | None, channel: str | None, dry_run: bool) -> None:
+def update(  # noqa: PLR0913
+    ctx: click.Context,
+    template: str,
+    event_name: str | None,
+    channel: str | None,
+    dry_run: bool,
+    show_body: int,
+) -> None:
     """Update YouTube video metadata from records.
 
-    This command will:
-    - Generate video metadata from templates
-    - Update titles and descriptions
-    - Set video properties
+    Builds title, description and video properties for every talk that has an
+    uploaded video, then sends them to YouTube.
+
+    With --dry-run nothing is written and nothing is sent: the metadata is built
+    in memory and printed, including the exact request body. Use it to read the
+    descriptions before spending API quota.
     """
     console = ctx.obj["console"]
 
@@ -190,7 +206,7 @@ def update(ctx: click.Context, template: str, event_name: str | None, channel: s
     console.print(f"Event name: {event_name}")
 
     if dry_run:
-        console.print("[yellow]DRY RUN - No changes will be made to YouTube[/yellow]")
+        console.print("[yellow]DRY RUN - nothing is written to disk or sent to YouTube[/yellow]")
 
     with Progress(
         SpinnerColumn(),
@@ -199,13 +215,11 @@ def update(ctx: click.Context, template: str, event_name: str | None, channel: s
     ) as progress:
         task = progress.add_task("Preparing metadata...", total=None)
 
-        meta = PrepareVideoMetadata(template, event_name)
+        meta = PrepareVideoMetadata(template, event_name, dry_run=dry_run)
 
-        # Generate metadata
         progress.update(task, description="Generating video metadata...")
-        meta.make_all_video_metadata()
+        built = meta.make_all_video_metadata(channel=channel)
 
-        # Send to YouTube
         if not dry_run:
             channels = [channel] if channel else list(conf.youtube.channels.keys())
             for ch in channels:
@@ -215,9 +229,55 @@ def update(ctx: click.Context, template: str, event_name: str | None, channel: s
         progress.stop()
 
     if dry_run:
-        console.print("✓ Metadata prepared (dry run - no updates sent)", style="yellow")
+        _report_dry_run(console, meta, built, show_body)
+        console.print(f"\n✓ {len(built)} videos prepared (dry run - nothing sent)", style="yellow")
     else:
         console.print("✓ Video metadata updated on YouTube", style="green")
+
+
+def _report_dry_run(console, meta: PrepareVideoMetadata, built: list, show_body: int) -> None:
+    """Print what a real run would send, so descriptions can be reviewed offline."""
+    if not built:
+        console.print("[yellow]No videos to prepare - is pretalx_yt_map.json populated?[/yellow]")
+        return
+
+    max_len = conf.youtube.get("max_description_length", 5000)
+    table = Table(title="Prepared video metadata", expand=True)
+    table.add_column("Code", style="cyan", no_wrap=True)
+    table.add_column("Video ID", no_wrap=True)
+    table.add_column("Channel", no_wrap=True)
+    table.add_column("Privacy", no_wrap=True)
+    table.add_column("Publish at", no_wrap=True)
+    table.add_column("Desc", justify="right", no_wrap=True)
+    table.add_column("Tags", justify="right", no_wrap=True)
+    # One row per video: the title is the only column allowed to be cut.
+    table.add_column("Title", ratio=1, no_wrap=True, overflow="ellipsis")
+
+    id_to_code = meta.youtube_id_pretalx_map
+    for resource in built:
+        code = id_to_code.get(resource.id, "?")
+        body = resource.to_update_body()
+        desc_len = len(body["snippet"]["description"])
+        publish_at = body["status"].get("publishAt")
+        table.add_row(
+            code,
+            resource.id,
+            meta.pretalx_youtube_channel_map.get(code, "?"),
+            body["status"]["privacyStatus"],
+            publish_at[:16] if publish_at else "-",
+            f"[red]{desc_len}[/red]" if desc_len > max_len else str(desc_len),
+            str(len(body["snippet"]["tags"])),
+            body["snippet"]["title"],
+        )
+    console.print(table)
+
+    for resource in built[:show_body]:
+        console.print(f"\n[bold]Request body for {resource.id}[/bold] (exactly what would be sent):")
+        console.print(json.dumps(resource.to_update_body(), indent=2, ensure_ascii=False))
+
+    over = [r for r in built if len(r.snippet.description) > max_len]
+    if over:
+        console.print(f"\n[red]{len(over)} description(s) exceed {max_len} characters[/red]")
 
 
 @youtube.command()

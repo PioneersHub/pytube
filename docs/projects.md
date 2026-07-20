@@ -45,12 +45,44 @@ What belongs where, in practice:
 - **Project** — `pretalx.event_slug`, `pretalx.video_to_track` (the Pretalx
   code to channel mapping), `event.name` / `event.url` / `event.program_url`,
   `youtube.channels` (ids, playlist ids, per-channel `token_path`),
-  `transcripts.dir`, `dirs.video_dir`.
+  `youtube.video_defaults` (see below), `transcripts.dir`, `dirs.video_dir`.
 - **Local** — API keys, `youtube.client_secrets_file`, `youtube.api_key`,
   Vimeo and social-media credentials, and `active_project`.
 
 Nothing should appear in two layers. If you find yourself editing the same key
 in two files, one of them is wrong.
+
+## Video defaults
+
+`youtube.video_defaults` holds every value written on a `videos.update` call.
+It exists because YouTube **deletes any property it does not receive** within a
+part that is being updated: sending `part=snippet,status` without `tags` removes
+the video's tags, and without `license` resets the licence. There is no partial
+update, so every field is always sent and these are the values that get sent.
+
+```yaml
+youtube:
+  video_defaults:
+    category_id: "28"                   # 28 = Science & Technology
+    default_language: "en"
+    default_audio_language: "en"
+    license: "youtube"
+    embeddable: true                    # required for embedding on the event site
+    public_stats_viewable: true
+    self_declared_made_for_kids: false
+    privacy_status: "unlisted"          # base state before a publish date is set
+    tags: ["PyCon DE", "PyData", "Python"]
+    channel_tags:                       # merged on top of `tags` per channel
+      pyconde: ["PyConDE", "software engineering"]
+      pydata:  ["PyData", "data science"]
+```
+
+Keys omitted here keep the model's own default rather than being sent as null.
+YouTube caps the combined tag text at 500 characters; tags beyond that are
+dropped with a warning instead of being silently truncated by the API.
+
+`pytube youtube update --dry-run --show-body 1` prints the resulting request
+body verbatim — use it to check these values before spending API quota.
 
 ## Selecting the active project
 

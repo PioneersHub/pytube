@@ -49,7 +49,7 @@ Every command, with its options. Details follow in the sections below.
 | `pytube video download` | `--client-id` `--limit` | **Not implemented** — use `bulk-download` |
 | **YouTube** | | |
 | `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
-| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` | Write titles/descriptions to YouTube |
+| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` | Write titles/descriptions to YouTube |
 | `pytube youtube schedule` | `--start` `--interval` `--preview` | Set publishing schedule |
 | `pytube youtube channels` | — | List configured channels |
 | **Notifications** | | |
@@ -332,25 +332,49 @@ pytube youtube update [OPTIONS]
 
 Options:
   --template TEXT      Jinja2 template file for descriptions [default: youtube_2026.txt]
-                       Bundled templates: youtube_2025.txt, youtube_2026.txt
-                       (under src/manager/templates/). Pass --template to pick another.
+                       Looked up in projects/<slug>/ first, then the bundled
+                       templates in src/manager/templates/.
   --event-name TEXT    Event name for the template
-  --channel TEXT       Target YouTube channel
-  --dry-run           Preview changes without updating YouTube
-  --help              Show help message
+  --channel TEXT       Only build and send videos on this channel
+  --dry-run            Show what would be sent; writes nothing, sends nothing
+  --show-body N        With --dry-run: dump the full request body for the first
+                       N videos [default: 1]
+  --help               Show help message
 ```
+
+Which videos are processed is driven by `pretalx_yt_map.json` — the talks that
+are both uploaded to YouTube and resolved to a Pretalx code. A talk with a
+channel assignment but no uploaded video is skipped.
 
 **Example:**
 ```bash
-# Update with default template
-pytube youtube update
-
-# Use custom template and event name
-pytube youtube update --template youtube_2026.txt --event-name "PyCon DE & PyData 2026"
-
-# Preview changes
+# Read the generated descriptions before spending any API quota
 pytube youtube update --dry-run
+
+# Inspect the exact request body for the first three videos
+pytube youtube update --dry-run --show-body 3
+
+# Send, one channel at a time
+pytube youtube update --channel pyconde
 ```
+
+#### What --dry-run guarantees
+
+Nothing is written to disk and nothing is sent: no records are rewritten, no
+video records are created, and no OAuth flow is started. The metadata is built
+in memory and printed as a table (code, video id, channel, privacy, publish
+date, description length, tag count, title), followed by the request body for
+the first `--show-body` videos.
+
+That body is exactly what a real run sends. Every field of `snippet` and
+`status` is always included, because YouTube **deletes any property it does not
+receive** within a part that is being updated — sending a partial `snippet`
+would silently wipe the video's tags and language settings. The values come from
+`youtube.video_defaults` (see [Projects & Configuration](projects.md)).
+
+Setting a publish date forces `privacyStatus` to `private`, which is the only
+state in which YouTube accepts `publishAt`; the video becomes public when that
+time passes.
 
 ### pytube youtube schedule
 

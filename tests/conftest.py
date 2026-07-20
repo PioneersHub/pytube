@@ -321,6 +321,38 @@ def mock_datetime(monkeypatch):
     return MockDateTime
 
 
+# ==================== Safety Nets ====================
+
+
+@pytest.fixture(autouse=True)
+def never_open_a_browser(monkeypatch):
+    """Fail loudly instead of starting an interactive OAuth flow.
+
+    `YT.get_authenticated_service()` and the fallback in
+    `get_authenticated_offline_service()` both call `run_local_server(port=0)`,
+    which opens a real browser window and waits for a human. A test that reaches
+    that code hangs the suite and pops a Google consent screen on the developer's
+    machine — which is exactly what happened while building this out.
+
+    Any test that legitimately exercises the auth flow patches `InstalledAppFlow`
+    itself, so this guard only trips on code paths that were never meant to
+    authenticate.
+    """
+
+    def _refuse(*args, **kwargs):
+        raise AssertionError(
+            "A test tried to start an interactive OAuth flow (run_local_server). "
+            "Patch manager.handlers.youtube.InstalledAppFlow, or pass a mocked "
+            "service, instead of authenticating for real."
+        )
+
+    monkeypatch.setattr(
+        "google_auth_oauthlib.flow.InstalledAppFlow.run_local_server",
+        _refuse,
+        raising=False,
+    )
+
+
 # ==================== Marker Configuration ====================
 
 

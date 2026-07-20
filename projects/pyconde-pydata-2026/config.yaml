@@ -174,6 +174,21 @@ youtube:
       token_path: .secrets/token_pydata.json
       id: UCOjD18EJYcsBog4IozkF_7w
       playlist_id: PLTU-XWf6DQN8
+  video_defaults:
+    tags:
+    - PyCon DE
+    - PyData
+    - Python
+    - PyCon DE 2026
+    - conference talk
+    channel_tags:
+      pyconde:
+      - PyConDE
+      - software engineering
+      pydata:
+      - PyData
+      - data science
+      - machine learning
 transcripts:
   dir: /Users/hendorf/Documents/Claude/Projects/PyConDE/transcripts
   max_chars: 48000

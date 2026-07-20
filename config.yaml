@@ -132,6 +132,30 @@ youtube:
   #     playlist_id: "PL..."
   #     token_path: ".secrets/token_pydata.json"
   channels: {}
+
+  # Values written on EVERY videos.update call.
+  #
+  # YouTube deletes any property it does not receive within a part that is being
+  # updated: sending `part=snippet,status` without `tags` deletes the tags, and
+  # without `license` resets the licence. There is therefore no partial update —
+  # every field below is always sent, and these defaults are what gets sent.
+  # Override per event in projects/<slug>/config.yaml.
+  video_defaults:
+    category_id: "28"                   # 28 = Science & Technology
+    default_language: "en"
+    default_audio_language: "en"
+    license: "youtube"                  # youtube | creativeCommon
+    embeddable: true                    # required for embedding on the conference site
+    public_stats_viewable: true
+    self_declared_made_for_kids: false  # conference talks are not child-directed
+    # Base state for a video that has no publish date yet. Once a publish date is
+    # set, YouTube requires the video to be private, and the code enforces that.
+    privacy_status: "unlisted"
+    # Applied to every video. YouTube caps the combined tag text at 500
+    # characters; anything beyond that is dropped with a warning.
+    tags: []
+    # Merged on top of `tags` for videos on that channel.
+    channel_tags: {}
 # ########################################
 # Social Media Configuration
 # For API setup instructions, see: docs/api-credentials.md

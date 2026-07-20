@@ -20,8 +20,10 @@ from manager.models.sessions import SessionRecord
 from manager.models.video import (
     BaseRecordingDetails,
     VideoSnippet,
-    YouTubeMetadata,
+    VideoStatus,
     YoutubeVideoResource,
+    to_rfc3339,
+    trim_tags,
 )
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
 
@@ -223,15 +225,9 @@ class YT:
         if privacy_status:
             body["status"]["privacyStatus"] = privacy_status
         if publish_date:
-            # required by YouTube
+            # YouTube only accepts publishAt on a private video.
             body["status"]["privacyStatus"] = "private"
-            if isinstance(publish_date, str):
-                publish_date = datetime.strptime(publish_date, "%Y-%m-%dT%H:%M:%S%z")
-            elif isinstance(publish_date, datetime):
-                publish_date = publish_date.strftime("%Y-%m-%dT%H:%M:%S%z")
-            else:
-                raise ValueError("Publish date must be a string or datetime object")
-            body["status"]["publishAt"] = publish_date
+            body["status"]["publishAt"] = to_rfc3339(publish_date)
 
         # Update video metadata
         request = self.youtube.videos().update(part="snippet,status", body=body)
@@ -453,22 +449,24 @@ class PrepareVideoMetadata:
         video_embeddable = True
     """
 
-    def __init__(self, template_file: str, at):
+    def __init__(self, template_file: str, at, dry_run: bool = False):
+        """
+        :param template_file: Jinja2 template for the video description
+        :param at: event name appended to the video title
+        :param dry_run: build metadata without writing anything to disk
+        """
         self.template_file = template_file
         self.at = at
+        self.dry_run = dry_run
         self._pretalx_youtube_channel_map = {}
         self._pretalx_youtube_id_map = {}
-        self.yt_metadata = []
         self._template = None
-
-        self.load_yt_metadata()
 
         # Use event-specific directory structure
         self.event_dir = get_event_dir(conf)
         self.records_path = self.event_dir / "records"
         self.video_records_path = self.event_dir / "videos" / "youtube" / "video_records"
         ensure_directory(self.video_records_path)
-        # default values
 
     @property
     def template(self):
@@ -495,17 +493,6 @@ class PrepareVideoMetadata:
     def youtube_id_pretalx_map(self):
         return {v: k for k, v in self.pretalx_youtube_id_map.items()}
 
-    def load_yt_metadata(self):
-        videos = []
-        safe_conf = SafeConfig(conf)
-        channels = safe_conf.get("youtube.channels", {})
-        for channel in channels:
-            data = load_json(self.event_dir / "videos" / f"youtube_{channel}_playlist.json")
-            videos.extend(data)
-        for video in videos:
-            ytv = YouTubeMetadata(**video["snippet"])
-            self.yt_metadata.append(ytv)
-
     def load_template(self):
         """Load the description template, preferring the event's own copy.
 
@@ -521,10 +508,28 @@ class PrepareVideoMetadata:
         env = Environment(loader=FileSystemLoader(search_path), autoescape=select_autoescape())
         self._template = env.get_template(self.template_file)
 
-    def make_all_video_metadata(self):
-        manifest = load_json(self.event_dir / "manifest.json")
-        for video in manifest:
-            self.make_video_metadata(video)
+    def make_all_video_metadata(self, channel: str | None = None) -> list[YoutubeVideoResource]:
+        """Build YouTube metadata for every talk that has an uploaded video.
+
+        Driven by pretalx_yt_map.json — the only artifact that means "uploaded to
+        YouTube AND resolved to a Pretalx code", which is exactly the set of
+        videos `videos.update` can act on. It used to read manifest.json, which
+        is the Vimeo *download* manifest (see scripts/vimeo_download.py) and does
+        not exist here; the command failed before touching a single video.
+
+        Sorted so that partial runs are deterministic and repeatable.
+
+        :param channel: only build videos assigned to this channel
+        :return: the resources that were built, in order
+        """
+        built = []
+        for pretalx_id in sorted(self.pretalx_youtube_id_map):
+            if channel and self.pretalx_youtube_channel_map.get(pretalx_id) != channel:
+                continue
+            resource = self.make_video_metadata(pretalx_id)
+            if resource is not None:
+                built.append(resource)
+        return built
 
     @classmethod
     def best_youtube_title(cls, title, at):
@@ -539,23 +544,32 @@ class PrepareVideoMetadata:
             return long_title
         return title
 
-    def make_video_metadata(self, video):
+    def make_video_metadata(self, pretalx_id: str) -> YoutubeVideoResource | None:
+        """Collect all metadata for one talk and store it as a video record.
+
+        :param pretalx_id: the talk's Pretalx code
+        :return: the built resource, or None if the talk has to be skipped
         """
-        Collect all metadata for a video and merge it into a single document, store this document in the JSON record.
-        """
-        # load record
-        record = load_session_record(self.records_path / f"{video['pretalx_id']}.json")
-        # update record with video info if necessary
+        youtube_channel = self.pretalx_youtube_channel_map.get(pretalx_id)
+        if not youtube_channel:
+            logger.warning(f"No channel assigned to {pretalx_id}, skipping")
+            return None
+        youtube_video_id = self.pretalx_youtube_id_map.get(pretalx_id)
+        if not youtube_video_id:
+            logger.warning(f"No YouTube video ID found for {pretalx_id}, skipping")
+            return None
+
+        record = load_session_record(self.records_path / f"{pretalx_id}.json")
         update_record = False
-        youtube_channel = self.pretalx_youtube_channel_map[video["pretalx_id"]]
-        try:
-            youtube_video_id = self.pretalx_youtube_id_map[video["pretalx_id"]]
-        except KeyError:
-            logger.warning(f"No YouTube video ID found for {video['pretalx_id']}-{video['title']}, skipping")
-            return
 
         youtube_title = self.best_youtube_title(record.title, self.at)
-        recorded_date = record.pretalx_session.session.slot.start
+        # `slots` is when the talk was given — Pretalx models it as a list and has
+        # no `slot` attribute, so reading `.slot.start` raised on every video.
+        slots = record.pretalx_session.session.slots
+        if not slots:
+            logger.warning(f"No schedule slot for {pretalx_id}, skipping")
+            return None
+        recorded_date = slots[0].start
 
         if record.youtube_channel != youtube_channel:
             logger.info(f"Updating YouTube channel of {record.pretalx_id}")
@@ -593,27 +607,95 @@ class PrepareVideoMetadata:
             record.youtube_description = youtube_description
             update_record = True
 
-        if update_record:
+        if update_record and not self.dry_run:
             (self.records_path / f"{record.pretalx_id}.json").write_text(record.model_dump_json(indent=4))
             logger.info(f"Saved updated record of {record.pretalx_id}")
 
         recorded_iso: str = record.recorded_date.strftime("%d.%m.%Y")
+        target, status = self.video_record_target(record.pretalx_id, youtube_channel)
 
         youtube_video_ressource = YoutubeVideoResource(
             id=youtube_video_id,
             snippet=VideoSnippet(
-                **{
-                    "title": youtube_title,
-                    "description": youtube_description,
-                }
+                title=youtube_title,
+                description=youtube_description,
+                tags=self.channel_tags(youtube_channel),
+                # Only override what config actually sets — passing None would send
+                # `categoryId: null`, which YouTube rejects.
+                **self.configured(("category_id", "default_language", "default_audio_language")),
             ),
-            recording_details=BaseRecordingDetails(**{"recording_date": recorded_iso}),
+            recording_details=BaseRecordingDetails(recording_date=recorded_iso),
+            status=status,
         )
 
-        (self.video_records_path / f"{record.pretalx_id}.json").open("w").write(
-            youtube_video_ressource.model_dump_json(indent=4)
+        if not self.dry_run:
+            target.write_text(youtube_video_ressource.model_dump_json(indent=4))
+        return youtube_video_ressource
+
+    def video_record_target(self, pretalx_id: str, channel: str) -> tuple[Path, VideoStatus]:
+        """Where this talk's video record lives, and the status it should carry.
+
+        A record moves between video_records/, _updated/ and _published/ as it
+        progresses. Rebuilding metadata must update it where it currently is —
+        writing unconditionally to video_records/ leaves a second copy behind,
+        and `update_publish_dates` globs both directories and would then hand the
+        same talk two different publish dates.
+
+        Only `publish_at` is carried over from an existing record; everything
+        else comes from config, so a config change still propagates. Without
+        this, `youtube update` silently discarded the schedule set by
+        `youtube schedule`.
+        """
+        status = VideoStatus(
+            **self.configured(
+                (
+                    "privacy_status",
+                    "license",
+                    "embeddable",
+                    "public_stats_viewable",
+                    "self_declared_made_for_kids",
+                )
+            )
         )
-        print("=" * 50)
+        target = self.video_records_path / f"{pretalx_id}.json"
+        youtube_dir = self.video_records_path.parent
+        for state in ("video_records", "video_records_updated", "video_published"):
+            candidate = youtube_dir / state / f"{pretalx_id}.json"
+            if candidate.exists():
+                existing = YoutubeVideoResource.model_validate_json(candidate.read_text()).status
+                if existing.publish_at:
+                    status.publish_at = existing.publish_at
+                    status.privacy_status = "private"
+                target = candidate
+                break
+        return target, status
+
+    @staticmethod
+    def video_defaults() -> dict:
+        """Single source for the fields written on every videos.update call."""
+        return dict(SafeConfig(conf).get("youtube.video_defaults", {}) or {})
+
+    @classmethod
+    def configured(cls, keys: tuple[str, ...]) -> dict:
+        """Those of `keys` that config actually sets.
+
+        Keys the config omits are left out entirely so the model's own default
+        applies. Passing them through as None would override a valid default with
+        an empty value and produce a request body YouTube refuses.
+        """
+        defaults = cls.video_defaults()
+        return {key: defaults[key] for key in keys if defaults.get(key) is not None}
+
+    @classmethod
+    def channel_tags(cls, channel: str | None) -> list[str]:
+        """Tags for a channel: the shared set plus that channel's own."""
+        defaults = cls.video_defaults()
+        tags = list(defaults.get("tags") or [])
+        tags += list((defaults.get("channel_tags") or {}).get(channel) or [])
+        kept, dropped = trim_tags(tags)
+        if dropped:
+            logger.warning(f"Dropped {len(dropped)} tag(s) over YouTube's 500-character limit: {dropped}")
+        return kept
 
     def render_description(self, description: str, record: SessionRecord):
         """Provides commonly used values for rendering the description"""
@@ -635,6 +717,10 @@ class PrepareVideoMetadata:
         return description_kwargs
 
     def send_all_video_metadata(self, destination_channel: str):
+        if self.dry_run:
+            # Constructing YT here would run the interactive OAuth flow and pop a
+            # browser window — the opposite of what a dry run is for.
+            raise RuntimeError("send_all_video_metadata must not be called on a dry run")
         logger.info(f"Updating metadata for channel {destination_channel}")
         ytclient = YT()
         for youtube_video in self.video_records_path.glob("*.json"):
