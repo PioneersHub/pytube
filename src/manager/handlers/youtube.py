@@ -22,10 +22,21 @@ from manager.models.video import (
     VideoSnippet,
     VideoStatus,
     YoutubeVideoResource,
-    to_rfc3339,
     trim_tags,
 )
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
+
+
+def _http_error_reason(exc: googleapiclient.errors.HttpError) -> str:
+    """The machine-readable reason of a YouTube API error, e.g. 'quotaExceeded'.
+
+    Mirrors src/pipeline/youtube/send_updates.py: the reason lives in
+    error_details, falling back to the string form when the API sends none.
+    """
+    details = getattr(exc, "error_details", None) or []
+    if details and isinstance(details[0], dict):
+        return details[0].get("reason", "")
+    return ""
 
 
 class YT:
@@ -108,10 +119,15 @@ class YT:
         # The token.json stores the user's access and refresh tokens, and is created automatically
         # when the authorization flow completes for the first time.
         safe_conf = SafeConfig(conf)
+        root_dir = Path(safe_conf.get("dirs.root", "."))
         client_secrets_file = safe_conf.get("youtube.client_secrets_file")
         if not client_secrets_file:
             raise ValueError("YouTube client secrets file not configured")
-        root_dir = Path(safe_conf.get("dirs.root", "."))
+        # Anchor to the repo root like get_authenticated_service does, so a relative
+        # path (.secrets/client_secrets.json) resolves regardless of the cwd. Only
+        # reached on the browser fallback below, but a wrong cwd there surfaced as a
+        # misleading "playlist may be private" error.
+        client_secrets_file = str(root_dir / client_secrets_file)
         token_path = root_dir / self._token_path_str(safe_conf)
         if token_path.exists():
             creds = Credentials.from_authorized_user_file(str(token_path), self.scopes)
@@ -201,39 +217,18 @@ class YT:
                 response = request.execute()
         return videos
 
-    def update_video_metadata(
-        self,
-        video_id,  # noqa: PLR0913
-        title=None,
-        description=None,
-        tags=None,
-        category_id=None,
-        privacy_status=None,
-        publish_date=None,
-    ):
-        # Prepare the request body
-        body = {"id": video_id, "snippet": {}, "status": {}}
+    def send_video_update(self, resource: YoutubeVideoResource) -> dict:
+        """Send one video's metadata to YouTube.
 
-        if title:
-            body["snippet"]["title"] = title
-        if description:
-            body["snippet"]["description"] = description
-        if tags:
-            body["snippet"]["tags"] = tags
-        if category_id:
-            body["snippet"]["categoryId"] = category_id
-        if privacy_status:
-            body["status"]["privacyStatus"] = privacy_status
-        if publish_date:
-            # YouTube only accepts publishAt on a private video.
-            body["status"]["privacyStatus"] = "private"
-            body["status"]["publishAt"] = to_rfc3339(publish_date)
-
-        # Update video metadata
-        request = self.youtube.videos().update(part="snippet,status", body=body)
+        Posts exactly what `resource.to_update_body()` returns — the same body
+        `youtube update --dry-run` prints — so the preview and the real request
+        cannot diverge. That matters because YouTube deletes any property it does
+        not receive within a part it is updating; a partial body silently wipes
+        tags and resets the status fields.
+        """
+        request = self.youtube.videos().update(part="snippet,status", body=resource.to_update_body())
         response = request.execute()
-
-        print(f"Updated video metadata for video ID: {video_id}")
+        logger.info(f"Updated video metadata for {resource.id}")
         return response
 
     def check_macos_sequoia(self):
@@ -247,13 +242,21 @@ class YT:
         #     return True
         return False
 
-    def check_video_status_by_youtube_ids(self, video_id: str | list[str]):
+    def check_video_status_by_youtube_ids(self, video_id: str | list[str], part: str = "status") -> dict:
+        """Read back video status/snippet from YouTube, in chunks of 50.
+
+        `videos.list` accepts at most 50 ids per call, so a single joined string
+        of 65 ids fails. Chunking keeps the cost at 1 unit per 50 videos and
+        merges the results into one response-shaped dict.
+        """
         if isinstance(video_id, str):
             video_id = [video_id]
-        video_ids = ",".join(video_id)
-        request = self.youtube.videos().list(part="status", id=video_ids)
-        response = request.execute()
-        return response
+        items = []
+        for start in range(0, len(video_id), 50):
+            chunk = video_id[start : start + 50]
+            response = self.youtube.videos().list(part=part, id=",".join(chunk)).execute()
+            items.extend(response.get("items", []))
+        return {"items": items}
 
     def get_youtube_ids_for_uploads(self, youtube_channel: str):
         """Save the YouTube video ids for the uploads to the channel to file.
@@ -716,53 +719,78 @@ class PrepareVideoMetadata:
         """Customize this method to fit your description needs: add or alter attributes used in the template"""
         return description_kwargs
 
-    def send_all_video_metadata(self, destination_channel: str):
+    _QUOTA_REASONS = ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded")
+
+    def videos_to_send(self, destination_channel: str) -> list[Path]:
+        """Queued video records for one channel, in deterministic order.
+
+        Sorted so that a `--limit`ed run always picks the same videos and a
+        resumed run continues predictably. Only reads video_records/; a record is
+        moved out on success, so re-running sends what is left.
+        """
+        queued = []
+        for path in sorted(self.video_records_path.glob("*.json")):
+            video = YoutubeVideoResource.model_validate_json(path.read_text())
+            pretalx_id = self.youtube_id_pretalx_map.get(video.id)
+            if pretalx_id and self.pretalx_youtube_channel_map.get(pretalx_id) == destination_channel:
+                queued.append(path)
+        return queued
+
+    def send_all_video_metadata(self, destination_channel: str, limit: int | None = None) -> dict:
+        """Send queued video metadata for one channel to YouTube.
+
+        Returns a result summary instead of swallowing failures, so the caller
+        can report honestly and set a non-zero exit code. On a quota error it
+        stops rather than burning the remaining budget on doomed calls.
+        """
         if self.dry_run:
             # Constructing YT here would run the interactive OAuth flow and pop a
             # browser window — the opposite of what a dry run is for.
             raise RuntimeError("send_all_video_metadata must not be called on a dry run")
-        logger.info(f"Updating metadata for channel {destination_channel}")
-        ytclient = YT()
-        for youtube_video in self.video_records_path.glob("*.json"):
-            video = YoutubeVideoResource.model_validate_json(youtube_video.read_text())
-            pretalx_id = self.youtube_id_pretalx_map.get(video.id)
-            if not pretalx_id:
-                # no pretalx id found, skip
-                continue
-            channel = self.pretalx_youtube_channel_map.get(pretalx_id)
-            if not channel:
-                # no channel id found, skip
-                continue
-            if channel != destination_channel:
-                # wrong channel, skip
-                continue
-            try:
-                ytclient.update_video_metadata(
-                    video_id=video.id,
-                    title=video.snippet.title,
-                    description=video.snippet.description,
-                    category_id=video.snippet.category_id,
-                    privacy_status=video.status.privacy_status,
-                    publish_date=video.status.publish_at,
-                )
-                youtube_video.rename(ytclient.video_records_path_updated / youtube_video.name)
-                logger.info(f"Updated video: {pretalx_id}, {video.id}")
-            except Exception as e:
-                logger.error(f"Failed to update video {video.id}: {e}")
-                continue
 
-    def update_video_metadata(self, states: str | list[str], func: callable):
-        """update record files with video metadata created already.
-        :param states: str or list of str, values: 'video_records', 'video_records_updated'
-        :param func: custom method to apply to the record
-        """
-        if isinstance(states, str):
-            states = [states]
-        for state in states:
-            if state not in ("video_records", "video_records_updated"):
+        result = {
+            "channel": destination_channel,
+            "total": 0,
+            "updated": 0,
+            "failed": 0,
+            "quota_exhausted": False,
+            "sent_ids": [],
+            "errors": [],
+        }
+        queued = self.videos_to_send(destination_channel)
+        if limit is not None:
+            queued = queued[:limit]
+        result["total"] = len(queued)
+        if not queued:
+            return result
+
+        logger.info(f"Updating metadata for {len(queued)} videos on channel {destination_channel}")
+        ytclient = YT(youtube_offline=True, channel=destination_channel)
+        for path in queued:
+            video = YoutubeVideoResource.model_validate_json(path.read_text())
+            try:
+                ytclient.send_video_update(video)
+            except googleapiclient.errors.HttpError as exc:
+                reason = _http_error_reason(exc)
+                if reason in self._QUOTA_REASONS:
+                    result["quota_exhausted"] = True
+                    result["errors"].append((video.id, f"quota: {reason}"))
+                    logger.error(f"Quota exhausted ({reason}); stopping before the remaining videos")
+                    break
+                result["failed"] += 1
+                result["errors"].append((video.id, str(exc)))
+                logger.error(f"Failed to update video {video.id}: {exc}")
                 continue
-            for record in (self.video_records_path.parent / state).glob("*.json"):
-                func(record)
+            except Exception as exc:
+                result["failed"] += 1
+                result["errors"].append((video.id, str(exc)))
+                logger.error(f"Failed to update video {video.id}: {exc}")
+                continue
+            # Only move on success, so a failed video stays queued for a retry.
+            path.rename(ytclient.video_records_path_updated / path.name)
+            result["updated"] += 1
+            result["sent_ids"].append(video.id)
+        return result
 
     @classmethod
     def update_publish_date(cls, record: Path, publish_date: datetime):

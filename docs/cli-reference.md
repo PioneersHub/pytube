@@ -49,7 +49,7 @@ Every command, with its options. Details follow in the sections below.
 | `pytube video download` | `--client-id` `--limit` | **Not implemented** — use `bulk-download` |
 | **YouTube** | | |
 | `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
-| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` | Write titles/descriptions to YouTube |
+| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` `--limit` `--yes` `--force` | Write titles/descriptions to YouTube |
 | `pytube youtube schedule` | `--start` `--interval` `--preview` | Set publishing schedule |
 | `pytube youtube channels` | — | List configured channels |
 | **Notifications** | | |
@@ -339,6 +339,9 @@ Options:
   --dry-run            Show what would be sent; writes nothing, sends nothing
   --show-body N        With --dry-run: dump the full request body for the first
                        N videos [default: 1]
+  --limit N            Send at most N videos per channel (quota safety)
+  --yes                Skip the confirmation prompt (for scripted runs)
+  --force              Send even if the estimated quota exceeds the daily budget
   --help               Show help message
 ```
 
@@ -354,9 +357,31 @@ pytube youtube update --dry-run
 # Inspect the exact request body for the first three videos
 pytube youtube update --dry-run --show-body 3
 
-# Send, one channel at a time
+# Pilot: send a small sample first and check it on YouTube
+pytube youtube update --channel pyconde --limit 5
+
+# Send the rest, one channel at a time
 pytube youtube update --channel pyconde
 ```
+
+#### The live send
+
+Each `videos.update` costs 50 quota units against a daily budget of 10000
+(`youtube.quota` in config). Before sending, the command prints the estimate
+(`N videos → N×50 of 10000 units`), refuses to start a run that would exceed the
+budget unless `--force` is given, and asks for confirmation unless `--yes` is
+passed. `--limit N` caps how many are sent per channel — the safe way to pilot a
+handful before committing quota to all of them.
+
+The body sent is exactly the one `--dry-run` prints. Authentication uses the
+channel's own cached OAuth token (from `youtube map`), so a live send does not
+open a browser as long as the token is valid.
+
+Failures are reported, not swallowed: a per-channel results table shows
+updated/failed counts, a quota error stops the run rather than burning the rest
+of the budget, a failed video stays queued for a retry, and the command exits
+non-zero if anything failed. After sending, each video is read back from YouTube
+to confirm its privacy status landed.
 
 #### What --dry-run guarantees
 

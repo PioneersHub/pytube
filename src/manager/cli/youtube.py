@@ -179,6 +179,22 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
     show_default=True,
     help="With --dry-run: dump the full request body for the first N videos",
 )
+@click.option(
+    "--limit",
+    type=int,
+    default=None,
+    help="Send at most N videos per channel (quota safety; e.g. a small sample first)",
+)
+@click.option(
+    "--yes",
+    is_flag=True,
+    help="Skip the confirmation prompt before sending (for scripted runs)",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Send even if the estimated quota exceeds the daily budget",
+)
 @click.pass_context
 def update(  # noqa: PLR0913
     ctx: click.Context,
@@ -187,6 +203,9 @@ def update(  # noqa: PLR0913
     channel: str | None,
     dry_run: bool,
     show_body: int,
+    limit: int | None,
+    yes: bool,
+    force: bool,
 ) -> None:
     """Update YouTube video metadata from records.
 
@@ -195,7 +214,8 @@ def update(  # noqa: PLR0913
 
     With --dry-run nothing is written and nothing is sent: the metadata is built
     in memory and printed, including the exact request body. Use it to read the
-    descriptions before spending API quota.
+    descriptions before spending API quota. --limit sends only the first N
+    videos per channel, which is the safe way to pilot before a full run.
     """
     console = ctx.obj["console"]
 
@@ -214,25 +234,97 @@ def update(  # noqa: PLR0913
         console=console,
     ) as progress:
         task = progress.add_task("Preparing metadata...", total=None)
-
         meta = PrepareVideoMetadata(template, event_name, dry_run=dry_run)
-
         progress.update(task, description="Generating video metadata...")
         built = meta.make_all_video_metadata(channel=channel)
-
-        if not dry_run:
-            channels = [channel] if channel else list(conf.youtube.channels.keys())
-            for ch in channels:
-                progress.update(task, description=f"Updating videos on {ch}...")
-                meta.send_all_video_metadata(destination_channel=ch)
-
         progress.stop()
 
     if dry_run:
         _report_dry_run(console, meta, built, show_body)
         console.print(f"\n✓ {len(built)} videos prepared (dry run - nothing sent)", style="yellow")
-    else:
-        console.print("✓ Video metadata updated on YouTube", style="green")
+        return
+
+    channels = [channel] if channel else list(conf.youtube.channels.keys())
+    if not _confirm_send(ctx, console, meta, channels, limit, yes, force):
+        return
+
+    results = []
+    for ch in channels:
+        console.print(f"Sending metadata on [cyan]{ch}[/cyan]...")
+        result = meta.send_all_video_metadata(destination_channel=ch, limit=limit)
+        _verify_sent(console, ch, result)
+        results.append(result)
+
+    _report_send(console, results)
+    if any(r["failed"] or r["quota_exhausted"] for r in results):
+        console.print("[red]✗ Update finished with errors[/red]")
+        ctx.exit(1)
+    console.print("✓ Video metadata updated on YouTube", style="green")
+
+
+def _confirm_send(ctx, console, meta, channels, limit, yes, force) -> bool:
+    """Estimate quota, refuse an over-budget run, and confirm before sending."""
+    quota = conf.youtube.get("quota", {})
+    cost = quota.get("update_cost_units", 50)
+    budget = quota.get("daily_units", 10000)
+
+    planned = 0
+    for ch in channels:
+        n = len(meta.videos_to_send(ch))
+        planned += min(n, limit) if limit is not None else n
+    units = planned * cost
+
+    if planned == 0:
+        console.print("[yellow]Nothing queued to send. Run without --dry-run after `youtube map`.[/yellow]")
+        return False
+
+    pct = round(units / budget * 100) if budget else 0
+    console.print(f"About to update [cyan]{planned}[/cyan] videos → {units} of {budget} quota units ({pct}%)")
+    if units > budget and not force:
+        console.print(
+            f"[red]Estimated {units} units exceeds the daily budget of {budget}. Use --force to override.[/red]"
+        )
+        ctx.exit(1)
+    if not yes and not click.confirm("Send to YouTube now?", default=False):
+        console.print("[yellow]Aborted — nothing sent.[/yellow]")
+        return False
+    return True
+
+
+def _verify_sent(console, channel: str, result: dict) -> None:
+    """Read the just-sent videos back from YouTube and confirm their privacy status.
+
+    Uses the channel's own OAuth token — an API key cannot see unlisted/private
+    videos, so it would report nothing. Only 1 quota unit per 50 videos.
+    """
+    if not result["sent_ids"]:
+        return
+    yt = YT(youtube_offline=True, channel=channel)
+    live = {
+        item["id"]: item.get("status", {}).get("privacyStatus")
+        for item in yt.check_video_status_by_youtube_ids(result["sent_ids"], part="snippet,status").get("items", [])
+    }
+    missing = [vid for vid in result["sent_ids"] if vid not in live]
+    console.print(f"  verified {len(live)}/{len(result['sent_ids'])} on YouTube; privacy: {sorted(set(live.values()))}")
+    if missing:
+        console.print(f"  [yellow]not returned by read-back: {missing}[/yellow]")
+
+
+def _report_send(console, results: list[dict]) -> None:
+    table = Table(title="Update results")
+    for col in ("Channel", "Updated", "Failed", "Quota"):
+        table.add_column(col)
+    for r in results:
+        table.add_row(
+            r["channel"],
+            f"{r['updated']}/{r['total']}",
+            str(r["failed"]),
+            "exhausted" if r["quota_exhausted"] else "ok",
+        )
+    console.print(table)
+    for r in results:
+        for vid, err in r["errors"][:10]:
+            console.print(f"  [red]{r['channel']} {vid}: {err}[/red]")
 
 
 def _report_dry_run(console, meta: PrepareVideoMetadata, built: list, show_body: int) -> None:

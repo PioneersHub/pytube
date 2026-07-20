@@ -133,6 +133,13 @@ youtube:
   #     token_path: ".secrets/token_pydata.json"
   channels: {}
 
+  # YouTube Data API budget. One videos.update costs 50 units; the default daily
+  # pool is 10000. `youtube update` estimates the cost up front and refuses to
+  # start a send that would exceed the daily budget unless --force is given.
+  quota:
+    daily_units: 10000
+    update_cost_units: 50
+
   # Values written on EVERY videos.update call.
   #
   # YouTube deletes any property it does not receive within a part that is being

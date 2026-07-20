@@ -700,3 +700,139 @@ class TestStatusPreservation:
         assert built[0].status.license == "creativeCommon"
         assert built[0].status.embeddable is False
         assert to_rfc3339(built[0].status.publish_at) == "2026-08-03T08:00:00Z"
+
+
+class TestSendAllVideoMetadata:
+    """The live send path: correct body, per-channel auth, honest failures."""
+
+    @pytest.fixture
+    def ready(self, mock_config, tmp_path):
+        """An event with two built pyconde video records queued to send."""
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        videos = event_dir / "videos"
+        (videos / "youtube" / "video_records").mkdir(parents=True)
+        (videos / "youtube" / "video_records_updated").mkdir(parents=True)
+        (videos / "youtube" / "video_published").mkdir(parents=True)
+        (videos / "tracks_map.json").write_text(json.dumps({"AAA111": "main", "BBB222": "main"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"AAA111": "vidAAA", "BBB222": "vidBBB"}))
+        for code, vid in (("AAA111", "vidAAA"), ("BBB222", "vidBBB")):
+            (videos / "youtube" / "video_records" / f"{code}.json").write_text(
+                YoutubeVideoResource(
+                    id=vid,
+                    snippet=VideoSnippet(title=f"Talk {code}", description="d", tags=["Python"]),
+                    status=VideoStatus(privacy_status="unlisted"),
+                ).model_dump_json()
+            )
+        return event_dir
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            m.records_path = m.event_dir / "records"
+            m.video_records_path = m.event_dir / "videos" / "youtube" / "video_records"
+            m._pretalx_youtube_channel_map = {}
+            m._pretalx_youtube_id_map = {}
+            return m
+
+    def test_posts_exactly_to_update_body(self, ready, mock_config):
+        """The live send must equal the dry-run body — every field, or YouTube deletes it."""
+        sent = []
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = lambda r: sent.append(r.to_update_body())
+            self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert len(sent) == 2
+        body = sent[0]
+        assert set(body["snippet"]) == {
+            "title",
+            "description",
+            "categoryId",
+            "tags",
+            "defaultLanguage",
+            "defaultAudioLanguage",
+        }
+        assert set(body["status"]) == {
+            "privacyStatus",
+            "license",
+            "embeddable",
+            "publicStatsViewable",
+            "selfDeclaredMadeForKids",
+        }
+        assert body["snippet"]["tags"] == ["Python"]
+
+    def test_uses_per_channel_offline_auth(self, ready, mock_config):
+        """B7: no bare YT() — it would open a browser and ignore the channel token."""
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            mock_yt.return_value.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        mock_yt.assert_called_once_with(youtube_offline=True, channel="main")
+
+    def test_success_moves_file_to_updated(self, ready, mock_config):
+        updated = ready / "videos" / "youtube" / "video_records_updated"
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            mock_yt.return_value.video_records_path_updated = updated
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["updated"] == 2 and result["failed"] == 0
+        assert {p.name for p in updated.glob("*.json")} == {"AAA111.json", "BBB222.json"}
+        assert not list((ready / "videos" / "youtube" / "video_records").glob("*.json"))
+
+    def test_failure_keeps_file_queued(self, ready, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = [RuntimeError("boom"), {"ok": True}]
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["updated"] == 1 and result["failed"] == 1
+        # The failed one is still queued for a retry.
+        assert len(list((ready / "videos" / "youtube" / "video_records").glob("*.json"))) == 1
+
+    def test_quota_error_stops_the_batch(self, ready, mock_config):
+        err = HttpError(resp=Mock(status=403), content=b"")
+        err.error_details = [{"reason": "quotaExceeded"}]
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = err
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["quota_exhausted"] is True
+        assert result["updated"] == 0
+        # Stopped after the first failure — did not try the second video.
+        assert client.send_video_update.call_count == 1
+
+    def test_limit_sends_only_n_in_order(self, ready, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main", limit=1)
+
+        assert result["updated"] == 1
+        assert result["sent_ids"] == ["vidAAA"]  # AAA111 sorts before BBB222
+
+
+class TestCheckVideoStatusChunking:
+    """videos.list caps at 50 ids, so more than 50 must be chunked."""
+
+    def test_chunks_over_fifty_ids(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        ids = [f"vid{i:03d}" for i in range(120)]
+        with patch("manager.handlers.youtube.conf", mock_config):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        fake.videos().list().execute.side_effect = [
+            {"items": [{"id": i} for i in ids[0:50]]},
+            {"items": [{"id": i} for i in ids[50:100]]},
+            {"items": [{"id": i} for i in ids[100:120]]},
+        ]
+        with patch.object(YT, "youtube", new=fake):
+            out = yt.check_video_status_by_youtube_ids(ids)
+
+        assert len(out["items"]) == 120
