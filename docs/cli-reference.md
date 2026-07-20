@@ -59,9 +59,11 @@ Every command, with its options. Details follow in the sections below.
 | `pytube notify run` | — | Full notification workflow |
 
 Commands that need network access: `records fetch` (Pretalx), `video bulk-download`
-(Vimeo), all `youtube` commands and `notify` (unless `--offline`). The first
-`youtube` command opens a browser for OAuth and caches the token at
-`youtube.channels.<name>.token_path`, falling back to `youtube.token_path`.
+(Vimeo), `youtube map` / `youtube update`, and `notify` (unless `--offline`).
+`youtube map` opens a browser for OAuth on first use and caches the token at
+`youtube.channels.<name>.token_path`, falling back to `youtube.token_path`; see
+[One OAuth token per channel](#one-oauth-token-per-channel) for how the other
+commands authenticate.
 
 ### One OAuth token per channel
 
@@ -82,9 +84,43 @@ authorizing the second channel **overwrites the first channel's token** — the
 first channel then needs a fresh browser authorization on its next command.
 
 `youtube map` creates one client per channel, so `--channel pyconde` only ever
-touches the pyconde token. A run **without** `--channel` walks every configured
-channel and opens a browser authorization for each one in turn; authorize each
-with the matching Google account.
+touches the pyconde token — provided that key is set; without it, `map` silently
+falls back to the shared `youtube.token_path`. A run **without** `--channel` walks
+every configured channel and authenticates each against its own token file,
+opening a browser only for channels whose token is missing or no longer
+refreshable; authorize each with the matching Google account.
+
+> **Note — tokens expire about every 7 days, and that is accepted.**
+> While the Google Cloud OAuth consent screen is in publishing status
+> **Testing**, Google expires refresh tokens after roughly seven days. Moving the
+> app to **In production** would stop that, but it requires going through Google's
+> app verification — deliberately **not** done here, because the effort outweighs
+> re-authorizing occasionally.
+>
+> This only affects `youtube map`, the one command that reuses a cached token.
+> Roughly weekly it will open a browser and ask for authorization again. That is
+> expected, not a misconfiguration: the refresh failure is caught and turned
+> into a browser prompt automatically, so the command continues once you have
+> signed in — with the Google account **belonging to that channel**.
+
+Which commands authenticate, and how:
+
+| Command | Authentication | Browser prompt |
+|---|---|---|
+| `youtube map` | Cached token, per channel | Only when the token is missing or can no longer be refreshed |
+| `youtube update` | Interactive OAuth, no token cache | **Every run**, once per channel |
+| `youtube schedule` | None — rewrites local record files only | Never |
+| `notify *` | API key (`youtube.api_key`) | Never |
+
+So `youtube update` ignores `token_path` entirely and re-prompts on every
+invocation regardless of token expiry; sign in with the account owning the channel
+you are targeting.
+
+Each channel's playlist snapshot under
+`{work_dir}/{event_slug}/videos/youtube_<channel>_playlist.json` is only rewritten
+by a run covering that channel. After changing a playlist on YouTube, re-run
+`youtube map` for that channel before reading the file — otherwise it still shows
+the state of the previous run.
 
 ## Interactive Assistant
 
