@@ -25,8 +25,12 @@ vimeo:
 # ########################################
 # ########################################
 dirs:
-  work_dir: "._tmp"
-  video_dir: "./_tmp/videos"
+  # Root for all project data. Each event lives in projects/<slug>/, holding its
+  # own config.yaml, records, videos and the YouTube description template.
+  work_dir: "projects"
+  # Video files of the active event. Event-specific — override this in
+  # projects/<slug>/config.yaml, not here.
+  video_dir: "projects/videos"
 # ########################################
 # # GOOGLE SHEETS
 # ########################################
@@ -58,8 +62,14 @@ pretalx:
   # Hand-edit values to override the default short form per room.
   room_mapping_yaml: "/Volumes/DATA4T/2026/pyconde-pydata-2026_room_mapping.yaml"
   # Videos need to be split between the PyCon DE and PyData YouTube channels
-  video_to_track:
-    CODE: "Track"
+  # Videos need to be split between the PyCon DE and PyData YouTube channels.
+  # Define the real mapping in projects/<slug>/config.yaml, for example:
+  #   video_to_track:
+  #     3C9P9V: pyconde
+  #     AF9DNH: pydata
+  #     7YA98N: no_publishing
+  # Keep this empty: a placeholder entry here would merge into the real mapping.
+  video_to_track: {}
   # identify the channel by track name or snippet
   track_to_channel:
     pycon: "pycon"

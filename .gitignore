@@ -169,6 +169,8 @@ _secret
 .idea
 ,pixi
 config_local.yaml
+# Backups of the secrets file must never be tracked either.
+config_local.yaml.*
 
 _data
 
@@ -178,3 +180,12 @@ CLAUDE.md
 
 .work
 .secrets/*
+
+# Project data (records, videos, playlist snapshots) is far too large to track —
+# the 2026 event alone is >100 GB of video. Only the per-event configuration and
+# its optional description template belong in git.
+projects/*
+!projects/*/
+projects/*/*
+!projects/*/config.yaml
+!projects/*/youtube_*.txt

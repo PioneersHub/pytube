@@ -83,7 +83,7 @@ original, so this costs no additional disk space (verify as shown in
 [Step by Step](step-by-step.md#sourcing-files-from-cloud-storage-macos)).
 
 ```bash
-for dir in _tmp/videos/pyconde _tmp/videos/pydata; do
+for dir in projects/pyconde-pydata-2026/videos/pyconde projects/pyconde-pydata-2026/videos/pydata; do
   for link in "$dir"/*; do
     [ -L "$link" ] || continue                 # already a real file, skip
     target=$(readlink "$link")

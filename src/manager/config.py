@@ -9,20 +9,34 @@ def load_config(
     config_path: Path | str | None = None,
     local_config_path: Path | str | None = None,
     overrides: list[str] | None = None,
+    project: str | None = None,
 ) -> DictConfig:
     """Load configuration from YAML files with optional overrides.
+
+    Configuration is layered, each layer owning a distinct kind of key so that
+    every setting has exactly one home:
+
+    1. ``config.yaml`` — defaults, and documentation of every available key.
+    2. ``projects/<slug>/config.yaml`` — everything event-specific (channels,
+       playlists, code-to-channel mapping, transcript location).
+    3. ``config_local.yaml`` — secrets and machine-specific paths only. Never
+       committed.
 
     Args:
         config_path: Path to main configuration file. If None, searches standard locations.
         local_config_path: Path to local override configuration. If None, looks for config_local.yaml.
         overrides: List of config overrides in dot notation.
                   Example: ["model.name=bert-large", "training.epochs=20"]
+        project: Slug of the project to load. If None, falls back to the
+                 ``active_project`` key in the local config. If neither is set,
+                 no project layer is applied.
 
     Returns:
         Loaded and resolved configuration.
 
     Raises:
-        FileNotFoundError: If config.yaml cannot be found in any standard location.
+        FileNotFoundError: If config.yaml cannot be found in any standard location,
+            or if the requested project has no config.yaml.
     """
     # Find config.yaml if not provided
     if config_path is None:
@@ -66,8 +80,24 @@ def load_config(
 
     local_conf = OmegaConf.load(local_config_path)
 
-    # Merge configurations
-    conf = OmegaConf.merge(global_conf, local_conf)
+    # Project layer sits between defaults and secrets: an explicit --project wins,
+    # otherwise the local config names the active one. Fail loudly on a missing
+    # project rather than silently running against the defaults, which would
+    # quietly write to the wrong event directory.
+    if project is None:
+        project = local_conf.get("active_project")
+
+    if project:
+        project_config_path = config_path.parent / "projects" / project / "config.yaml"
+        if not project_config_path.exists():
+            raise FileNotFoundError(
+                f"No configuration for project {project!r}: {project_config_path} does not exist.\n"
+                "Create it, or pick a different project with --project."
+            )
+        conf = OmegaConf.merge(global_conf, OmegaConf.load(project_config_path), local_conf)
+        conf["active_project"] = project
+    else:
+        conf = OmegaConf.merge(global_conf, local_conf)
 
     # Apply command-line overrides if provided
     if overrides:
@@ -237,8 +267,7 @@ def _validate_raw_source_account(idx: int, account, seen_names: set[str]) -> lis
     selection = account.get("selection")
     if selection is None:
         errors.append(
-            f"vimeo.raw_sources account '{label}': selection must set exactly one of "
-            f"{', '.join(_SELECTION_KEYS)}"
+            f"vimeo.raw_sources account '{label}': selection must set exactly one of {', '.join(_SELECTION_KEYS)}"
         )
         return errors
 
@@ -249,9 +278,7 @@ def _validate_raw_source_account(idx: int, account, seen_names: set[str]) -> lis
             f"{', '.join(_SELECTION_KEYS)} (got {set_keys or 'none'})"
         )
     elif set_keys[0] == "folder_id" and not account.get("user_id"):
-        errors.append(
-            f"vimeo.raw_sources account '{label}': user_id required when selection.folder_id is set"
-        )
+        errors.append(f"vimeo.raw_sources account '{label}': user_id required when selection.folder_id is set")
     return errors
 
 
@@ -277,8 +304,7 @@ def _validate_raw_source_download(download) -> list[str]:
     max_concurrent = download.get("max_concurrent", 2)
     if not isinstance(max_concurrent, int) or max_concurrent < _MIN_CONCURRENT:
         errors.append(
-            f"vimeo.raw_sources.download.max_concurrent: must be an int >= {_MIN_CONCURRENT} "
-            f"(got {max_concurrent!r})"
+            f"vimeo.raw_sources.download.max_concurrent: must be an int >= {_MIN_CONCURRENT} (got {max_concurrent!r})"
         )
 
     max_accounts_concurrent = download.get("max_accounts_concurrent")
@@ -291,12 +317,9 @@ def _validate_raw_source_download(download) -> list[str]:
         )
 
     retry_max_attempts = download.get("retry_max_attempts")
-    if retry_max_attempts is not None and (
-        not isinstance(retry_max_attempts, int) or retry_max_attempts < 0
-    ):
+    if retry_max_attempts is not None and (not isinstance(retry_max_attempts, int) or retry_max_attempts < 0):
         errors.append(
-            f"vimeo.raw_sources.download.retry_max_attempts: must be an int >= 0 "
-            f"(got {retry_max_attempts!r})"
+            f"vimeo.raw_sources.download.retry_max_attempts: must be an int >= 0 (got {retry_max_attempts!r})"
         )
     return errors
 

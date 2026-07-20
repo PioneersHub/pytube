@@ -11,7 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from manager import conf, logger
 from manager.config import get_event_dir
@@ -507,7 +507,18 @@ class PrepareVideoMetadata:
             self.yt_metadata.append(ytv)
 
     def load_template(self):
-        env = Environment(loader=PackageLoader("src"), autoescape=select_autoescape())
+        """Load the description template, preferring the event's own copy.
+
+        Descriptions are event-specific (year, links, sponsor wording), so each
+        project may ship its own template in projects/<slug>/. The packaged
+        templates are the fallback for events that don't need a custom one.
+
+        `PackageLoader("src")` used to be passed here, which resolves to
+        `src/templates/` — a directory that does not exist. Any call raised
+        before rendering a single description.
+        """
+        search_path = [self.event_dir, Path(__file__).parent.parent / "templates"]
+        env = Environment(loader=FileSystemLoader(search_path), autoescape=select_autoescape())
         self._template = env.get_template(self.template_file)
 
     def make_all_video_metadata(self):
