@@ -225,8 +225,14 @@ class YT:
         cannot diverge. That matters because YouTube deletes any property it does
         not receive within a part it is updating; a partial body silently wipes
         tags and resets the status fields.
+
+        The `part` is derived from the body's top-level keys, so a part is only
+        ever updated when the body carries it (e.g. recordingDetails is included
+        only when a recording date is present).
         """
-        request = self.youtube.videos().update(part="snippet,status", body=resource.to_update_body())
+        body = resource.to_update_body()
+        part = ",".join(k for k in ("snippet", "status", "recordingDetails") if k in body)
+        request = self.youtube.videos().update(part=part, body=body)
         response = request.execute()
         logger.info(f"Updated video metadata for {resource.id}")
         return response
@@ -614,7 +620,10 @@ class PrepareVideoMetadata:
             (self.records_path / f"{record.pretalx_id}.json").write_text(record.model_dump_json(indent=4))
             logger.info(f"Saved updated record of {record.pretalx_id}")
 
-        recorded_iso: str = record.recorded_date.strftime("%d.%m.%Y")
+        # Store the recording date as an ISO date ("2026-04-14") so to_update_body
+        # can widen it to the RFC 3339 form YouTube's recordingDate requires. The
+        # German-format date shown inside the description is rendered separately.
+        recorded_iso: str = record.recorded_date.isoformat()
         target, status = self.video_record_target(record.pretalx_id, youtube_channel)
 
         youtube_video_ressource = YoutubeVideoResource(

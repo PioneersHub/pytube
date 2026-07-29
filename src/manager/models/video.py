@@ -75,12 +75,14 @@ class YoutubeVideoResource(BaseModel):
     status: VideoStatus = Field(default_factory=VideoStatus)
 
     def to_update_body(self) -> dict:
-        """Build the exact body for `youtube.videos().update(part="snippet,status")`.
+        """Build the exact body for `youtube.videos().update`.
 
-        Every property of both parts is set explicitly. YouTube deletes any
+        Every property of each part sent is set explicitly. YouTube deletes any
         property it does not receive within a part that is being updated, so
         omitting `tags` here would wipe the video's tags, and omitting
-        `selfDeclaredMadeForKids` would reset the audience declaration.
+        `selfDeclaredMadeForKids` would reset the audience declaration. The
+        caller derives the `part` parameter from the keys present here, so a
+        part is only ever updated when this body carries its full contents.
 
         This is the single place that knows the wire format: `--dry-run` prints
         what this returns, and the live path sends the same dict.
@@ -108,6 +110,12 @@ class YoutubeVideoResource(BaseModel):
             # publicly once that time passes.
             body["status"]["publishAt"] = to_rfc3339(self.status.publish_at)
             body["status"]["privacyStatus"] = "private"
+        if self.recording_details and self.recording_details.recording_date:
+            # The date the talk was given. YouTube wants RFC 3339; a date-only ISO
+            # string ("2026-04-14") is widened to midnight UTC by to_rfc3339. The
+            # part is only added when we actually have a date, so we never clear an
+            # existing recordingDate by sending an empty object.
+            body["recordingDetails"] = {"recordingDate": to_rfc3339(self.recording_details.recording_date)}
         return body
 
 

@@ -16,6 +16,7 @@ from googleapiclient.errors import HttpError
 
 from manager.handlers.youtube import YT, PrepareVideoMetadata
 from manager.models.video import (
+    BaseRecordingDetails,
     VideoSnippet,
     VideoStatus,
     YoutubeVideoResource,
@@ -293,12 +294,23 @@ class TestUpdateBody:
     updated, so `to_update_body` must always emit every field of both parts.
     """
 
-    def _resource(self, **status_kwargs) -> YoutubeVideoResource:
+    def _resource(self, recording_date=None, **status_kwargs) -> YoutubeVideoResource:
         return YoutubeVideoResource(
             id="vid123",
             snippet=VideoSnippet(title="A talk", description="What it covers.", tags=["Python"]),
+            recording_details=BaseRecordingDetails(recording_date=recording_date),
             status=VideoStatus(**status_kwargs),
         )
+
+    def test_recording_date_widened_to_rfc3339(self):
+        """A date-only ISO recording date is sent as midnight-UTC RFC 3339."""
+        body = self._resource(recording_date="2026-04-14").to_update_body()
+
+        assert body["recordingDetails"]["recordingDate"] == "2026-04-14T00:00:00Z"
+        assert json.loads(json.dumps(body))  # serialisable
+
+    def test_no_recording_details_without_a_date(self):
+        assert "recordingDetails" not in self._resource().to_update_body()
 
     def test_sends_every_snippet_and_status_field(self):
         body = self._resource().to_update_body()
@@ -611,11 +623,15 @@ class TestMakeVideoMetadata:
         assert [r.id for r in built] == ["vidBBB"]
 
     def test_uses_the_first_slot_as_recording_date(self, event, mock_config):
-        """`slots` is when the talk was given; there is no `slot` attribute."""
+        """`slots` is when the talk was given; there is no `slot` attribute.
+
+        Stored as an ISO date so to_update_body can widen it to RFC 3339.
+        """
         with patch("manager.handlers.youtube.conf", mock_config):
             built = self._handler(mock_config).make_all_video_metadata()
 
-        assert built[0].recording_details.recording_date == "14.04.2026"
+        assert built[0].recording_details.recording_date == "2026-04-14"
+        assert built[0].to_update_body()["recordingDetails"]["recordingDate"] == "2026-04-14T00:00:00Z"
 
     def test_skips_a_talk_without_a_slot(self, event, mock_config):
         (event / "records" / "AAA111.json").write_text(json.dumps(_session_record("AAA111", slots=[])))
@@ -816,6 +832,39 @@ class TestSendAllVideoMetadata:
 
         assert result["updated"] == 1
         assert result["sent_ids"] == ["vidAAA"]  # AAA111 sorts before BBB222
+
+
+class TestSendVideoUpdatePart:
+    """The update `part` must match the body, or YouTube clears the missing parts."""
+
+    def _yt(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        with patch("manager.handlers.youtube.conf", mock_config):
+            return YT(youtube_offline=True, channel="main")
+
+    def test_part_includes_recording_details_when_present(self, mock_config, tmp_path):
+        yt = self._yt(mock_config, tmp_path)
+        resource = YoutubeVideoResource(
+            id="vid1",
+            snippet=VideoSnippet(title="t", description="d"),
+            recording_details=BaseRecordingDetails(recording_date="2026-04-14"),
+        )
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.send_video_update(resource)
+
+        _, kwargs = fake.videos().update.call_args
+        assert kwargs["part"] == "snippet,status,recordingDetails"
+
+    def test_part_omits_recording_details_without_a_date(self, mock_config, tmp_path):
+        yt = self._yt(mock_config, tmp_path)
+        resource = YoutubeVideoResource(id="vid1", snippet=VideoSnippet(title="t", description="d"))
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.send_video_update(resource)
+
+        _, kwargs = fake.videos().update.call_args
+        assert kwargs["part"] == "snippet,status"
 
 
 class TestCheckVideoStatusChunking:
