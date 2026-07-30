@@ -656,6 +656,44 @@ class TestMakeVideoMetadata:
             self._handler(mock_config, dry_run=True).send_all_video_metadata(destination_channel="main")
 
 
+class TestPerChannelTemplate:
+    """The description template can branch per channel via {% if pydata/pyconde %}."""
+
+    @pytest.fixture
+    def event(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        (event_dir / "records").mkdir(parents=True)
+        videos = event_dir / "videos"
+        (videos / "youtube" / "video_records").mkdir(parents=True)
+        for code in ("PYC001", "PYD001"):
+            (event_dir / "records" / f"{code}.json").write_text(json.dumps(_session_record(code)))
+        (videos / "tracks_map.json").write_text(json.dumps({"PYC001": "pyconde", "PYD001": "pydata"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"PYC001": "vidPYC", "PYD001": "vidPYD"}))
+        # A template that reveals which channel branch rendered.
+        (event_dir / "youtube_test.txt").write_text(
+            "{% if pyconde %}PYCONDE_ONLY{% endif %}{% if pydata %}PYDATA_ONLY{% endif %} [{{ channel }}]"
+        )
+        return event_dir
+
+    def test_pydata_block_only_for_pydata(self, event, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = PrepareVideoMetadata("youtube_test.txt", "at").make_all_video_metadata()
+
+        by_id = {r.id: r.snippet.description for r in built}
+        assert "PYCONDE_ONLY" in by_id["vidPYC"] and "PYDATA_ONLY" not in by_id["vidPYC"]
+        assert "PYDATA_ONLY" in by_id["vidPYD"] and "PYCONDE_ONLY" not in by_id["vidPYD"]
+        assert "[pyconde]" in by_id["vidPYC"] and "[pydata]" in by_id["vidPYD"]
+
+    def test_loader_prefers_project_template(self, event, mock_config):
+        """A template in the event dir wins over the packaged one of the same name."""
+        with patch("manager.handlers.youtube.conf", mock_config):
+            meta = PrepareVideoMetadata("youtube_test.txt", "at")
+            rendered = meta.template.render(channel="pydata", pydata=True, pyconde=False, description="")
+
+        assert "PYDATA_ONLY" in rendered  # the event-dir template, not a packaged file
+
+
 class TestStatusPreservation:
     """`youtube update` must not discard a schedule set by `youtube schedule`."""
 

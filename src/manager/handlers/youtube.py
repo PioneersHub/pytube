@@ -710,14 +710,23 @@ class PrepareVideoMetadata:
         return kept
 
     def render_description(self, description: str, record: SessionRecord):
-        """Provides commonly used values for rendering the description"""
+        """Provides commonly used values for rendering the description.
+
+        Exposes the video's channel so templates can branch per channel with
+        ``{% if pydata %}…{% endif %}`` / ``{% if pyconde %}…{% endif %}``.
+        `record.youtube_channel` is set by make_video_metadata before this runs.
+        """
         safe_conf = SafeConfig(conf)
+        channel = record.youtube_channel
         description_kwargs = {
             "date": record.recorded_date.strftime("%d.%m.%Y"),
             "session_link": f"{safe_conf.get('event.program_url', '')}{record.pretalx_id}/",
             "teaser_text": record.sm_teaser_text,
             "speakers": ", ".join([f"{s.name}" for s in record.speakers]),
             "description": description,
+            "channel": channel,
+            "pydata": channel == "pydata",
+            "pyconde": channel == "pyconde",
         }
         description_kwargs = self.customize_description_args(description_kwargs, record)
         text = self.template.render(**description_kwargs)

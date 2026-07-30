@@ -109,7 +109,35 @@ flag would require every command to rebuild the configuration after parsing.
 4. `pytube status` — confirms the event directory, channels and video directory
    resolve as intended.
 
-To customise the YouTube description text for that event, drop a template into
-`projects/<slug>/` using the same filename the `youtube update --template` option
-expects (default `youtube_2026.txt`). The loader prefers the project's copy and
-falls back to the packaged templates in `src/manager/templates/`.
+## Description template
+
+`youtube update` renders each video's description from a Jinja2 template. To
+customise the text for an event, drop a template into `projects/<slug>/` using
+the filename the `--template` option expects (default `youtube_2026.txt`). The
+loader prefers the project's copy and falls back to the packaged templates in
+`src/manager/templates/`, so editing the project copy never touches the shared
+default.
+
+Available placeholders:
+
+| Variable | Meaning |
+|---|---|
+| `{{ date }}` | Recording date, `dd.mm.yyyy` |
+| `{{ session_link }}` | Link to the talk on the conference site |
+| `{{ teaser_text }}` | One-line teaser (`sm_teaser_text`) |
+| `{{ speakers }}` | Comma-separated speaker names |
+| `{{ description }}` | The generated description body |
+| `{{ channel }}` | Channel name, e.g. `pyconde` / `pydata` |
+| `pydata` / `pyconde` | Booleans for the video's channel |
+
+Use the booleans to branch per channel — the block only renders for videos on
+that channel:
+
+```jinja
+{% if pydata %}
+PyData is an educational program of NumFOCUS …
+{% endif %}
+```
+
+Changing the template only affects videos sent **after** the edit; already-sent
+videos keep their old description until re-sent with `youtube update`.
