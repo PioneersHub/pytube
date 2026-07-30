@@ -2,6 +2,7 @@
 
 import json
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import click
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -9,6 +10,7 @@ from rich.table import Table
 
 from manager import conf
 from manager.handlers.youtube import YT, PrepareVideoMetadata
+from manager.utils.common import SafeConfig
 
 
 @click.group()
@@ -389,76 +391,104 @@ def _report_dry_run(console, meta: PrepareVideoMetadata, built: list, show_body:
 @click.option(
     "--interval",
     default="4h",
-    help="Publishing interval (e.g., 4h, 1d, 30m)",
+    help="Interval between releases (e.g. 4h, 1d, 30m). Use 0 for one shared date (all at --start).",
 )
 @click.option(
     "--preview",
     is_flag=True,
-    help="Show publishing schedule without applying",
+    help="Show the real per-video schedule without applying",
 )
 @click.pass_context
 def schedule(ctx: click.Context, start: str | None, interval: str, preview: bool) -> None:
-    """Set publishing schedule for videos.
+    """Set the publishing date for the queued videos.
 
-    Schedule videos to be published at regular intervals.
-    Videos must be set to 'private' for scheduling to work.
+    Writes `status.publish_at` locally (no API quota) and re-queues the records
+    so `youtube update` transmits the date. Videos must be private for YouTube
+    to accept a scheduled publish; the send forces that automatically.
+
+    `--interval 0` gives every video the same date — one coordinated release.
     """
     console = ctx.obj["console"]
 
-    # Parse start time
-    if start is None:
-        start_dt = datetime.now(tz=UTC) + timedelta(minutes=5)
-    elif start.startswith("now+"):
-        # Parse relative time like "now+5m", "now+2h", etc.
-        time_str = start[4:]
-        if time_str.endswith("m"):
-            minutes = int(time_str[:-1])
-            start_dt = datetime.now(tz=UTC) + timedelta(minutes=minutes)
-        elif time_str.endswith("h"):
-            hours = int(time_str[:-1])
-            start_dt = datetime.now(tz=UTC) + timedelta(hours=hours)
-        else:
-            console.print("[red]Invalid relative time format. Use 'now+5m' or 'now+2h'[/red]")
-            return
-    else:
-        try:
-            start_dt = datetime.fromisoformat(start).replace(tzinfo=UTC)
-        except ValueError:
-            console.print("[red]Invalid date format. Use ISO format or 'now+5m'[/red]")
-            return
-
-    # Parse interval
-    if interval.endswith("m"):
-        delta = timedelta(minutes=int(interval[:-1]))
-    elif interval.endswith("h"):
-        delta = timedelta(hours=int(interval[:-1]))
-    elif interval.endswith("d"):
-        delta = timedelta(days=int(interval[:-1]))
-    else:
-        console.print("[red]Invalid interval format. Use '4h', '30m', or '1d'[/red]")
+    start_dt = _parse_start(console, start)
+    if start_dt is None:
+        return
+    delta = _parse_interval(console, interval)
+    if delta is None:
         return
 
     console.print(f"Schedule start: {start_dt.strftime('%Y-%m-%d %H:%M %Z')}")
-    console.print(f"Publishing interval: {interval}")
+    console.print("Mode: [cyan]one shared date for all[/cyan]" if delta == timedelta(0) else f"Interval: {interval}")
+
+    meta = PrepareVideoMetadata("", "")  # template not needed for scheduling
+    plan = meta.plan_publish_dates(states=["video_records", "video_records_updated"], start=start_dt, delta=delta)
+
+    if not plan:
+        console.print("[yellow]Nothing queued to schedule.[/yellow]")
+        return
 
     if preview:
-        # Show preview of schedule
-        table = Table(title="Publishing Schedule Preview")
-        table.add_column("Video #", style="cyan")
-        table.add_column("Publish Date/Time", style="green")
-
-        current_time = start_dt
-        for i in range(10):  # Show first 10
-            table.add_row(str(i + 1), current_time.strftime("%Y-%m-%d %H:%M %Z"))
-            current_time += delta
-
+        table = Table(title=f"Publishing schedule ({len(plan)} videos)")
+        table.add_column("Code", style="cyan")
+        table.add_column("Publish at", style="green")
+        for path, when in plan[:10]:
+            table.add_row(path.stem, when.strftime("%Y-%m-%d %H:%M %Z"))
         console.print(table)
-        console.print("\n[dim]... schedule continues with same interval[/dim]")
-    else:
-        # Apply schedule
-        meta = PrepareVideoMetadata("", "")  # Template not needed for scheduling
-        meta.update_publish_dates(states=["video_records", "video_records_updated"], start=start_dt, delta=delta)
-        console.print("✓ Publishing schedule applied", style="green")
+        first, last = plan[0][1], plan[-1][1]
+        if first == last:
+            console.print(
+                f"\nAll [cyan]{len(plan)}[/cyan] videos → [green]{first.strftime('%Y-%m-%d %H:%M %Z')}[/green]"
+            )
+        else:
+            console.print(f"\n{len(plan)} videos from {first:%Y-%m-%d %H:%M} to {last:%Y-%m-%d %H:%M %Z}")
+        console.print("[dim]Preview only — nothing written. Re-run without --preview to apply.[/dim]")
+        return
+
+    meta.update_publish_dates(states=["video_records", "video_records_updated"], start=start_dt, delta=delta)
+    console.print(f"✓ Publishing date set for {len(plan)} videos (run `youtube update` to send)", style="green")
+
+
+def _parse_start(console, start: str | None) -> datetime | None:
+    """Parse --start. Naive datetimes are the event's local time, not UTC."""
+    if start is None:
+        return datetime.now(tz=UTC) + timedelta(minutes=5)
+    if start.startswith("now+"):
+        unit = start[-1]
+        try:
+            amount = int(start[4:-1])
+        except ValueError:
+            unit = ""
+        if unit == "m":
+            return datetime.now(tz=UTC) + timedelta(minutes=amount)
+        if unit == "h":
+            return datetime.now(tz=UTC) + timedelta(hours=amount)
+        console.print("[red]Invalid relative time. Use 'now+5m' or 'now+2h'.[/red]")
+        return None
+    try:
+        parsed = datetime.fromisoformat(start)
+    except ValueError:
+        console.print("[red]Invalid date format. Use ISO 8601 (e.g. 2026-08-03T18:00) or 'now+5m'.[/red]")
+        return None
+    if parsed.tzinfo is None:
+        # A bare "2026-08-03T18:00" means 18:00 in the event's timezone, not UTC —
+        # forcing UTC here silently shifted a German release by two hours.
+        tz = ZoneInfo(SafeConfig(conf).get("event.timezone", "Europe/Berlin"))
+        parsed = parsed.replace(tzinfo=tz)
+    return parsed
+
+
+def _parse_interval(console, interval: str) -> timedelta | None:
+    """Parse --interval. '0' means a single shared date for all videos."""
+    if interval.strip() == "0":
+        return timedelta(0)
+    units = {"m": "minutes", "h": "hours", "d": "days"}
+    if interval and interval[-1] in units:
+        try:
+            return timedelta(**{units[interval[-1]]: int(interval[:-1])})
+        except ValueError:
+            pass
+    console.print("[red]Invalid interval. Use '4h', '30m', '1d', or '0' for one shared date.[/red]")
+    return None
 
 
 @youtube.command()

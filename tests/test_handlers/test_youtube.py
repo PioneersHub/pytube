@@ -933,3 +933,71 @@ class TestCheckVideoStatusChunking:
             out = yt.check_video_status_by_youtube_ids(ids)
 
         assert len(out["items"]) == 120
+
+
+class TestBatchScheduling:
+    """plan_publish_dates: deterministic order and single-date mode."""
+
+    @pytest.fixture
+    def meta(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        vr = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records"
+        vr.mkdir(parents=True)
+        (vr.parent / "video_records_updated").mkdir()
+        # Out-of-order codes to prove sorting (not insertion / not random).
+        for code in ("CCC333", "AAA111", "BBB222"):
+            (vr / f"{code}.json").write_text(
+                YoutubeVideoResource(
+                    id=f"vid{code}", snippet=VideoSnippet(title="t", description="d")
+                ).model_dump_json()
+            )
+        with patch("manager.handlers.youtube.conf", mock_config):
+            yield PrepareVideoMetadata("", "")
+
+    def test_single_date_for_all(self, meta):
+        """--interval 0 → timedelta(0) → every video gets the same datetime."""
+        t = datetime(2026, 8, 3, 16, 0, tzinfo=UTC)
+        plan = meta.plan_publish_dates(start=t, delta=timedelta(0))
+
+        assert len(plan) == 3
+        assert {when for _, when in plan} == {t}
+
+    def test_deterministic_order_by_code(self, meta):
+        """Replaces random.shuffle: order is alphabetical by code, reproducible."""
+        plan = meta.plan_publish_dates(start=datetime(2026, 8, 3, 16, 0, tzinfo=UTC), delta=timedelta(days=1))
+
+        assert [p.stem for p, _ in plan] == ["AAA111", "BBB222", "CCC333"]
+
+
+class TestScheduleParsing:
+    """CLI --start / --interval parsing (timezone + single-date)."""
+
+    def test_naive_start_uses_event_timezone_not_utc(self, mock_config):
+        from manager.cli.youtube import _parse_start
+
+        with patch("manager.cli.youtube.conf", mock_config):
+            dt = _parse_start(MagicMock(), "2026-08-03T18:00")
+        # Europe/Berlin in August = UTC+2, so 18:00 local is 16:00 UTC — not 18:00 UTC.
+        assert dt.astimezone(UTC).hour == 16
+
+    def test_start_with_offset_is_respected(self, mock_config):
+        from manager.cli.youtube import _parse_start
+
+        with patch("manager.cli.youtube.conf", mock_config):
+            dt = _parse_start(MagicMock(), "2026-08-03T18:00+00:00")
+        assert dt.astimezone(UTC).hour == 18
+
+    def test_interval_zero_is_single_date(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "0") == timedelta(0)
+
+    def test_interval_units(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "1d") == timedelta(days=1)
+
+    def test_interval_invalid_returns_none(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "bogus") is None

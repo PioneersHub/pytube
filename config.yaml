@@ -100,6 +100,9 @@ event:
   program_url: "https://2026.pycon.de/program/"
   # 24-hour. Sessions before this hour are classified Morning, on/after Afternoon.
   lunch_break_cut: 13
+  # Timezone for a `youtube schedule --start` value given without an offset
+  # (e.g. "2026-08-03T18:00" is read as this local time, not UTC).
+  timezone: "Europe/Berlin"
 # ########################################
 # Local path to content images
 session_images: ""

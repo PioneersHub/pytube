@@ -1,4 +1,3 @@
-import random
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -830,6 +829,34 @@ class PrepareVideoMetadata:
         print("Updated publish date to", publish_date.isoformat())
         save_json(record_data, record)
 
+    def plan_publish_dates(
+        self,
+        states: str | list[str] | tuple[str] = ("video_records", "video_records_updated"),
+        start: datetime | None = None,
+        delta: timedelta | None = None,
+        end: datetime | None = None,
+        steps: int | None = None,
+    ) -> list[tuple[Path, datetime]]:
+        """Assign a publish datetime to each queued record, deterministically.
+
+        Records are ordered alphabetically by Pretalx code (the filename stem) so
+        that `--preview` matches the applied run and re-runs are reproducible; the
+        previous `random.shuffle` made both impossible. With `delta=timedelta(0)`
+        every record gets the same datetime (one coordinated release).
+        """
+        if isinstance(states, str):
+            states = [states]
+        if start is None:
+            start = datetime.now(UTC)
+        records = []
+        for state in states:
+            if state not in ("video_records", "video_records_updated"):
+                continue
+            records.extend((self.video_records_path.parent / state).glob("*.json"))
+        records = sorted(records, key=lambda p: p.stem)
+        gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
+        return list(zip(records, gen, strict=False))
+
     def update_publish_dates(
         self,
         states: str | list[str] | tuple[str] = ("video_records", "video_records_updated"),
@@ -838,25 +865,12 @@ class PrepareVideoMetadata:
         end: datetime | None = None,
         steps: int | None = None,
     ):
-        """ " Update or add periodical publishing dates for videos randomly."""
-        if isinstance(states, str):
-            states = [states]
-        if start is None:
-            start = datetime.now(UTC)
-        gen = self.publish_dates_generator(start, delta=delta, end=end, steps=steps)
-        records = []
-        for state in states:
-            if state not in ("video_records", "video_records_updated"):
-                continue
-            records.extend(list((self.video_records_path.parent / state).glob("*.json")))
-        random.shuffle(records)
-        for record, publish_at in zip(records, gen, strict=False):
+        """Write the planned publish date to each record and re-queue it to send."""
+        for record, publish_at in self.plan_publish_dates(states, start, delta=delta, end=end, steps=steps):
             self.update_publish_date(record, publish_at)
-            # move to queue for YouTube metadata updates
+            # move back to the send queue so `youtube update` transmits the date
             record.rename(self.video_records_path / record.name)
-            logger.info(
-                f"Updated publish date for {record.name} in the video file.Please do not forget to publish the update."
-            )
+            logger.info(f"Set publish date {publish_at.isoformat()} for {record.stem}")
 
     @staticmethod
     def publish_dates_generator(
