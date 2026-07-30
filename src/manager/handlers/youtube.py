@@ -517,7 +517,9 @@ class PrepareVideoMetadata:
         env = Environment(loader=FileSystemLoader(search_path), autoescape=select_autoescape())
         self._template = env.get_template(self.template_file)
 
-    def make_all_video_metadata(self, channel: str | None = None) -> list[YoutubeVideoResource]:
+    def make_all_video_metadata(
+        self, channel: str | None = None, only: set[str] | None = None
+    ) -> list[YoutubeVideoResource]:
         """Build YouTube metadata for every talk that has an uploaded video.
 
         Driven by pretalx_yt_map.json — the only artifact that means "uploaded to
@@ -529,11 +531,14 @@ class PrepareVideoMetadata:
         Sorted so that partial runs are deterministic and repeatable.
 
         :param channel: only build videos assigned to this channel
+        :param only: if given, restrict to these Pretalx codes (targeted re-runs)
         :return: the resources that were built, in order
         """
         built = []
         for pretalx_id in sorted(self.pretalx_youtube_id_map):
             if channel and self.pretalx_youtube_channel_map.get(pretalx_id) != channel:
+                continue
+            if only is not None and pretalx_id not in only:
                 continue
             resource = self.make_video_metadata(pretalx_id)
             if resource is not None:
@@ -739,22 +744,29 @@ class PrepareVideoMetadata:
 
     _QUOTA_REASONS = ("quotaExceeded", "dailyLimitExceeded", "rateLimitExceeded")
 
-    def videos_to_send(self, destination_channel: str) -> list[Path]:
+    def videos_to_send(self, destination_channel: str, only: set[str] | None = None) -> list[Path]:
         """Queued video records for one channel, in deterministic order.
 
         Sorted so that a `--limit`ed run always picks the same videos and a
         resumed run continues predictably. Only reads video_records/; a record is
         moved out on success, so re-running sends what is left.
+
+        :param only: if given, restrict to these Pretalx codes (targeted re-runs)
         """
         queued = []
         for path in sorted(self.video_records_path.glob("*.json")):
             video = YoutubeVideoResource.model_validate_json(path.read_text())
             pretalx_id = self.youtube_id_pretalx_map.get(video.id)
-            if pretalx_id and self.pretalx_youtube_channel_map.get(pretalx_id) == destination_channel:
-                queued.append(path)
+            if not pretalx_id or self.pretalx_youtube_channel_map.get(pretalx_id) != destination_channel:
+                continue
+            if only is not None and pretalx_id not in only:
+                continue
+            queued.append(path)
         return queued
 
-    def send_all_video_metadata(self, destination_channel: str, limit: int | None = None) -> dict:
+    def send_all_video_metadata(
+        self, destination_channel: str, limit: int | None = None, only: set[str] | None = None
+    ) -> dict:
         """Send queued video metadata for one channel to YouTube.
 
         Returns a result summary instead of swallowing failures, so the caller
@@ -775,7 +787,7 @@ class PrepareVideoMetadata:
             "sent_ids": [],
             "errors": [],
         }
-        queued = self.videos_to_send(destination_channel)
+        queued = self.videos_to_send(destination_channel, only=only)
         if limit is not None:
             queued = queued[:limit]
         result["total"] = len(queued)

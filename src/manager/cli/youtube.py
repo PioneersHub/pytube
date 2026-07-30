@@ -195,6 +195,11 @@ def map(ctx: click.Context, channel: str | None, filter_channel: str | None) -> 
     is_flag=True,
     help="Send even if the estimated quota exceeds the daily budget",
 )
+@click.option(
+    "--only",
+    default=None,
+    help="Restrict to these Pretalx codes (comma-separated); for targeted re-runs",
+)
 @click.pass_context
 def update(  # noqa: PLR0913
     ctx: click.Context,
@@ -206,6 +211,7 @@ def update(  # noqa: PLR0913
     limit: int | None,
     yes: bool,
     force: bool,
+    only: str | None,
 ) -> None:
     """Update YouTube video metadata from records.
 
@@ -216,8 +222,10 @@ def update(  # noqa: PLR0913
     in memory and printed, including the exact request body. Use it to read the
     descriptions before spending API quota. --limit sends only the first N
     videos per channel, which is the safe way to pilot before a full run.
+    --only CODE,CODE targets specific talks (e.g. re-sending a handful).
     """
     console = ctx.obj["console"]
+    only_codes = {c.strip() for c in only.split(",") if c.strip()} if only else None
 
     if not event_name:
         event_name = conf.event.name
@@ -236,7 +244,7 @@ def update(  # noqa: PLR0913
         task = progress.add_task("Preparing metadata...", total=None)
         meta = PrepareVideoMetadata(template, event_name, dry_run=dry_run)
         progress.update(task, description="Generating video metadata...")
-        built = meta.make_all_video_metadata(channel=channel)
+        built = meta.make_all_video_metadata(channel=channel, only=only_codes)
         progress.stop()
 
     if dry_run:
@@ -245,13 +253,13 @@ def update(  # noqa: PLR0913
         return
 
     channels = [channel] if channel else list(conf.youtube.channels.keys())
-    if not _confirm_send(ctx, console, meta, channels, limit, yes, force):
+    if not _confirm_send(ctx, console, meta, channels, limit, yes, force, only_codes):
         return
 
     results = []
     for ch in channels:
         console.print(f"Sending metadata on [cyan]{ch}[/cyan]...")
-        result = meta.send_all_video_metadata(destination_channel=ch, limit=limit)
+        result = meta.send_all_video_metadata(destination_channel=ch, limit=limit, only=only_codes)
         _verify_sent(console, ch, result)
         results.append(result)
 
@@ -262,7 +270,7 @@ def update(  # noqa: PLR0913
     console.print("✓ Video metadata updated on YouTube", style="green")
 
 
-def _confirm_send(ctx, console, meta, channels, limit, yes, force) -> bool:
+def _confirm_send(ctx, console, meta, channels, limit, yes, force, only=None) -> bool:  # noqa: PLR0913
     """Estimate quota, refuse an over-budget run, and confirm before sending."""
     quota = conf.youtube.get("quota", {})
     cost = quota.get("update_cost_units", 50)
@@ -270,7 +278,7 @@ def _confirm_send(ctx, console, meta, channels, limit, yes, force) -> bool:
 
     planned = 0
     for ch in channels:
-        n = len(meta.videos_to_send(ch))
+        n = len(meta.videos_to_send(ch, only=only))
         planned += min(n, limit) if limit is not None else n
     units = planned * cost
 

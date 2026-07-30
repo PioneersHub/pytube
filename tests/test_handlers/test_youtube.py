@@ -862,6 +862,16 @@ class TestSendAllVideoMetadata:
         # Stopped after the first failure — did not try the second video.
         assert client.send_video_update.call_count == 1
 
+    def test_only_restricts_to_named_codes(self, ready, mock_config):
+        """--only targets specific talks regardless of queue order (targeted re-runs)."""
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main", only={"BBB222"})
+
+        assert result["updated"] == 1
+        assert result["sent_ids"] == ["vidBBB"]
+
     def test_limit_sends_only_n_in_order(self, ready, mock_config):
         with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
             client = mock_yt.return_value
