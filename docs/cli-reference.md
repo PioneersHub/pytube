@@ -50,7 +50,7 @@ Every command, with its options. Details follow in the sections below.
 | **YouTube** | | |
 | `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
 | `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` `--limit` `--yes` `--force` | Write titles/descriptions to YouTube |
-| `pytube youtube schedule` | `--start` `--interval` `--preview` | Set publishing schedule |
+| `pytube youtube schedule` | `--start` `--interval` (`0` = one shared date) `--preview` | Set publishing date (local; sent by `update`) |
 | `pytube youtube channels` | — | List configured channels |
 | **Notifications** | | |
 | `pytube notify check` | `--auto-post` `--channel` `--offline` | Detect published videos, queue notifications |
@@ -403,29 +403,38 @@ time passes.
 
 ### pytube youtube schedule
 
-Set publishing schedule for videos.
+Set the publishing date on the queued videos. This writes `status.publish_at`
+locally and re-queues the records — **no API quota**. The date only reaches
+YouTube on the next `youtube update`, which sends `publishAt` and forces the
+video to `private` (YouTube then publishes it publicly when the time arrives).
 
 ```bash
 pytube youtube schedule [OPTIONS]
 
 Options:
-  --start TEXT      Start date/time (ISO format or 'now+5m')
-  --interval TEXT   Publishing interval (e.g., 4h, 1d, 30m) [default: 4h]
-  --preview        Show publishing schedule without applying
-  --help           Show help message
+  --start TEXT      Start date/time. ISO 8601 or 'now+5m'/'now+2h'. A value
+                    without an offset (e.g. 2026-08-03T18:00) is read in the
+                    event timezone (event.timezone, default Europe/Berlin),
+                    not UTC.
+  --interval TEXT   Spacing between releases (4h, 1d, 30m). Use 0 for one
+                    shared date — all videos go public together. [default: 4h]
+  --preview         Show the real per-video schedule; write nothing
+  --help            Show help message
 ```
 
 **Example:**
 ```bash
-# Schedule to start in 5 minutes, publish every 4 hours
-pytube youtube schedule --start now+5m --interval 4h
+# One coordinated release: every video public at the same local time
+pytube youtube schedule --start "2026-08-03T18:00" --interval 0 --preview
+pytube youtube schedule --start "2026-08-03T18:00" --interval 0
 
-# Schedule for specific date/time
-pytube youtube schedule --start "2026-05-01T10:00:00" --interval 6h
-
-# Preview schedule
-pytube youtube schedule --preview
+# Staggered: one per day starting the given date
+pytube youtube schedule --start "2026-08-03T18:00" --interval 1d
 ```
+
+Videos are ordered deterministically by Pretalx code, so `--preview` matches the
+applied run. After scheduling, run `youtube update` (a full send, ~50 quota units
+per video) to transmit the dates — plan it for a day with quota headroom.
 
 ### pytube youtube channels
 
