@@ -175,11 +175,9 @@ youtube:
       id: UCOjD18EJYcsBog4IozkF_7w
       playlist_id: PLTU-XWf6DQN8
   video_defaults:
-    # Videos stay hidden while descriptions are added. They are already private
-    # on YouTube (Studio shows "Draft"); private keeps them so and matches the
-    # later scheduled release (publishAt requires private). Overrides the base
-    # default of "unlisted" — without this the update would make them link-visible.
-    privacy_status: private
+    # Released 2026-08-05: all videos are public. (Descriptions were added while
+    # private; the release flipped privacy_status to public and re-sent.)
+    privacy_status: public
     tags:
     - PyCon DE
     - PyData
