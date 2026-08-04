@@ -1001,3 +1001,68 @@ class TestScheduleParsing:
         from manager.cli.youtube import _parse_interval
 
         assert _parse_interval(MagicMock(), "bogus") is None
+
+
+class TestFillPlaylist:
+    """Cross-populate playlists so each carries all videos; idempotent + resumable."""
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            return m
+
+    @pytest.fixture
+    def cfg(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        mock_config.youtube.channels = {"main": {"id": "UCmain", "playlist_id": "PLmain"}}
+        return mock_config
+
+    def test_add_video_to_playlist_body(self, cfg, tmp_path):
+        with patch("manager.handlers.youtube.conf", cfg):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.add_video_to_playlist("PLmain", "vidX")
+        _, kwargs = fake.playlistItems().insert.call_args
+        assert kwargs["part"] == "snippet"
+        snip = kwargs["body"]["snippet"]
+        assert snip["playlistId"] == "PLmain"
+        assert snip["resourceId"] == {"kind": "youtube#video", "videoId": "vidX"}
+
+    def test_inserts_only_missing(self, cfg):
+        """Present videos are skipped (no duplicates); only the missing are added."""
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = [{"contentDetails": {"videoId": "a"}}]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["present"] == 1
+        assert result["added"] == 2  # b and c
+        added = [c.args[1] for c in client.add_video_to_playlist.call_args_list]
+        assert added == ["b", "c"]
+
+    def test_quota_error_stops_and_is_resumable(self, cfg):
+        err = HttpError(resp=Mock(status=403), content=b"")
+        err.error_details = [{"reason": "quotaExceeded"}]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = []
+            client.add_video_to_playlist.side_effect = [{"ok": 1}, err]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["quota_exhausted"] is True
+        assert result["added"] == 1  # "a" added, quota hit on "b"
+        # Stopped — did not attempt "c".
+        assert client.add_video_to_playlist.call_count == 2
+
+    def test_resume_adds_the_rest(self, cfg):
+        """Second run sees the first-run additions present and adds only the remainder."""
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = [{"contentDetails": {"videoId": "a"}}]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["added"] == 2
+        assert [c.args[1] for c in client.add_video_to_playlist.call_args_list] == ["b", "c"]

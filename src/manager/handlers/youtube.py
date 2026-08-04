@@ -216,6 +216,22 @@ class YT:
                 response = request.execute()
         return videos
 
+    def add_video_to_playlist(self, playlist_id: str, video_id: str) -> dict:
+        """Add one video to a playlist (playlistItems.insert, 50 quota units).
+
+        The playlist and the video may belong to different channels — any public
+        video can be added to a playlist the authenticated account owns.
+        """
+        body = {
+            "snippet": {
+                "playlistId": playlist_id,
+                "resourceId": {"kind": "youtube#video", "videoId": video_id},
+            }
+        }
+        response = self.youtube.playlistItems().insert(part="snippet", body=body).execute()
+        logger.info(f"Added {video_id} to playlist {playlist_id}")
+        return response
+
     def send_video_update(self, resource: YoutubeVideoResource) -> dict:
         """Send one video's metadata to YouTube.
 
@@ -819,6 +835,60 @@ class PrepareVideoMetadata:
             path.rename(ytclient.video_records_path_updated / path.name)
             result["updated"] += 1
             result["sent_ids"].append(video.id)
+        return result
+
+    def fill_playlist(self, channel: str, video_ids: list[str]) -> dict:
+        """Ensure the channel's playlist contains all of `video_ids`.
+
+        Reads the current membership and inserts only the missing videos, so it
+        creates no duplicates and is safe to re-run — a run stopped by a quota
+        error finishes on the next run (e.g. after the daily reset). Uses the
+        owning channel's token; the videos may belong to the other channel.
+        """
+        if self.dry_run:
+            raise RuntimeError("fill_playlist must not be called on a dry run")
+
+        playlist_id = SafeConfig(conf).get(f"youtube.channels.{channel}.playlist_id")
+        result = {
+            "channel": channel,
+            "target": playlist_id,
+            "present": 0,
+            "added": 0,
+            "failed": 0,
+            "quota_exhausted": False,
+            "errors": [],
+        }
+        if not playlist_id:
+            result["errors"].append(("-", f"no playlist_id configured for channel {channel}"))
+            result["failed"] = 1
+            return result
+
+        ytclient = YT(youtube_offline=True, channel=channel)
+        present = {item["contentDetails"]["videoId"] for item in ytclient.list_all_videos_in_playlist(playlist_id)}
+        result["present"] = len(present)
+        missing = [vid for vid in video_ids if vid not in present]
+        logger.info(f"Playlist {channel}: {len(present)} present, {len(missing)} to add")
+
+        for video_id in missing:
+            try:
+                ytclient.add_video_to_playlist(playlist_id, video_id)
+            except googleapiclient.errors.HttpError as exc:
+                reason = _http_error_reason(exc)
+                if reason in self._QUOTA_REASONS:
+                    result["quota_exhausted"] = True
+                    result["errors"].append((video_id, f"quota: {reason}"))
+                    logger.error(f"Quota exhausted ({reason}); stopping — re-run after the reset to finish")
+                    break
+                result["failed"] += 1
+                result["errors"].append((video_id, str(exc)))
+                logger.error(f"Failed to add {video_id} to {channel} playlist: {exc}")
+                continue
+            except Exception as exc:
+                result["failed"] += 1
+                result["errors"].append((video_id, str(exc)))
+                logger.error(f"Failed to add {video_id} to {channel} playlist: {exc}")
+                continue
+            result["added"] += 1
         return result
 
     @classmethod

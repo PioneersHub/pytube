@@ -510,3 +510,89 @@ def channels(ctx: click.Context) -> None:
         table.add_row(name, channel_info.get("id", "Not set"), channel_info.get("playlist_id", "Not set"))
 
     console.print(table)
+
+
+@youtube.command(name="fill-playlists")
+@click.option("--channel", default=None, help="Only fill this channel's playlist")
+@click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
+@click.option("--force", is_flag=True, help="Run even if the estimate exceeds the daily quota budget")
+@click.pass_context
+def fill_playlists(ctx: click.Context, channel: str | None, yes: bool, force: bool) -> None:
+    """Add every mapped video to each channel's playlist.
+
+    Makes both playlists carry all videos (each channel's own plus the other's).
+    Reads current membership and inserts only what is missing, so it creates no
+    duplicates and is safe to re-run — a run stopped by a quota error finishes on
+    the next run (e.g. after the daily reset).
+    """
+    console = ctx.obj["console"]
+    meta = PrepareVideoMetadata("", "")
+    all_video_ids = list(meta.pretalx_youtube_id_map.values())
+    channels = [channel] if channel else list(conf.youtube.channels.keys())
+
+    if not _confirm_fill(console, all_video_ids, channels, yes, force):
+        return
+
+    results = []
+    for ch in channels:
+        console.print(f"Filling [cyan]{ch}[/cyan] playlist...")
+        results.append(meta.fill_playlist(ch, all_video_ids))
+
+    _report_fill(console, results)
+    if any(r["failed"] or r["quota_exhausted"] for r in results):
+        console.print(
+            "[yellow]Incomplete — re-run `youtube fill-playlists` (after the quota reset) to finish.[/yellow]"
+        )
+        ctx.exit(1)
+    console.print("✓ Both playlists carry all videos", style="green")
+
+
+def _confirm_fill(console, all_video_ids, channels, yes, force) -> bool:
+    """Estimate quota from what is actually missing, then confirm."""
+    quota = conf.youtube.get("quota", {})
+    cost = quota.get("update_cost_units", 50)  # playlistItems.insert also costs 50
+    budget = quota.get("daily_units", 10000)
+
+    planned = 0
+    for ch in channels:
+        playlist_id = conf.youtube.channels[ch].get("playlist_id")
+        if not playlist_id:
+            continue
+        yt = YT(youtube_offline=True, channel=ch)
+        present = {it["contentDetails"]["videoId"] for it in yt.list_all_videos_in_playlist(playlist_id)}
+        planned += sum(1 for vid in all_video_ids if vid not in present)
+
+    if planned == 0:
+        console.print("[green]Both playlists already carry all videos — nothing to add.[/green]")
+        return False
+
+    units = planned * cost
+    pct = round(units / budget * 100) if budget else 0
+    console.print(f"About to add [cyan]{planned}[/cyan] playlist entries → {units} of {budget} quota units ({pct}%)")
+    if units > budget and not force:
+        console.print(
+            f"[yellow]Estimate {units} > daily budget {budget}. It will insert what fits and stop; "
+            f"re-run after the reset to finish. Use --force to silence this.[/yellow]"
+        )
+    if not yes and not click.confirm("Add to playlists now?", default=False):
+        console.print("[yellow]Aborted — nothing added.[/yellow]")
+        return False
+    return True
+
+
+def _report_fill(console, results: list[dict]) -> None:
+    table = Table(title="Playlist fill results")
+    for col in ("Channel", "Present", "Added", "Failed", "Quota"):
+        table.add_column(col)
+    for r in results:
+        table.add_row(
+            r["channel"],
+            str(r["present"]),
+            str(r["added"]),
+            str(r["failed"]),
+            "exhausted" if r["quota_exhausted"] else "ok",
+        )
+    console.print(table)
+    for r in results:
+        for vid, err in r["errors"][:10]:
+            console.print(f"  [red]{r['channel']} {vid}: {err}[/red]")
