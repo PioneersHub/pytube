@@ -51,7 +51,7 @@ Every command, with its options. Details follow in the sections below.
 | `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
 | `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` `--limit` `--yes` `--force` | Write titles/descriptions to YouTube |
 | `pytube youtube schedule` | `--start` `--interval` (`0` = one shared date) `--preview` | Set publishing date (local; sent by `update`) |
-| `pytube youtube fill-playlists` | `--channel` `--yes` `--force` | Add every mapped video to each channel's playlist |
+| `pytube youtube fill-playlists` | `--channel` `--prune` `--yes` `--force` | Add every mapped video to each channel's playlist (`--prune` also removes unmapped/deleted) |
 | `pytube youtube channels` | — | List configured channels |
 | **Notifications** | | |
 | `pytube notify check` | `--auto-post` `--channel` `--offline` | Detect published videos, queue notifications |
@@ -447,18 +447,25 @@ pytube youtube fill-playlists [OPTIONS]
 
 Options:
   --channel TEXT   Only fill this channel's playlist
+  --prune          Also remove entries whose video is no longer mapped
+                   (clears dead placeholders left by deleted videos)
   --yes            Skip the confirmation prompt
   --force          Run even if the estimate exceeds the daily quota budget
   --help           Show help message
 ```
 
-Each `playlistItems.insert` costs 50 quota units. The command reads the current
-membership and inserts only what is missing, so it never creates duplicates and
-is **safe to re-run**: a run stopped by a quota error (or `--force` over budget)
-finishes on the next run — e.g. after the daily reset (midnight Pacific).
-Authentication uses each playlist's owning-channel token; the videos being added
-may belong to the other channel (any public video can be added to a playlist you
-own).
+Each `playlistItems` insert or delete costs 50 quota units. The command reads the
+current membership and inserts only what is missing, so it never creates
+duplicates and is **safe to re-run**: a run stopped by a quota error (or
+`--force` over budget) finishes on the next run — e.g. after the daily reset
+(midnight Pacific). Authentication uses each playlist's owning-channel token; the
+videos being added may belong to the other channel (any public video can be added
+to a playlist you own).
+
+With `--prune`, entries whose video is not in the current mapping are removed as
+well — YouTube leaves a dead `[Deleted video]` placeholder when a video is
+deleted, and this clears it. Together, insert + prune make the playlist hold
+exactly the mapped videos.
 
 ### pytube youtube channels
 

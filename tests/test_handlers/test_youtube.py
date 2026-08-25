@@ -1066,3 +1066,54 @@ class TestFillPlaylist:
 
         assert result["added"] == 2
         assert [c.args[1] for c in client.add_video_to_playlist.call_args_list] == ["b", "c"]
+
+
+class TestPrunePlaylist:
+    """--prune removes entries whose video is no longer mapped (e.g. deleted)."""
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            return m
+
+    @pytest.fixture
+    def cfg(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        mock_config.youtube.channels = {"main": {"id": "UCmain", "playlist_id": "PLmain"}}
+        return mock_config
+
+    def test_remove_playlist_item_calls_delete(self, cfg, tmp_path):
+        with patch("manager.handlers.youtube.conf", cfg):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.remove_playlist_item("PLI_dead")
+        fake.playlistItems().delete.assert_called_once_with(id="PLI_dead")
+
+    def test_prune_removes_only_unmapped(self, cfg):
+        """Mapped videos stay; a dead entry (video not in the map) is removed."""
+        items = [
+            {"id": "pli_a", "contentDetails": {"videoId": "a"}},  # mapped → keep
+            {"id": "pli_dead", "contentDetails": {"videoId": "old"}},  # not mapped → prune
+        ]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = items
+            result = self._meta(cfg).fill_playlist("main", ["a"], prune=True)
+
+        assert result["added"] == 0  # "a" already present
+        assert result["removed"] == 1
+        client.remove_playlist_item.assert_called_once_with("pli_dead")
+
+    def test_no_prune_leaves_unmapped(self, cfg):
+        items = [{"id": "pli_dead", "contentDetails": {"videoId": "old"}}]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = items
+            result = self._meta(cfg).fill_playlist("main", ["a"], prune=False)
+
+        assert result["removed"] == 0
+        client.remove_playlist_item.assert_not_called()
+        client.add_video_to_playlist.assert_called_once_with("PLmain", "a")  # "a" still added

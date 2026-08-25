@@ -514,29 +514,33 @@ def channels(ctx: click.Context) -> None:
 
 @youtube.command(name="fill-playlists")
 @click.option("--channel", default=None, help="Only fill this channel's playlist")
+@click.option("--prune", is_flag=True, help="Also remove entries whose video is no longer mapped (e.g. deleted videos)")
 @click.option("--yes", is_flag=True, help="Skip the confirmation prompt")
 @click.option("--force", is_flag=True, help="Run even if the estimate exceeds the daily quota budget")
 @click.pass_context
-def fill_playlists(ctx: click.Context, channel: str | None, yes: bool, force: bool) -> None:
+def fill_playlists(ctx: click.Context, channel: str | None, prune: bool, yes: bool, force: bool) -> None:
     """Add every mapped video to each channel's playlist.
 
     Makes both playlists carry all videos (each channel's own plus the other's).
     Reads current membership and inserts only what is missing, so it creates no
     duplicates and is safe to re-run — a run stopped by a quota error finishes on
     the next run (e.g. after the daily reset).
+
+    With --prune, entries whose video is no longer in the mapping are removed too
+    (clears dead placeholders left behind by deleted videos).
     """
     console = ctx.obj["console"]
     meta = PrepareVideoMetadata("", "")
     all_video_ids = list(meta.pretalx_youtube_id_map.values())
     channels = [channel] if channel else list(conf.youtube.channels.keys())
 
-    if not _confirm_fill(console, all_video_ids, channels, yes, force):
+    if not _confirm_fill(console, all_video_ids, channels, yes, force, prune):
         return
 
     results = []
     for ch in channels:
         console.print(f"Filling [cyan]{ch}[/cyan] playlist...")
-        results.append(meta.fill_playlist(ch, all_video_ids))
+        results.append(meta.fill_playlist(ch, all_video_ids, prune=prune))
 
     _report_fill(console, results)
     if any(r["failed"] or r["quota_exhausted"] for r in results):
@@ -547,48 +551,56 @@ def fill_playlists(ctx: click.Context, channel: str | None, yes: bool, force: bo
     console.print("✓ Both playlists carry all videos", style="green")
 
 
-def _confirm_fill(console, all_video_ids, channels, yes, force) -> bool:
-    """Estimate quota from what is actually missing, then confirm."""
+def _confirm_fill(console, all_video_ids, channels, yes, force, prune=False) -> bool:  # noqa: PLR0913
+    """Estimate quota from what is actually missing (and stale, if pruning), then confirm."""
     quota = conf.youtube.get("quota", {})
-    cost = quota.get("update_cost_units", 50)  # playlistItems.insert also costs 50
+    cost = quota.get("update_cost_units", 50)  # playlistItems insert/delete both cost 50
     budget = quota.get("daily_units", 10000)
+    wanted = set(all_video_ids)
 
-    planned = 0
+    to_add = to_remove = 0
     for ch in channels:
         playlist_id = conf.youtube.channels[ch].get("playlist_id")
         if not playlist_id:
             continue
         yt = YT(youtube_offline=True, channel=ch)
-        present = {it["contentDetails"]["videoId"] for it in yt.list_all_videos_in_playlist(playlist_id)}
-        planned += sum(1 for vid in all_video_ids if vid not in present)
+        present = [it["contentDetails"]["videoId"] for it in yt.list_all_videos_in_playlist(playlist_id)]
+        to_add += sum(1 for vid in all_video_ids if vid not in set(present))
+        if prune:
+            to_remove += sum(1 for vid in present if vid not in wanted)
 
+    planned = to_add + to_remove
     if planned == 0:
-        console.print("[green]Both playlists already carry all videos — nothing to add.[/green]")
+        console.print("[green]Both playlists already carry exactly the mapped videos — nothing to do.[/green]")
         return False
 
     units = planned * cost
     pct = round(units / budget * 100) if budget else 0
-    console.print(f"About to add [cyan]{planned}[/cyan] playlist entries → {units} of {budget} quota units ({pct}%)")
+    console.print(
+        f"About to add [cyan]{to_add}[/cyan] and remove [cyan]{to_remove}[/cyan] playlist entries "
+        f"→ {units} of {budget} quota units ({pct}%)"
+    )
     if units > budget and not force:
         console.print(
-            f"[yellow]Estimate {units} > daily budget {budget}. It will insert what fits and stop; "
+            f"[yellow]Estimate {units} > daily budget {budget}. It will do what fits and stop; "
             f"re-run after the reset to finish. Use --force to silence this.[/yellow]"
         )
-    if not yes and not click.confirm("Add to playlists now?", default=False):
-        console.print("[yellow]Aborted — nothing added.[/yellow]")
+    if not yes and not click.confirm("Apply to playlists now?", default=False):
+        console.print("[yellow]Aborted — nothing changed.[/yellow]")
         return False
     return True
 
 
 def _report_fill(console, results: list[dict]) -> None:
     table = Table(title="Playlist fill results")
-    for col in ("Channel", "Present", "Added", "Failed", "Quota"):
+    for col in ("Channel", "Present", "Added", "Removed", "Failed", "Quota"):
         table.add_column(col)
     for r in results:
         table.add_row(
             r["channel"],
             str(r["present"]),
             str(r["added"]),
+            str(r.get("removed", 0)),
             str(r["failed"]),
             "exhausted" if r["quota_exhausted"] else "ok",
         )

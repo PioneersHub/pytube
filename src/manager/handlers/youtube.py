@@ -232,6 +232,16 @@ class YT:
         logger.info(f"Added {video_id} to playlist {playlist_id}")
         return response
 
+    def remove_playlist_item(self, playlist_item_id: str) -> None:
+        """Remove one entry from a playlist (playlistItems.delete, 50 quota units).
+
+        Takes the playlistItem id (not the video id), so it removes a specific
+        entry — including a dead placeholder for a deleted video, which YouTube
+        does not clean up on its own.
+        """
+        self.youtube.playlistItems().delete(id=playlist_item_id).execute()
+        logger.info(f"Removed playlist item {playlist_item_id}")
+
     def send_video_update(self, resource: YoutubeVideoResource) -> dict:
         """Send one video's metadata to YouTube.
 
@@ -837,13 +847,17 @@ class PrepareVideoMetadata:
             result["sent_ids"].append(video.id)
         return result
 
-    def fill_playlist(self, channel: str, video_ids: list[str]) -> dict:
-        """Ensure the channel's playlist contains all of `video_ids`.
+    def fill_playlist(self, channel: str, video_ids: list[str], prune: bool = False) -> dict:
+        """Ensure the channel's playlist contains exactly the mapped videos.
 
         Reads the current membership and inserts only the missing videos, so it
         creates no duplicates and is safe to re-run — a run stopped by a quota
         error finishes on the next run (e.g. after the daily reset). Uses the
         owning channel's token; the videos may belong to the other channel.
+
+        With `prune=True`, entries whose video is not in `video_ids` are removed
+        — this clears dead placeholders left behind by deleted videos, which
+        YouTube does not remove automatically.
         """
         if self.dry_run:
             raise RuntimeError("fill_playlist must not be called on a dry run")
@@ -854,6 +868,7 @@ class PrepareVideoMetadata:
             "target": playlist_id,
             "present": 0,
             "added": 0,
+            "removed": 0,
             "failed": 0,
             "quota_exhausted": False,
             "errors": [],
@@ -864,10 +879,14 @@ class PrepareVideoMetadata:
             return result
 
         ytclient = YT(youtube_offline=True, channel=channel)
-        present = {item["contentDetails"]["videoId"] for item in ytclient.list_all_videos_in_playlist(playlist_id)}
+        items = ytclient.list_all_videos_in_playlist(playlist_id)
+        present = {item["contentDetails"]["videoId"] for item in items}
         result["present"] = len(present)
+        wanted = set(video_ids)
         missing = [vid for vid in video_ids if vid not in present]
-        logger.info(f"Playlist {channel}: {len(present)} present, {len(missing)} to add")
+        # Playlist entries whose video is no longer in the mapping (e.g. deleted).
+        stale = [item for item in items if item["contentDetails"]["videoId"] not in wanted] if prune else []
+        logger.info(f"Playlist {channel}: {len(present)} present, {len(missing)} to add, {len(stale)} to prune")
 
         for video_id in missing:
             try:
@@ -878,7 +897,7 @@ class PrepareVideoMetadata:
                     result["quota_exhausted"] = True
                     result["errors"].append((video_id, f"quota: {reason}"))
                     logger.error(f"Quota exhausted ({reason}); stopping — re-run after the reset to finish")
-                    break
+                    return result
                 result["failed"] += 1
                 result["errors"].append((video_id, str(exc)))
                 logger.error(f"Failed to add {video_id} to {channel} playlist: {exc}")
@@ -889,6 +908,28 @@ class PrepareVideoMetadata:
                 logger.error(f"Failed to add {video_id} to {channel} playlist: {exc}")
                 continue
             result["added"] += 1
+
+        for item in stale:
+            vid = item["contentDetails"]["videoId"]
+            try:
+                ytclient.remove_playlist_item(item["id"])
+            except googleapiclient.errors.HttpError as exc:
+                reason = _http_error_reason(exc)
+                if reason in self._QUOTA_REASONS:
+                    result["quota_exhausted"] = True
+                    result["errors"].append((vid, f"quota: {reason}"))
+                    logger.error(f"Quota exhausted ({reason}); stopping — re-run after the reset to finish")
+                    return result
+                result["failed"] += 1
+                result["errors"].append((vid, str(exc)))
+                logger.error(f"Failed to remove {vid} from {channel} playlist: {exc}")
+                continue
+            except Exception as exc:
+                result["failed"] += 1
+                result["errors"].append((vid, str(exc)))
+                logger.error(f"Failed to remove {vid} from {channel} playlist: {exc}")
+                continue
+            result["removed"] += 1
         return result
 
     @classmethod
