@@ -44,7 +44,7 @@ def call_claude_api(title: str, abstract: str) -> str | None:
     Returns 'pycon' or 'pydata', or None on error.
     """
     safe_conf = SafeConfig(conf)
-    api_key = safe_conf.get("anthropic.api_key", "")
+    api_key = safe_conf.get("ai_service.anthropic.api_key", "")
     if not api_key:
         logger.warning("No Anthropic API key configured")
         return None
@@ -64,7 +64,7 @@ def call_claude_api(title: str, abstract: str) -> str | None:
                 "content-type": "application/json",
             },
             json={
-                "model": safe_conf.get("anthropic.model", "claude-3-haiku-20240307"),
+                "model": safe_conf.get("ai_service.anthropic.model", "claude-3-haiku-20240307"),
                 "max_tokens": 10,
                 "messages": [{"role": "user", "content": prompt}],
             },
@@ -94,7 +94,7 @@ def call_openai_api(title: str, abstract: str) -> str | None:
     Returns 'pycon' or 'pydata', or None on error.
     """
     safe_conf = SafeConfig(conf)
-    api_key = safe_conf.get("openai.api_key", "")
+    api_key = safe_conf.get("ai_service.openai.api_key", "")
     if not api_key:
         logger.warning("No OpenAI API key configured")
         return None
@@ -113,7 +113,7 @@ def call_openai_api(title: str, abstract: str) -> str | None:
                 "Content-Type": "application/json",
             },
             json={
-                "model": safe_conf.get("openai.model", "gpt-4-turbo"),
+                "model": safe_conf.get("ai_service.openai.model", "gpt-4-turbo"),
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": 10,
                 "temperature": 0,

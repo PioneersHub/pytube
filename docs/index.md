@@ -13,7 +13,7 @@ in [Pretalx](https://github.com/pretalx/pretalx)
     * Auto-cut raw livestreams into per-session clips — see [Auto-Cut Pipeline](auto-cut-pipeline.md)
 
 * **AI-Powered Content Generation:**
-    * Support for multiple AI providers: OpenAI (GPT-3.5/4), Anthropic Claude, Google Gemini, Cohere
+    * Support for multiple AI providers: OpenAI, Anthropic Claude, local models (MLX/Ollama), Claude Code CLI
     * Automated teaser and description generation
     * Configurable temperature settings for creativity control
 
@@ -81,7 +81,7 @@ Individual configurations are stored in the local file `config_local.yaml` which
 
 * **Storage locations** - Working directories and video paths
 * **Pretalx** - Event slug and API credentials
-* **AI Service Selection** - Choose between OpenAI, Anthropic, Google, or Cohere
+* **AI Service Selection** - Choose between OpenAI, Anthropic, a local model (MLX/Ollama) or the Claude Code CLI
 * **Social Media Platform** - Select LinkedIn, Twitter/X, Mastodon, or Bluesky
 * **API Credentials** - Keys and tokens for all services
 

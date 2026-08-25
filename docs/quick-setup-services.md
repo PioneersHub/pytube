@@ -5,10 +5,11 @@
 ### 1. OpenAI (Easiest AI setup)
 ```yaml
 # In config_local.yaml
-ai_service: "openai"
-openai:
-  api_key: "sk-..."  # Get from platform.openai.com/api-keys
-  model: "gpt-3.5-turbo"  # Cheapest option
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."  # Get from platform.openai.com/api-keys
+    model: "gpt-4-turbo"
 ```
 **Time to setup**: 5 minutes  
 **Cost**: ~$0.10 per conference
@@ -43,8 +44,8 @@ bluesky:
 |---------|----------|-----------------|------|
 | **OpenAI** | General use, proven quality | Easy | $$ |
 | **Anthropic** | Longer contexts, nuanced text | Easy | $$$ |
-| **Google** | Free tier, experimentation | Easy | $ |
-| **Cohere** | Budget option | Easy | $ |
+| **Local (MLX/Ollama)** | Privacy, no per-token cost | Medium | free |
+| **Claude Code CLI** | Uses an existing subscription | Easy | subscription |
 
 ### Which Social Platform?
 
@@ -67,9 +68,10 @@ pretalx:
   event_slug: "your-event-2025"
 
 # AI Service (pick one)
-ai_service: "openai"
-openai:
-  api_key: "sk-..."
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."
 
 # Social Media (pick one)  
 social_media_service: "bluesky"

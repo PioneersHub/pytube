@@ -25,8 +25,12 @@ vimeo:
 # ########################################
 # ########################################
 dirs:
-  work_dir: "._tmp"
-  video_dir: "./_tmp/videos"
+  # Root for all project data. Each event lives in projects/<slug>/, holding its
+  # own config.yaml, records, videos and the YouTube description template.
+  work_dir: "projects"
+  # Video files of the active event. Event-specific — override this in
+  # projects/<slug>/config.yaml, not here.
+  video_dir: "projects/videos"
 # ########################################
 # # GOOGLE SHEETS
 # ########################################
@@ -58,8 +62,14 @@ pretalx:
   # Hand-edit values to override the default short form per room.
   room_mapping_yaml: "/Volumes/DATA4T/2026/pyconde-pydata-2026_room_mapping.yaml"
   # Videos need to be split between the PyCon DE and PyData YouTube channels
-  video_to_track:
-    CODE: "Track"
+  # Videos need to be split between the PyCon DE and PyData YouTube channels.
+  # Define the real mapping in projects/<slug>/config.yaml, for example:
+  #   video_to_track:
+  #     3C9P9V: pyconde
+  #     AF9DNH: pydata
+  #     7YA98N: no_publishing
+  # Keep this empty: a placeholder entry here would merge into the real mapping.
+  video_to_track: {}
   # identify the channel by track name or snippet
   track_to_channel:
     pycon: "pycon"
@@ -90,6 +100,9 @@ event:
   program_url: "https://2026.pycon.de/program/"
   # 24-hour. Sessions before this hour are classified Morning, on/after Afternoon.
   lunch_break_cut: 13
+  # Timezone for a `youtube schedule --start` value given without an offset
+  # (e.g. "2026-08-03T18:00" is read as this local time, not UTC).
+  timezone: "Europe/Berlin"
 # ########################################
 # Local path to content images
 session_images: ""
@@ -100,8 +113,59 @@ session_images: ""
 youtube:
   client_secrets_file: "~/code/pioneershub/py_tube/_secret/client_secrets.json"
   api_key: ""
+  # Longest description YouTube accepts; longer texts fall back to sm_short_text.
   max_description_length: 5000
+  # Where the OAuth token is cached after the first browser authorization.
+  # Fallback only — prefer a per-channel token_path (see channels below), because
+  # channels usually belong to different Google accounts and a shared file means
+  # authorizing one channel destroys the other channel's credentials.
   token_path: "~/code/pioneershub/py_tube/_secret/youtube_token.json"
+  # REQUIRED — configuration is rejected without at least one channel.
+  # The key is the channel token: it must match the values used in
+  # pretalx.video_to_track / track_to_channel and becomes the upload directory
+  # name under dirs.video_dir. `do_not_release` is reserved and must not be used.
+  # Define the real ids in config_local.yaml, for example:
+  # channels:
+  #   pyconde:
+  #     id: "UC..."                                # YouTube channel id
+  #     playlist_id: "PL..."                       # hidden staging playlist
+  #     token_path: ".secrets/token_pyconde.json"  # own OAuth token for this channel
+  #   pydata:
+  #     id: "UC..."
+  #     playlist_id: "PL..."
+  #     token_path: ".secrets/token_pydata.json"
+  channels: {}
+
+  # YouTube Data API budget. One videos.update costs 50 units; the default daily
+  # pool is 10000. `youtube update` estimates the cost up front and refuses to
+  # start a send that would exceed the daily budget unless --force is given.
+  quota:
+    daily_units: 10000
+    update_cost_units: 50
+
+  # Values written on EVERY videos.update call.
+  #
+  # YouTube deletes any property it does not receive within a part that is being
+  # updated: sending `part=snippet,status` without `tags` deletes the tags, and
+  # without `license` resets the licence. There is therefore no partial update —
+  # every field below is always sent, and these defaults are what gets sent.
+  # Override per event in projects/<slug>/config.yaml.
+  video_defaults:
+    category_id: "28"                   # 28 = Science & Technology
+    default_language: "en"
+    default_audio_language: "en"
+    license: "youtube"                  # youtube | creativeCommon
+    embeddable: true                    # required for embedding on the conference site
+    public_stats_viewable: true
+    self_declared_made_for_kids: false  # conference talks are not child-directed
+    # Base state for a video that has no publish date yet. Once a publish date is
+    # set, YouTube requires the video to be private, and the code enforces that.
+    privacy_status: "unlisted"
+    # Applied to every video. YouTube caps the combined tag text at 500
+    # characters; anything beyond that is dropped with a warning.
+    tags: []
+    # Merged on top of `tags` for videos on that channel.
+    channel_tags: {}
 # ########################################
 # Social Media Configuration
 # For API setup instructions, see: docs/api-credentials.md
@@ -135,73 +199,97 @@ bluesky:
   app_password: ""  # Use app-specific password
   
 # ########################################
-# # Prompts for descriptions
-prompts:
-  teaser: >
-    You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2025.
-    Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
-    Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
-
-  description: >
-    You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2025.
-    Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
-    Keep the tone professional, concise, and relevant to a tech audience.
-    Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
-    Avoid the verb “delve.”
-    Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
+# Transcripts (optional): if a talk transcript is available, generate the
+# description from it instead of the abstract. Layout: one folder per talk named
+# with the 6-char Pretalx code, containing `transcript.md`.
+transcripts:
+  dir: ""            # root folder; empty => feature disabled
+  max_chars: 48000   # truncate very long transcripts before summarizing
 # ########################################
-# AI Service Configuration
-# Configure your preferred AI service in config_local.yaml
+# AI Service Configuration — SINGLE source of truth.
+# Everything AI lives under `ai_service:`: the active provider, its per-provider
+# credentials/params, and the generation prompts. Put secrets in config_local.yaml.
 # For setup instructions, see: docs/api-credentials.md
-# Quick start guide: docs/quick-setup-services.md
 # ########################################
+ai_service:
+  # Active provider. Options: openai, anthropic,
+  # mlx (local OpenAI-compatible server), claude_code (local Claude Code CLI).
+  provider: "openai"
 
-# Active AI service - options: openai, anthropic, google, cohere
-ai_service: "openai"
+  # Generation prompts (provider-independent)
+  prompts:
+    teaser: >
+      You are a professional content editor. Write a single, engaging teaser sentence that encourages people to watch a speaker’s presentation from PyCon DE & PyData 2026.
+      Focus on the speaker and the topic of their talk. Use a concise and professional tone tailored for LinkedIn.
+      Start the sentence with “Watch” and make it sound relevant and insightful. Keep it short and impactful.
 
-# OpenAI Configuration
-openai:
-  api_key: ""
-  # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
-  model: "gpt-3.5-turbo"
-  # Temperature settings for different tasks
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Optional: Organization ID
-  organization: ""
+    description: >
+      You are a professional editor creating LinkedIn descriptions for speaker presentations from PyCon DE & PyData 2026.
+      Write a continuous, informative paragraph (around {max_tokens} tokens) that describes the speaker’s talk.
+      Keep the tone professional, concise, and relevant to a tech audience.
+      Mention the speaker’s full name, job title, and company if available. After the full name, refer to the speaker by first name only.
+      Avoid the verb “delve.”
+      Focus on what the talk is about, why it matters, and what viewers can learn. Make sure the presentation is the clear focus of the text.
 
-# Anthropic Claude Configuration
-anthropic:
-  api_key: ""
-  # Models: claude-3-opus-20240229, claude-3-sonnet-20240229, claude-3-haiku-20240307
-  model: "claude-3-sonnet-20240229"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Max tokens for Claude (different from OpenAI)
-  max_tokens: 1000
+    # Used ONLY when a transcript is available for the talk (see `transcripts:` above).
+    # Produces the YouTube description from the actual talk content.
+    description_from_transcript: >
+      You are a senior technical editor. Using the talk transcript below, write a summary of the subject
+      matter itself, in excellent English: technically precise yet easy to follow, in a neutral, factual
+      voice. Prefer active voice and concrete specifics — name the actual techniques, tools and measured
+      numbers rather than describing them in general terms.
 
-# Google Gemini Configuration
-google:
-  api_key: ""
-  # Models: gemini-pro, gemini-pro-vision
-  model: "gemini-pro"
-  temperature:
-    teaser: 0.7
-    description: 0.9
-  # Safety settings
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+      Write about the topic, never about the presentation or the presenter. Do not mention the speaker,
+      do not use their name, and do not use pronouns for them. Never write meta-openers such as "This
+      analysis", "This summary", "This talk" or "The presentation", and never add a closing paragraph
+      that starts with "In summary", "Overall" or "In conclusion". Start directly with the subject.
+      No hype, no marketing language, no second person.
 
-# Cohere Configuration
-cohere:
-  api_key: ""
-  # Models: command, command-light, command-nightly
-  model: "command"
-  temperature:
-    teaser: 0.7
-    description: 0.9
+      Cover the problem addressed, the approach taken, and the key takeaways.
+      Write approximately {max_words} words as plain prose in two to four paragraphs.
+      Do not use Markdown, headings, bullet points or lists. Complete every sentence and end with a
+      proper closing sentence — never stop mid-thought.
+
+  # OpenAI
+  openai:
+    api_key: ""
+    # Models: gpt-4, gpt-4-turbo, gpt-3.5-turbo, gpt-4o, gpt-4o-mini
+    model: "gpt-4-turbo"
+    organization: ""   # optional
+    temperature:
+      teaser: 0.7
+      description: 0.9
+
+  # Anthropic Claude
+  anthropic:
+    api_key: ""
+    # Models: claude-sonnet-5, claude-3-5-sonnet-20241022, claude-3-opus-20240229
+    model: "claude-sonnet-5"
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3   # lower = more focused, concise summaries
+
+  # Claude Code CLI in print mode: uses the machine's Claude subscription instead
+  # of API credits. The CLI exposes neither max_tokens nor temperature, so output
+  # length is governed by the prompt alone.
+  claude_code:
+    binary: "claude"
+    model: "sonnet"
+    timeout: 600
+
+  # Local MLX model via an OpenAI-compatible server (e.g. omlx-server).
+  # Keeps all transcript data on-device. Set `model` to a served model id and
+  # `api_key` to whatever the local server requires.
+  mlx:
+    base_url: "http://127.0.0.1:8000/v1"
+    api_key: ""
+    model: ""
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3
+
+
 
 # ########################################

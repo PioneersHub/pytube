@@ -890,34 +890,37 @@ class VideoPresenterDetector:
         image_files = sorted({p.resolve(): p for p in image_files}.values(), key=lambda p: p.name.lower())
         image_files = self._filter_break_image_paths_by_room(image_files, video_path)
 
-        # Also load event-wide "presentation starts soon" slides (Pre-Session / intermission
-        # graphics shown across all rooms). These bypass the room filter.
-        starts_soon_dir = str(
-            OmegaConf.select(self.cfg.break_detection, "presentation_starts_soon_images", default="") or ""
-        ).strip()
-        starts_soon_files: list[Path] = []
-        if starts_soon_dir:
-            starts_soon_path = Path(starts_soon_dir)
-            if starts_soon_path.is_dir():
-                for pattern in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
-                    starts_soon_files.extend(starts_soon_path.glob(pattern))
-                starts_soon_files = sorted(
-                    {p.resolve(): p for p in starts_soon_files}.values(),
-                    key=lambda p: p.name.lower(),
-                )
-                # De-duplicate against images_dir when the file is symlinked into both.
-                seen = {p.resolve() for p in image_files}
-                starts_soon_files = [p for p in starts_soon_files if p.resolve() not in seen]
-                if starts_soon_files:
-                    logger.info(
-                        f"Loading {len(starts_soon_files)} presentation-starts-soon image(s) from "
-                        f"{starts_soon_dir} (room filter skipped)"
-                    )
-                    image_files = [*image_files, *starts_soon_files]
-            else:
+        # Also load event-wide shared refs — graphics shown across all rooms that bypass
+        # the room filter. Two sources:
+        #   presentation_starts_soon_images — the Pre-Session / intermission graphic
+        #   sponsor_slides                  — cycling sponsor-thanks slides shown during breaks
+        for cfg_key, label in (
+            ("presentation_starts_soon_images", "presentation-starts-soon"),
+            ("sponsor_slides", "sponsor-slides"),
+        ):
+            extra_dir = str(OmegaConf.select(self.cfg.break_detection, cfg_key, default="") or "").strip()
+            if not extra_dir:
+                continue
+            extra_path = Path(extra_dir)
+            if not extra_path.is_dir():
+                logger.info(f"break_detection.{cfg_key} does not exist: {extra_dir}")
+                continue
+            extra_files: list[Path] = []
+            for pattern in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
+                extra_files.extend(extra_path.glob(pattern))
+            extra_files = sorted(
+                {p.resolve(): p for p in extra_files}.values(),
+                key=lambda p: p.name.lower(),
+            )
+            # De-duplicate against already-queued files when the same PNG is symlinked into
+            # multiple directories.
+            seen = {p.resolve() for p in image_files}
+            extra_files = [p for p in extra_files if p.resolve() not in seen]
+            if extra_files:
                 logger.info(
-                    f"break_detection.presentation_starts_soon_images does not exist: {starts_soon_dir}"
+                    f"Loading {len(extra_files)} {label} image(s) from {extra_dir} (room filter skipped)"
                 )
+                image_files = [*image_files, *extra_files]
 
         if not image_files:
             logger.info(f"No images found in {break_images_dir}")
@@ -1646,7 +1649,6 @@ class VideoPresenterDetector:
         video_path: str,
         scheduled_durations_sec: list[float],
         *,
-        scheduled_starts_of_day_sec: list[float | None] | None = None,
         coarse_step_sec: float | None = None,
         min_block_samples: int | None = None,
         merge_gap_sec: float | None = None,
@@ -1748,48 +1750,7 @@ class VideoPresenterDetector:
                 return []
 
             picks = self._schedule_match_assign(gaps, scheduled_durations_sec)
-            gap_spans = [gaps[i] for i in picks]
-
-            # Wallclock anchoring: derive ``video_offset = gap_start - scheduled_start_of_day``
-            # from the best-fit pair (smallest |gap_duration − scheduled_duration|), then emit
-            # each row's final span as [offset + sched_start, offset + sched_start + duration].
-            # This clips over-long gaps (pre-talk walk-in, post-talk Q&A) down to scheduled size
-            # while still placing every row at the right video offset.
-            offset: float | None = None
-            if scheduled_starts_of_day_sec and len(scheduled_starts_of_day_sec) == len(scheduled_durations_sec):
-                best: tuple[float, float] | None = None  # (|Δ|, offset)
-                for (g_start, g_end), sched_dur, sched_start in zip(
-                    gap_spans, scheduled_durations_sec, scheduled_starts_of_day_sec, strict=True
-                ):
-                    if sched_start is None:
-                        continue
-                    delta = abs((g_end - g_start) - float(sched_dur))
-                    cand_offset = float(g_start) - float(sched_start)
-                    if best is None or delta < best[0]:
-                        best = (delta, cand_offset)
-                if best is not None:
-                    offset = best[1]
-                    logger.info(
-                        f"{self._tag()}schedule-match: wallclock anchor — video_offset={offset:.1f}s "
-                        f"(best gap Δ={best[0]:.1f}s); clipping spans to scheduled durations"
-                    )
-
-            if offset is not None:
-                out: list[tuple[float, float]] = []
-                for sched_dur, sched_start in zip(
-                    scheduled_durations_sec, scheduled_starts_of_day_sec or [], strict=False
-                ):
-                    if sched_start is None:
-                        out.append((0.0, 0.0))  # placeholder; fall back below
-                        continue
-                    start_v = max(0.0, offset + float(sched_start))
-                    end_v = min(float(scan_to), start_v + float(sched_dur))
-                    out.append((start_v, end_v))
-                # Safety: if any placeholder, fall back to gap spans entirely.
-                if any(e == 0.0 and s == 0.0 for s, e in out):
-                    out = gap_spans
-            else:
-                out = gap_spans
+            out = [gaps[i] for i in picks]
 
             for i, (span, sched) in enumerate(zip(out, scheduled_durations_sec, strict=True), start=1):
                 actual = span[1] - span[0]
@@ -3130,7 +3091,6 @@ class VideoPresenterDetector:
         for i, (start, end) in enumerate(plan["presentations_index"]):
             presentation = plan["presentations"][i]
             output_video = output_folder / presentation["Sequential_Filename"]
-            output_audio = output_video.with_suffix(".mp3")
 
             if output_video.exists():
                 logger.info(f"Video already exists: {output_video}, skipping...")
@@ -3143,9 +3103,10 @@ class VideoPresenterDetector:
                 end=int(end),
                 output_video=output_video,
             )
-            if ok and self.cfg.output.extract_audio:
+            if ok and bool(OmegaConf.select(self.cfg.output, "extract_audio", default=False)):
+                fmt = str(OmegaConf.select(self.cfg.output, "audio_format", default="m4a") or "m4a").lower()
                 logger.info(f"Extracting audio for presentation {i + 1}...")
-                self._ffmpeg_extract_audio(output_video, output_audio)
+                self._ffmpeg_extract_audio(output_video, output_video.with_suffix(f".{fmt}"), fmt=fmt)
 
     def _ffmpeg_extract_segment(
         self, input_video: str, start: int, end: int, output_video: Path
@@ -3177,12 +3138,27 @@ class VideoPresenterDetector:
         logger.info(f"✅ Extracted video: {output_video}")
         return True
 
-    def _ffmpeg_extract_audio(self, output_video: Path, output_audio: Path) -> bool:
-        """Extract a 44.1 kHz / 2 ch / 192 k MP3 companion from an already-cut clip."""
-        cmd = [
-            "ffmpeg", "-i", str(output_video), "-vn", "-ar", "44100",
-            "-ac", "2", "-ab", "192k", "-f", "mp3", str(output_audio),
-        ]
+    def _ffmpeg_extract_audio(
+        self, output_video: Path, output_audio: Path, *, fmt: str = "m4a"
+    ) -> bool:
+        """Extract an audio companion from an already-cut clip.
+
+        ``fmt`` selects the encoder (default ``m4a``):
+        - ``m4a``: AAC 192 kbps, ipod muxer (audio-only MP4 container).
+        - ``mp3``: 44.1 kHz / 2 ch / 192 kbps.
+        - ``wav``: 44.1 kHz / 2 ch / 16-bit PCM.
+        """
+        fmt = (fmt or "m4a").lower()
+        if fmt == "mp3":
+            extra = ["-vn", "-ar", "44100", "-ac", "2", "-ab", "192k", "-f", "mp3"]
+        elif fmt == "wav":
+            extra = ["-vn", "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", "-f", "wav"]
+        elif fmt == "m4a":
+            extra = ["-vn", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", "-f", "ipod"]
+        else:
+            logger.error(f"Unsupported output.audio_format {fmt!r} — expected m4a | mp3 | wav")
+            return False
+        cmd = ["ffmpeg", "-i", str(output_video), *extra, str(output_audio)]
         logger.info(f"Command: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
@@ -3259,7 +3235,8 @@ class VideoPresenterDetector:
             logger.error(f"{meta_path}: input video not found on disk: {input_video}")
             return
 
-        extract_audio = bool(OmegaConf.select(self.cfg.output, "extract_audio", default=True))
+        extract_audio = bool(OmegaConf.select(self.cfg.output, "extract_audio", default=False))
+        audio_fmt = str(OmegaConf.select(self.cfg.output, "audio_format", default="m4a") or "m4a").lower()
         done = 0
         for row, segment in zip(rows, metadata.presentations_index, strict=True):
             name = self._build_upload_filename(row)
@@ -3282,7 +3259,7 @@ class VideoPresenterDetector:
             if not ok:
                 continue
             if extract_audio:
-                self._ffmpeg_extract_audio(out_video, out_video.with_suffix(".mp3"))
+                self._ffmpeg_extract_audio(out_video, out_video.with_suffix(f".{audio_fmt}"), fmt=audio_fmt)
             done += 1
         logger.info(f"extracted {done}/{len(rows)} presentations from {meta_path.parent}")
 
@@ -3345,8 +3322,13 @@ class VideoPresenterDetector:
             return None
 
     def save_presentation_metadata(self, plan: dict, presentations: list[tuple[float, float]]) -> None:
-        """Build a VideoMetadata (pydantic-validated) and write to metadata.yaml."""
-        metadata_file = self.video_output_folder / plan["output_folder"] / "metadata.yaml"
+        """Build a VideoMetadata (pydantic-validated) and write to metadata_auto.yaml.
+
+        ``metadata_auto.yaml`` is the detector's output and is overwritten on every run.
+        ``metadata.yaml`` (read by ``--extract-from-metadata``) is hand-blessed and never
+        touched by the detector.
+        """
+        metadata_file = self.video_output_folder / plan["output_folder"] / "metadata_auto.yaml"
         metadata = VideoMetadata(
             video=plan,
             presentations_index=[
@@ -3613,7 +3595,7 @@ def _run_inverse_cli(  # noqa: PLR0913
             json.dump(doc, f, indent=2, ensure_ascii=False)
         logger.info(f"  wrote {out_path} ({len(segments)} segment(s))")
 
-        # Also write metadata.yaml into {output.folder}/{output_folder}/ matching the normal pipeline.
+        # Also write metadata_auto.yaml into {output.folder}/{output_folder}/ matching the normal pipeline.
         mapped = detector.get_output_folder(vpath)
         subdir = mapped or _inverse_output_subdir_from_filename(vpath.name)
         plan_for_yaml = {
@@ -3625,7 +3607,7 @@ def _run_inverse_cli(  # noqa: PLR0913
             (detector.video_output_folder / subdir).mkdir(parents=True, exist_ok=True)
             detector.save_presentation_metadata(plan_for_yaml, spans)
         except Exception as e:
-            logger.warning(f"  failed to write metadata.yaml for {vpath.name}: {e}")
+            logger.warning(f"  failed to write metadata_auto.yaml for {vpath.name}: {e}")
 
         rows.append({"video": vpath.name, "n": len(segments), "spans": spans})
 
@@ -3659,36 +3641,6 @@ def _room_short(room: str | None) -> str | None:
     return _ROOM_ANNOTATION_RE.sub("", str(room)).strip() or None
 
 
-def _parse_time_of_day_seconds(value) -> float | None:  # noqa: PLR0911
-    """Parse a Pretalx ``Start (time)`` / ``End (time)`` cell to seconds-of-day.
-
-    Accepts ``HH:MM[:SS]``, ``datetime.time``, or an already-numeric value. Returns ``None``
-    for missing / unparseable input so callers can fall back to gap-based spans.
-    """
-    if value is None:
-        return None
-    # datetime.time / datetime.datetime duck-typing
-    h = getattr(value, "hour", None)
-    if h is not None:
-        m = int(getattr(value, "minute", 0) or 0)
-        s = int(getattr(value, "second", 0) or 0)
-        return float(int(h) * 3600 + m * 60 + s)
-    if isinstance(value, (int, float)):
-        return float(value)
-    s = str(value).strip()
-    if not s:
-        return None
-    parts = s.split(":")
-    try:
-        if len(parts) == 3:  # noqa: PLR2004
-            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0 + float(parts[2])
-        if len(parts) == 2:  # noqa: PLR2004
-            return float(parts[0]) * 3600.0 + float(parts[1]) * 60.0
-    except ValueError:
-        return None
-    return None
-
-
 def _scheduled_rows_for_video(detector: "VideoPresenterDetector", video_name: str) -> list[dict]:
     """Return mapping-YAML rows matching ``video_name``, sorted chronologically by Pretalx
     ``Start (time)``. Non-matching videos → empty list.
@@ -3710,7 +3662,7 @@ def _scheduled_rows_for_video(detector: "VideoPresenterDetector", video_name: st
 
 def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
     """Schedule-aligned detection: per video, find K scheduled talks by matching scheduled
-    durations to gaps between detected break blocks. Writes metadata.yaml per video.
+    durations to gaps between detected break blocks. Writes metadata_auto.yaml per video.
     """
     if not video_paths:
         logger.error("--schedule-match: no video files to process (set --video or --input-folder)")
@@ -3727,7 +3679,6 @@ def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
             logger.warning(f"  no mapping rows for {vpath.name} — skipping")
             continue
         durations_sec: list[float] = []
-        starts_of_day_sec: list[float | None] = []
         for r in rows:
             d = parse_pretalx_duration_to_seconds(r.get("Duration"))
             if d is None or d <= 0:
@@ -3735,7 +3686,6 @@ def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
                 durations_sec = []
                 break
             durations_sec.append(float(d))
-            starts_of_day_sec.append(_parse_time_of_day_seconds(r.get("Start (time)")))
         if not durations_sec:
             continue
 
@@ -3743,15 +3693,16 @@ def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
             f"  {len(rows)} scheduled row(s) — durations (min): "
             + ", ".join(f"{d / 60.0:.0f}" for d in durations_sec)
         )
-        spans = detector.detect_by_schedule_matching(
-            str(vpath),
-            durations_sec,
-            scheduled_starts_of_day_sec=starts_of_day_sec if any(s is not None for s in starts_of_day_sec) else None,
-        )
+        try:
+            spans = detector.detect_by_schedule_matching(str(vpath), durations_sec)
+        except Exception as exc:  # noqa: BLE001 — must not kill the batch
+            logger.error(f"  {vpath.name}: schedule-match failed — {exc}; skipping video")
+            rows_out.append({"video": vpath.name, "n": 0, "ok": False, "error": str(exc)})
+            continue
         if len(spans) != len(durations_sec):
             logger.error(
                 f"  {vpath.name}: expected {len(durations_sec)} span(s), got {len(spans)} — "
-                "not writing metadata.yaml"
+                "not writing metadata_auto.yaml"
             )
             rows_out.append({"video": vpath.name, "n": len(spans), "ok": False})
             continue
@@ -3779,7 +3730,7 @@ def _run_schedule_match_cli(cfg: DictConfig, video_paths: list[str]) -> None:
             (detector.video_output_folder / subdir).mkdir(parents=True, exist_ok=True)
             detector.save_presentation_metadata(plan_for_yaml, spans)
         except Exception as e:
-            logger.warning(f"  failed to write metadata.yaml for {vpath.name}: {e}")
+            logger.warning(f"  failed to write metadata_auto.yaml for {vpath.name}: {e}")
         rows_out.append({"video": vpath.name, "n": len(spans), "ok": True, "spans": spans})
 
     logger.info("=== SCHEDULE-MATCH SUMMARY ===")
@@ -3894,7 +3845,7 @@ def main():  # noqa: PLR0911, PLR0912, PLR0915
         action="store_true",
         help=(
             "Convert each filled metadata_template.yaml to metadata_manual.yaml (HH:MM:SS → seconds). "
-            "Leaves the detector's metadata.yaml untouched."
+            "Leaves the detector's metadata_auto.yaml untouched."
         ),
     )
     parser.add_argument(
@@ -4004,7 +3955,8 @@ def main():  # noqa: PLR0911, PLR0912, PLR0915
                 "output": {
                     "folder": "extracted_presentations",
                     "extract_presentations": False,
-                    "extract_audio": True,
+                    "extract_audio": False,
+                    "audio_format": "m4a",
                     "save_metadata": True,
                     "fast_input_seek": False,
                     "auto_detect_on_extract": False,

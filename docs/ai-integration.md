@@ -98,18 +98,22 @@ def process_conference():
 AI agents can directly read JSON files from these directories:
 
 ```
-_tmp/
-├── records/              # Session data from Pretalx
-│   └── *.json           # One file per session
-├── video_records/        # Videos mapped to sessions
-│   └── *.json           # Enhanced with video URLs
-├── video_records_updated/ # Videos with updated metadata
-│   └── *.json           # Ready for scheduling
-├── video_published/      # Published videos
-│   └── *.json           # Live on YouTube
-└── speaker_to_email/     # Email queue
-    └── *.json           # Pending notifications
+projects/<event-slug>/
+├── records/                     # Session data from Pretalx
+│   └── *.json                   # One file per session
+├── videos/
+│   ├── tracks_map.json          # Pretalx code -> channel
+│   ├── pretalx_yt_map.json      # Pretalx code -> YouTube video id
+│   └── youtube/
+│       ├── video_records/         # Videos mapped to sessions
+│       ├── video_records_updated/ # Metadata sent to YouTube
+│       └── video_published/       # Live on YouTube
+└── speaker_to_email/            # Email queue
+    └── *.json                   # Pending notifications
 ```
+
+The root comes from `dirs.work_dir` and the event from `pretalx.event_slug`.
+See [Projects & Configuration](projects.md) for the full layout.
 
 ## API-Style Interactions
 
@@ -158,7 +162,7 @@ AI agents can monitor the pipeline by:
 
 1. Checking directory counts:
 ```bash
-ls _tmp/video_records/*.json | wc -l
+ls projects/pyconde-pydata-2026/videos/youtube/video_records/*.json | wc -l
 ```
 
 2. Parsing status output:

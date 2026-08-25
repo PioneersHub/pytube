@@ -2,12 +2,16 @@
 
 This guide explains how to obtain API credentials for all supported AI and social media services in PyTube.
 
+Only `openai` ships as a core dependency. Using Anthropic requires its extra:
+`uv pip install -e ".[anthropic]"`. The local-model and Claude Code providers need
+no extra package.
+
 ## Table of Contents
 - [AI Services](#ai-services)
   - [OpenAI](#openai)
   - [Anthropic Claude](#anthropic-claude)
-  - [Google Gemini](#google-gemini)
-  - [Cohere](#cohere)
+  - [Local models (MLX, Ollama, LM Studio, vLLM …)](#local-models-mlx-ollama-lm-studio-vllm-)
+  - [Claude Code CLI](#claude-code-cli)
 - [Social Media Platforms](#social-media-platforms)
   - [LinkedIn](#linkedin)
   - [Twitter/X](#twitterx)
@@ -30,11 +34,12 @@ This guide explains how to obtain API credentials for all supported AI and socia
 
 **Configuration**:
 ```yaml
-ai_service: "openai"
-openai:
-  api_key: "sk-..."
-  model: "gpt-3.5-turbo"  # or gpt-4, gpt-4o
-  organization: "org-..."  # Optional
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: "sk-..."
+    model: "gpt-4-turbo"  # or gpt-4o, gpt-3.5-turbo
+    organization: "org-..."  # Optional
 ```
 
 **Pricing**: 
@@ -54,11 +59,15 @@ openai:
 
 **Configuration**:
 ```yaml
-ai_service: "anthropic"
-anthropic:
-  api_key: "sk-ant-..."
-  model: "claude-3-sonnet-20240229"  # or claude-3-opus-20240229, claude-3-haiku-20240307
-  max_tokens: 1000
+ai_service:
+  provider: "anthropic"
+  anthropic:
+    api_key: "sk-ant-..."
+    model: "claude-sonnet-5"  # or claude-3-5-sonnet-20241022
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3   # lower = more focused, concise summaries
 ```
 
 **Pricing**:
@@ -66,53 +75,73 @@ anthropic:
 - Claude 3 Sonnet: ~$3 per 1M tokens (input), $15 per 1M tokens (output)
 - Claude 3 Opus: ~$15 per 1M tokens (input), $75 per 1M tokens (output)
 
-### Google Gemini
+### Local models (MLX, Ollama, LM Studio, vLLM …)
 
-**Required**: `api_key`
+**Required**: a running local server with an **OpenAI-compatible** `/v1` endpoint.
 
-1. **Sign up**: Go to [makersuite.google.com](https://makersuite.google.com) (Google AI Studio)
-2. **Get API Key**: Click on "Get API key" in the left sidebar
-3. **Create Key**: Choose "Create API key in new project" or select existing project
-4. **Copy Key**: Save the generated API key
-5. **Enable**: The Gemini API is automatically enabled
+The `mlx` provider is not tied to MLX — it is a thin wrapper around the OpenAI
+client with a custom `base_url`. Any server that speaks the OpenAI chat-completions
+API works; only `base_url` and `model` change. No data leaves the machine, and
+there are no per-token costs.
 
-**Configuration**:
 ```yaml
-ai_service: "google"
-google:
-  api_key: "AIza..."
-  model: "gemini-pro"  # or gemini-pro-vision for multimodal
-  safety_settings:
-    harassment: "BLOCK_MEDIUM_AND_ABOVE"
-    hate_speech: "BLOCK_MEDIUM_AND_ABOVE"
+ai_service:
+  provider: "mlx"
+  mlx:
+    base_url: "http://127.0.0.1:8000/v1"   # MLX (omlx-server)
+    api_key: "..."                          # whatever the server expects
+    model: "mlx-community--gemma-4-31B-it-qat-8bit"
+    max_tokens: 2000
+    temperature:
+      teaser: 0.7
+      description: 0.3
 ```
 
-**Pricing**:
-- Gemini Pro: Free tier available (60 queries per minute)
-- Paid tier: $0.00025 per 1K characters (input), $0.0005 per 1K characters (output)
+Endpoints of common servers — put the value into `base_url`:
 
-### Cohere
+| Server | `base_url` | `api_key` |
+|---|---|---|
+| MLX (omlx-server) | `http://127.0.0.1:8000/v1` | from the server's settings |
+| Ollama | `http://localhost:11434/v1` | any non-empty string (ignored) |
+| LM Studio | `http://localhost:1234/v1` | any non-empty string (ignored) |
+| vLLM / llama.cpp | `http://localhost:8000/v1` | as configured |
 
-**Required**: `api_key`
+`api_key` must be non-empty even when the server ignores it — the provider fails
+fast on a missing key rather than sending an unauthenticated request.
 
-1. **Sign up**: Go to [dashboard.cohere.com](https://dashboard.cohere.com) and create an account
-2. **API Keys**: Navigate to API Keys section
-3. **Create Key**: Click "Create Trial Key" or "Create Production Key"
-4. **Copy Key**: Save the key immediately
-5. **Upgrade**: Trial keys have limited usage; upgrade for production use
+**Choosing a model.** Transcript summaries send up to `transcripts.max_chars`
+(48 000 characters ≈ 13 000 tokens), so the model needs a context window of 32k or
+more. Two failure modes seen in practice:
 
-**Configuration**:
+- *Reasoning models* (e.g. Qwen3.x "thinking" variants) print their chain of
+  thought into the answer and burn the token budget. Use a plain instruct model.
+- *Oversized weights*: a model larger than the server's memory ceiling is rejected
+  (HTTP 507). Check the ceiling before picking an 8-bit 100B+ model.
+
+**Trade-off.** Local generation is free and private but slower: roughly 40 s per
+call versus 14 s against the hosted Claude API, i.e. about 3 hours for a
+140-session conference.
+
+### Claude Code CLI
+
+**Required**: the `claude` CLI in `PATH` and a signed-in Claude subscription.
+
+Uses the local subscription instead of API credits. The CLI is an agentic tool, so
+the provider pins it to a single turn with all tools disabled.
+
 ```yaml
-ai_service: "cohere"
-cohere:
-  api_key: "..."
-  model: "command"  # or command-light, command-nightly
+ai_service:
+  provider: "claude_code"
+  claude_code:
+    binary: "claude"
+    model: "sonnet"
+    timeout: 600
 ```
 
-**Pricing**:
-- Trial: Free with limited usage
-- Production: Starting at $0.40 per 1M tokens
-- Check [cohere.com/pricing](https://cohere.com/pricing) for details
+**Caveat**: the CLI exposes neither `max_tokens` nor `temperature`. Length is
+governed by the prompt alone, and in practice the output overshoots the requested
+word count substantially (up to ~2x). Prefer the API provider when predictable
+length matters.
 
 ---
 
@@ -241,8 +270,10 @@ export TWITTER_API_KEY="..."
 
 Then reference in your config:
 ```yaml
-openai:
-  api_key: ${OPENAI_API_KEY}
+ai_service:
+  provider: "openai"
+  openai:
+    api_key: ${OPENAI_API_KEY}
 ```
 
 ## Troubleshooting
@@ -280,7 +311,6 @@ For a typical conference with 50 talks:
 - **OpenAI**: [help.openai.com](https://help.openai.com)
 - **Anthropic**: [support.anthropic.com](https://support.anthropic.com)
 - **Google AI**: [ai.google.dev/support](https://ai.google.dev/support)
-- **Cohere**: [docs.cohere.com](https://docs.cohere.com)
 - **LinkedIn**: [linkedin.com/help/linkedin](https://www.linkedin.com/help/linkedin)
 - **Twitter**: [developer.twitter.com/support](https://developer.twitter.com/en/support)
 - **Mastodon**: Instance-specific support

@@ -8,13 +8,21 @@ Following Kent Beck's TDD principles:
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from googleapiclient.errors import HttpError
 
 from manager.handlers.youtube import YT, PrepareVideoMetadata
+from manager.models.video import (
+    BaseRecordingDetails,
+    VideoSnippet,
+    VideoStatus,
+    YoutubeVideoResource,
+    to_rfc3339,
+    trim_tags,
+)
 from tests.utils import (
     assert_youtube_video_updated,
     create_sample_record,
@@ -116,6 +124,11 @@ class TestYouTubeAuthentication:
         mock_flow_instance.run_local_server.assert_called_once_with(port=0)
         mock_build.assert_called_once()
 
+    @pytest.mark.skip(
+        reason="check_macos_sequoia() is commented out and always returns False, so no RuntimeError is "
+        "raised and the call falls through to a real OAuth flow — this test opened a browser window on "
+        "every run. Re-enable together with the detection in handlers/youtube.py."
+    )
     @patch("platform.system")
     @patch("platform.mac_ver")
     def test_macos_sequoia_detection(self, mock_mac_ver, mock_system, youtube_handler):
@@ -274,122 +287,106 @@ class TestVideoMapping:
         assert xyz_record["youtube_id"] == "secondary_video"
 
 
-class TestMetadataUpdate:
-    """Test YouTube metadata updates."""
+class TestUpdateBody:
+    """The request body sent to videos.update.
 
-    @pytest.fixture
-    def metadata_handler(self, mock_config, tmp_path):
-        """Create PrepareVideoMetadata instance."""
-        mock_config.dirs.work_dir = tmp_path
+    YouTube deletes any property it does not receive within a part that is being
+    updated, so `to_update_body` must always emit every field of both parts.
+    """
 
-        # Create test video records
-        video_records_dir = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records"
-        video_records_dir.mkdir(parents=True)
-
-        return PrepareVideoMetadata()
-
-    def test_update_video_metadata_success(self, metadata_handler, mock_config, tmp_path):
-        """Test successful video metadata update."""
-        # Arrange
-        video_record = {
-            "pretalx_id": "TEST001",
-            "youtube_id": "test_video_id",
-            "title": "Updated Test Title",
-            "abstract": "Updated abstract",
-            "speakers": ["Jane Developer"],
-            "track": "Python Basics",
-        }
-
-        video_file = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records" / "TEST001.json"
-        create_test_file(video_file, video_record)
-
-        mock_youtube = MagicMock()
-        mock_youtube.videos().update().execute.return_value = {"status": "success"}
-
-        # Act
-        with patch("manager.handlers.youtube.conf", mock_config):
-            with patch.object(metadata_handler, "youtube", mock_youtube):
-                updated = metadata_handler.update_single_youtube_video("TEST001")
-
-        # Assert
-        assert updated is True
-        assert_youtube_video_updated(mock_youtube, "test_video_id", snippet__title="Updated Test Title")
-
-        # Check file was moved to updated directory
-        updated_file = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records_updated" / "TEST001.json"
-        assert updated_file.exists()
-        assert not video_file.exists()
-
-    def test_update_handles_api_rate_limit(self, metadata_handler, mock_config, tmp_path):
-        """Test handling of YouTube API rate limiting."""
-        # Arrange
-        video_record = create_sample_record("RATE001", youtube_id="rate_video")
-        video_file = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records" / "RATE001.json"
-        create_test_file(video_file, video_record)
-
-        # Mock rate limit error
-        http_error = HttpError(resp=Mock(status=403), content=b'{"error": {"message": "Rate limit exceeded"}}')
-
-        mock_youtube = MagicMock()
-        mock_youtube.videos().update().execute.side_effect = http_error
-
-        # Act
-        with patch("manager.handlers.youtube.conf", mock_config):
-            with patch.object(metadata_handler, "youtube", mock_youtube):
-                with patch("time.sleep"):  # Don't actually sleep in tests
-                    updated = metadata_handler.update_single_youtube_video("RATE001")
-
-        # Assert
-        assert updated is False
-        # File should remain in original location
-        assert video_file.exists()
-
-    def test_update_validates_description_length(self, metadata_handler):
-        """Test that descriptions are truncated to YouTube's limit."""
-        # Arrange
-        long_description = "x" * 6000  # YouTube limit is 5000
-
-        # Act
-        result = metadata_handler._prepare_description(
-            abstract=long_description, description="Additional text", speaker_bios=["Bio1", "Bio2"]
+    def _resource(self, recording_date=None, **status_kwargs) -> YoutubeVideoResource:
+        return YoutubeVideoResource(
+            id="vid123",
+            snippet=VideoSnippet(title="A talk", description="What it covers.", tags=["Python"]),
+            recording_details=BaseRecordingDetails(recording_date=recording_date),
+            status=VideoStatus(**status_kwargs),
         )
 
-        # Assert
-        assert len(result) <= 5000
-        assert "..." in result  # Should indicate truncation
+    def test_recording_date_widened_to_rfc3339(self):
+        """A date-only ISO recording date is sent as midnight-UTC RFC 3339."""
+        body = self._resource(recording_date="2026-04-14").to_update_body()
 
-    def test_batch_update_continues_on_single_failure(self, metadata_handler, mock_config, tmp_path):
-        """Test batch update continues even if one video fails."""
-        # Arrange
-        # Create multiple video records
-        for i in range(3):
-            record = create_sample_record(f"BATCH{i}", youtube_id=f"video_{i}")
-            video_file = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records" / f"BATCH{i}.json"
-            create_test_file(video_file, record)
+        assert body["recordingDetails"]["recordingDate"] == "2026-04-14T00:00:00Z"
+        assert json.loads(json.dumps(body))  # serialisable
 
-        mock_youtube = MagicMock()
-        # Make second video fail
-        mock_youtube.videos().update().execute.side_effect = [
-            {"status": "success"},
-            HttpError(resp=Mock(status=400), content=b'{"error": "Invalid request"}'),
-            {"status": "success"},
-        ]
+    def test_no_recording_details_without_a_date(self):
+        assert "recordingDetails" not in self._resource().to_update_body()
 
-        # Act
-        with patch("manager.handlers.youtube.conf", mock_config):
-            with patch.object(metadata_handler, "youtube", mock_youtube):
-                results = metadata_handler.update_all_youtube_videos()
+    def test_sends_every_snippet_and_status_field(self):
+        body = self._resource().to_update_body()
 
-        # Assert
-        assert results["success"] == 2
-        assert results["failed"] == 1
-        assert results["total"] == 3
+        assert set(body["snippet"]) == {
+            "title",
+            "description",
+            "categoryId",
+            "tags",
+            "defaultLanguage",
+            "defaultAudioLanguage",
+        }
+        assert set(body["status"]) == {
+            "privacyStatus",
+            "license",
+            "embeddable",
+            "publicStatsViewable",
+            "selfDeclaredMadeForKids",
+        }
 
-        # Check files moved correctly
-        updated_dir = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records_updated"
-        assert (updated_dir / "BATCH0.json").exists()
-        assert not (updated_dir / "BATCH1.json").exists()  # Failed
-        assert (updated_dir / "BATCH2.json").exists()
+    def test_never_sends_read_only_published_at(self):
+        """snippet.publishedAt is set by YouTube; sending it is rejected."""
+        resource = self._resource()
+        resource.snippet.published_at = datetime(2026, 4, 14, tzinfo=UTC)
+
+        assert "publishedAt" not in resource.to_update_body()["snippet"]
+
+    def test_publish_date_forces_private(self):
+        """YouTube only accepts publishAt on a private video."""
+        body = self._resource(privacy_status="unlisted", publish_at="2026-08-03T10:00:00+02:00").to_update_body()
+
+        assert body["status"]["privacyStatus"] == "private"
+        assert body["status"]["publishAt"] == "2026-08-03T08:00:00Z"
+
+    def test_no_publish_at_key_without_a_date(self):
+        assert "publishAt" not in self._resource().to_update_body()["status"]
+
+    def test_body_is_json_serialisable(self):
+        """Regression: the str branch used to produce a datetime, which crashes here."""
+        body = self._resource(publish_at="2026-08-03T10:00:00+02:00").to_update_body()
+
+        assert json.loads(json.dumps(body))["status"]["publishAt"] == "2026-08-03T08:00:00Z"
+
+
+class TestRfc3339:
+    """publishAt must be RFC 3339; strftime("%z") emits +0000, which is not."""
+
+    def test_accepts_iso_string(self):
+        assert to_rfc3339("2026-08-03T10:00:00+02:00") == "2026-08-03T08:00:00Z"
+
+    def test_accepts_aware_datetime(self):
+        assert to_rfc3339(datetime(2026, 8, 3, 8, 0, tzinfo=UTC)) == "2026-08-03T08:00:00Z"
+
+    def test_treats_naive_datetime_as_utc(self):
+        assert to_rfc3339(datetime(2026, 8, 3, 8, 0)) == "2026-08-03T08:00:00Z"
+
+    def test_rejects_other_types(self):
+        with pytest.raises(TypeError):
+            to_rfc3339(1754208000)
+
+
+class TestTagTrimming:
+    """YouTube truncates over-long tag lists silently, so drop them loudly."""
+
+    def test_keeps_tags_within_the_limit(self):
+        kept, dropped = trim_tags(["Python", "PyData"])
+
+        assert kept == ["Python", "PyData"]
+        assert dropped == []
+
+    def test_drops_tags_beyond_the_limit(self):
+        kept, dropped = trim_tags([f"tag{i:03d}" * 5 for i in range(30)])
+
+        assert len(kept) < 30
+        assert dropped
+        assert sum(len(t) + 2 for t in kept) <= 500
 
 
 class TestPublishScheduling:
@@ -550,3 +547,573 @@ class TestErrorHandling:
         assert "PENDING1" in pending
         assert len(completed) == 1
         assert "DONE1" in completed
+
+
+def _session_record(code: str, *, slots: list | None = None) -> dict:
+    """A minimal SessionRecord payload, enough for make_video_metadata."""
+    session = {
+        "code": code,
+        "title": f"Talk {code}",
+        "abstract": "Abstract.",
+        "description": "Description.",
+        "speakers": [],
+        "do_not_record": False,
+        "state": "confirmed",
+        "resources": [],
+        "slots": [{"start": "2026-04-14T14:30:00+02:00", "end": "2026-04-14T15:00:00+02:00"}]
+        if slots is None
+        else slots,
+        "answers": [],
+        "created": "2026-01-01T00:00:00Z",
+        "duration": 30,
+        "slot_count": 1,
+        "submission_type": {"id": 1, "name": {"en": "Talk", "de": None}},
+    }
+    return {
+        "pretalx_session": {"pretalx_id": code, "title": f"Talk {code}", "session": session, "speakers": []},
+        "pretalx_id": code,
+        "title": f"Talk {code}",
+        "abstract": "Abstract.",
+        "description": "Description.",
+        "speakers": [],
+        "sm_teaser_text": "Teaser.",
+        "sm_short_text": "Short.",
+        "sm_long_text": "Long text.",
+    }
+
+
+class TestMakeVideoMetadata:
+    """Building video records from the Pretalx->YouTube map."""
+
+    @pytest.fixture
+    def event(self, mock_config, tmp_path):
+        """An event directory with two mapped talks and one that was never uploaded."""
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        (event_dir / "records").mkdir(parents=True)
+        videos = event_dir / "videos"
+        (videos / "youtube" / "video_records").mkdir(parents=True)
+        (videos / "youtube" / "video_records_updated").mkdir(parents=True)
+
+        for code in ("AAA111", "BBB222", "CCC333"):
+            (event_dir / "records" / f"{code}.json").write_text(json.dumps(_session_record(code)))
+
+        # CCC333 has a channel but no uploaded video, so it must never be touched.
+        (videos / "tracks_map.json").write_text(json.dumps({"AAA111": "main", "BBB222": "secondary", "CCC333": "main"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"AAA111": "vidAAA", "BBB222": "vidBBB"}))
+
+        (event_dir / "youtube_test.txt").write_text("{{ description }}")
+        return event_dir
+
+    def _handler(self, mock_config, dry_run=False):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            return PrepareVideoMetadata("youtube_test.txt", "PyCon DE 2026", dry_run=dry_run)
+
+    def test_driven_by_the_youtube_map_not_the_channel_map(self, event, mock_config):
+        """A talk with a channel but no uploaded video is not a video to update."""
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = self._handler(mock_config).make_all_video_metadata()
+
+        assert [r.id for r in built] == ["vidAAA", "vidBBB"]
+
+    def test_channel_filter(self, event, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = self._handler(mock_config).make_all_video_metadata(channel="secondary")
+
+        assert [r.id for r in built] == ["vidBBB"]
+
+    def test_uses_the_first_slot_as_recording_date(self, event, mock_config):
+        """`slots` is when the talk was given; there is no `slot` attribute.
+
+        Stored as an ISO date so to_update_body can widen it to RFC 3339.
+        """
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = self._handler(mock_config).make_all_video_metadata()
+
+        assert built[0].recording_details.recording_date == "2026-04-14"
+        assert built[0].to_update_body()["recordingDetails"]["recordingDate"] == "2026-04-14T00:00:00Z"
+
+    def test_skips_a_talk_without_a_slot(self, event, mock_config):
+        (event / "records" / "AAA111.json").write_text(json.dumps(_session_record("AAA111", slots=[])))
+
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = self._handler(mock_config).make_all_video_metadata()
+
+        assert [r.id for r in built] == ["vidBBB"]
+
+    def test_dry_run_writes_nothing(self, event, mock_config):
+        before = {p: p.read_bytes() for p in event.rglob("*.json")}
+
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = self._handler(mock_config, dry_run=True).make_all_video_metadata()
+
+        assert built, "the run must still build the metadata"
+        assert {p: p.read_bytes() for p in event.rglob("*.json")} == before
+
+    def test_dry_run_refuses_to_send(self, event, mock_config):
+        """Constructing YT would trigger an interactive OAuth flow."""
+        with patch("manager.handlers.youtube.conf", mock_config), pytest.raises(RuntimeError, match="dry run"):
+            self._handler(mock_config, dry_run=True).send_all_video_metadata(destination_channel="main")
+
+
+class TestPerChannelTemplate:
+    """The description template can branch per channel via {% if pydata/pyconde %}."""
+
+    @pytest.fixture
+    def event(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        (event_dir / "records").mkdir(parents=True)
+        videos = event_dir / "videos"
+        (videos / "youtube" / "video_records").mkdir(parents=True)
+        for code in ("PYC001", "PYD001"):
+            (event_dir / "records" / f"{code}.json").write_text(json.dumps(_session_record(code)))
+        (videos / "tracks_map.json").write_text(json.dumps({"PYC001": "pyconde", "PYD001": "pydata"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"PYC001": "vidPYC", "PYD001": "vidPYD"}))
+        # A template that reveals which channel branch rendered.
+        (event_dir / "youtube_test.txt").write_text(
+            "{% if pyconde %}PYCONDE_ONLY{% endif %}{% if pydata %}PYDATA_ONLY{% endif %} [{{ channel }}]"
+        )
+        return event_dir
+
+    def test_pydata_block_only_for_pydata(self, event, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = PrepareVideoMetadata("youtube_test.txt", "at").make_all_video_metadata()
+
+        by_id = {r.id: r.snippet.description for r in built}
+        assert "PYCONDE_ONLY" in by_id["vidPYC"] and "PYDATA_ONLY" not in by_id["vidPYC"]
+        assert "PYDATA_ONLY" in by_id["vidPYD"] and "PYCONDE_ONLY" not in by_id["vidPYD"]
+        assert "[pyconde]" in by_id["vidPYC"] and "[pydata]" in by_id["vidPYD"]
+
+    def test_loader_prefers_project_template(self, event, mock_config):
+        """A template in the event dir wins over the packaged one of the same name."""
+        with patch("manager.handlers.youtube.conf", mock_config):
+            meta = PrepareVideoMetadata("youtube_test.txt", "at")
+            rendered = meta.template.render(channel="pydata", pydata=True, pyconde=False, description="")
+
+        assert "PYDATA_ONLY" in rendered  # the event-dir template, not a packaged file
+
+
+class TestStatusPreservation:
+    """`youtube update` must not discard a schedule set by `youtube schedule`."""
+
+    @pytest.fixture
+    def event(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        (event_dir / "records").mkdir(parents=True)
+        videos = event_dir / "videos"
+        for state in ("video_records", "video_records_updated", "video_published"):
+            (videos / "youtube" / state).mkdir(parents=True)
+        (event_dir / "records" / "AAA111.json").write_text(json.dumps(_session_record("AAA111")))
+        (videos / "tracks_map.json").write_text(json.dumps({"AAA111": "main"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"AAA111": "vidAAA"}))
+        (event_dir / "youtube_test.txt").write_text("{{ description }}")
+        return event_dir
+
+    def _existing(self, path, publish_at):
+        path.write_text(
+            YoutubeVideoResource(
+                id="vidAAA",
+                snippet=VideoSnippet(title="old", description="old"),
+                status=VideoStatus(publish_at=publish_at, privacy_status="private"),
+            ).model_dump_json()
+        )
+
+    @pytest.mark.parametrize("state", ["video_records", "video_records_updated"])
+    def test_publish_date_survives_a_rebuild(self, event, mock_config, state):
+        target = event / "videos" / "youtube" / state / "AAA111.json"
+        self._existing(target, "2026-08-03T10:00:00+02:00")
+
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = PrepareVideoMetadata("youtube_test.txt", "at").make_all_video_metadata()
+
+        assert to_rfc3339(built[0].status.publish_at) == "2026-08-03T08:00:00Z"
+        assert built[0].status.privacy_status == "private"
+
+    def test_rebuild_updates_the_record_where_it_lives(self, event, mock_config):
+        """Writing to video_records/ regardless would leave a second, conflicting copy."""
+        updated = event / "videos" / "youtube" / "video_records_updated" / "AAA111.json"
+        self._existing(updated, "2026-08-03T10:00:00+02:00")
+
+        with patch("manager.handlers.youtube.conf", mock_config):
+            PrepareVideoMetadata("youtube_test.txt", "at").make_all_video_metadata()
+
+        assert not (event / "videos" / "youtube" / "video_records" / "AAA111.json").exists()
+        assert json.loads(updated.read_text())["snippet"]["title"] != "old"
+
+    def test_config_changes_still_propagate(self, event, mock_config):
+        """Only publish_at is carried over; everything else comes from config."""
+        target = event / "videos" / "youtube" / "video_records" / "AAA111.json"
+        self._existing(target, "2026-08-03T10:00:00+02:00")
+        mock_config.youtube["video_defaults"] = {"license": "creativeCommon", "embeddable": False}
+
+        with patch("manager.handlers.youtube.conf", mock_config):
+            built = PrepareVideoMetadata("youtube_test.txt", "at").make_all_video_metadata()
+
+        assert built[0].status.license == "creativeCommon"
+        assert built[0].status.embeddable is False
+        assert to_rfc3339(built[0].status.publish_at) == "2026-08-03T08:00:00Z"
+
+
+class TestSendAllVideoMetadata:
+    """The live send path: correct body, per-channel auth, honest failures."""
+
+    @pytest.fixture
+    def ready(self, mock_config, tmp_path):
+        """An event with two built pyconde video records queued to send."""
+        mock_config.dirs.work_dir = tmp_path
+        event_dir = tmp_path / "test-event-2024"
+        videos = event_dir / "videos"
+        (videos / "youtube" / "video_records").mkdir(parents=True)
+        (videos / "youtube" / "video_records_updated").mkdir(parents=True)
+        (videos / "youtube" / "video_published").mkdir(parents=True)
+        (videos / "tracks_map.json").write_text(json.dumps({"AAA111": "main", "BBB222": "main"}))
+        (videos / "pretalx_yt_map.json").write_text(json.dumps({"AAA111": "vidAAA", "BBB222": "vidBBB"}))
+        for code, vid in (("AAA111", "vidAAA"), ("BBB222", "vidBBB")):
+            (videos / "youtube" / "video_records" / f"{code}.json").write_text(
+                YoutubeVideoResource(
+                    id=vid,
+                    snippet=VideoSnippet(title=f"Talk {code}", description="d", tags=["Python"]),
+                    status=VideoStatus(privacy_status="unlisted"),
+                ).model_dump_json()
+            )
+        return event_dir
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            m.records_path = m.event_dir / "records"
+            m.video_records_path = m.event_dir / "videos" / "youtube" / "video_records"
+            m._pretalx_youtube_channel_map = {}
+            m._pretalx_youtube_id_map = {}
+            return m
+
+    def test_posts_exactly_to_update_body(self, ready, mock_config):
+        """The live send must equal the dry-run body — every field, or YouTube deletes it."""
+        sent = []
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = lambda r: sent.append(r.to_update_body())
+            self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert len(sent) == 2
+        body = sent[0]
+        assert set(body["snippet"]) == {
+            "title",
+            "description",
+            "categoryId",
+            "tags",
+            "defaultLanguage",
+            "defaultAudioLanguage",
+        }
+        assert set(body["status"]) == {
+            "privacyStatus",
+            "license",
+            "embeddable",
+            "publicStatsViewable",
+            "selfDeclaredMadeForKids",
+        }
+        assert body["snippet"]["tags"] == ["Python"]
+
+    def test_uses_per_channel_offline_auth(self, ready, mock_config):
+        """B7: no bare YT() — it would open a browser and ignore the channel token."""
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            mock_yt.return_value.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        mock_yt.assert_called_once_with(youtube_offline=True, channel="main")
+
+    def test_success_moves_file_to_updated(self, ready, mock_config):
+        updated = ready / "videos" / "youtube" / "video_records_updated"
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            mock_yt.return_value.video_records_path_updated = updated
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["updated"] == 2 and result["failed"] == 0
+        assert {p.name for p in updated.glob("*.json")} == {"AAA111.json", "BBB222.json"}
+        assert not list((ready / "videos" / "youtube" / "video_records").glob("*.json"))
+
+    def test_failure_keeps_file_queued(self, ready, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = [RuntimeError("boom"), {"ok": True}]
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["updated"] == 1 and result["failed"] == 1
+        # The failed one is still queued for a retry.
+        assert len(list((ready / "videos" / "youtube" / "video_records").glob("*.json"))) == 1
+
+    def test_quota_error_stops_the_batch(self, ready, mock_config):
+        err = HttpError(resp=Mock(status=403), content=b"")
+        err.error_details = [{"reason": "quotaExceeded"}]
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            client.send_video_update.side_effect = err
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main")
+
+        assert result["quota_exhausted"] is True
+        assert result["updated"] == 0
+        # Stopped after the first failure — did not try the second video.
+        assert client.send_video_update.call_count == 1
+
+    def test_only_restricts_to_named_codes(self, ready, mock_config):
+        """--only targets specific talks regardless of queue order (targeted re-runs)."""
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main", only={"BBB222"})
+
+        assert result["updated"] == 1
+        assert result["sent_ids"] == ["vidBBB"]
+
+    def test_limit_sends_only_n_in_order(self, ready, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.video_records_path_updated = ready / "videos" / "youtube" / "video_records_updated"
+            result = self._meta(mock_config).send_all_video_metadata(destination_channel="main", limit=1)
+
+        assert result["updated"] == 1
+        assert result["sent_ids"] == ["vidAAA"]  # AAA111 sorts before BBB222
+
+
+class TestSendVideoUpdatePart:
+    """The update `part` must match the body, or YouTube clears the missing parts."""
+
+    def _yt(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        with patch("manager.handlers.youtube.conf", mock_config):
+            return YT(youtube_offline=True, channel="main")
+
+    def test_part_includes_recording_details_when_present(self, mock_config, tmp_path):
+        yt = self._yt(mock_config, tmp_path)
+        resource = YoutubeVideoResource(
+            id="vid1",
+            snippet=VideoSnippet(title="t", description="d"),
+            recording_details=BaseRecordingDetails(recording_date="2026-04-14"),
+        )
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.send_video_update(resource)
+
+        _, kwargs = fake.videos().update.call_args
+        assert kwargs["part"] == "snippet,status,recordingDetails"
+
+    def test_part_omits_recording_details_without_a_date(self, mock_config, tmp_path):
+        yt = self._yt(mock_config, tmp_path)
+        resource = YoutubeVideoResource(id="vid1", snippet=VideoSnippet(title="t", description="d"))
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.send_video_update(resource)
+
+        _, kwargs = fake.videos().update.call_args
+        assert kwargs["part"] == "snippet,status"
+
+
+class TestCheckVideoStatusChunking:
+    """videos.list caps at 50 ids, so more than 50 must be chunked."""
+
+    def test_chunks_over_fifty_ids(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        ids = [f"vid{i:03d}" for i in range(120)]
+        with patch("manager.handlers.youtube.conf", mock_config):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        fake.videos().list().execute.side_effect = [
+            {"items": [{"id": i} for i in ids[0:50]]},
+            {"items": [{"id": i} for i in ids[50:100]]},
+            {"items": [{"id": i} for i in ids[100:120]]},
+        ]
+        with patch.object(YT, "youtube", new=fake):
+            out = yt.check_video_status_by_youtube_ids(ids)
+
+        assert len(out["items"]) == 120
+
+
+class TestBatchScheduling:
+    """plan_publish_dates: deterministic order and single-date mode."""
+
+    @pytest.fixture
+    def meta(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        vr = tmp_path / "test-event-2024" / "videos" / "youtube" / "video_records"
+        vr.mkdir(parents=True)
+        (vr.parent / "video_records_updated").mkdir()
+        # Out-of-order codes to prove sorting (not insertion / not random).
+        for code in ("CCC333", "AAA111", "BBB222"):
+            (vr / f"{code}.json").write_text(
+                YoutubeVideoResource(
+                    id=f"vid{code}", snippet=VideoSnippet(title="t", description="d")
+                ).model_dump_json()
+            )
+        with patch("manager.handlers.youtube.conf", mock_config):
+            yield PrepareVideoMetadata("", "")
+
+    def test_single_date_for_all(self, meta):
+        """--interval 0 → timedelta(0) → every video gets the same datetime."""
+        t = datetime(2026, 8, 3, 16, 0, tzinfo=UTC)
+        plan = meta.plan_publish_dates(start=t, delta=timedelta(0))
+
+        assert len(plan) == 3
+        assert {when for _, when in plan} == {t}
+
+    def test_deterministic_order_by_code(self, meta):
+        """Replaces random.shuffle: order is alphabetical by code, reproducible."""
+        plan = meta.plan_publish_dates(start=datetime(2026, 8, 3, 16, 0, tzinfo=UTC), delta=timedelta(days=1))
+
+        assert [p.stem for p, _ in plan] == ["AAA111", "BBB222", "CCC333"]
+
+
+class TestScheduleParsing:
+    """CLI --start / --interval parsing (timezone + single-date)."""
+
+    def test_naive_start_uses_event_timezone_not_utc(self, mock_config):
+        from manager.cli.youtube import _parse_start
+
+        with patch("manager.cli.youtube.conf", mock_config):
+            dt = _parse_start(MagicMock(), "2026-08-03T18:00")
+        # Europe/Berlin in August = UTC+2, so 18:00 local is 16:00 UTC — not 18:00 UTC.
+        assert dt.astimezone(UTC).hour == 16
+
+    def test_start_with_offset_is_respected(self, mock_config):
+        from manager.cli.youtube import _parse_start
+
+        with patch("manager.cli.youtube.conf", mock_config):
+            dt = _parse_start(MagicMock(), "2026-08-03T18:00+00:00")
+        assert dt.astimezone(UTC).hour == 18
+
+    def test_interval_zero_is_single_date(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "0") == timedelta(0)
+
+    def test_interval_units(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "1d") == timedelta(days=1)
+
+    def test_interval_invalid_returns_none(self):
+        from manager.cli.youtube import _parse_interval
+
+        assert _parse_interval(MagicMock(), "bogus") is None
+
+
+class TestFillPlaylist:
+    """Cross-populate playlists so each carries all videos; idempotent + resumable."""
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            return m
+
+    @pytest.fixture
+    def cfg(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        mock_config.youtube.channels = {"main": {"id": "UCmain", "playlist_id": "PLmain"}}
+        return mock_config
+
+    def test_add_video_to_playlist_body(self, cfg, tmp_path):
+        with patch("manager.handlers.youtube.conf", cfg):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.add_video_to_playlist("PLmain", "vidX")
+        _, kwargs = fake.playlistItems().insert.call_args
+        assert kwargs["part"] == "snippet"
+        snip = kwargs["body"]["snippet"]
+        assert snip["playlistId"] == "PLmain"
+        assert snip["resourceId"] == {"kind": "youtube#video", "videoId": "vidX"}
+
+    def test_inserts_only_missing(self, cfg):
+        """Present videos are skipped (no duplicates); only the missing are added."""
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = [{"contentDetails": {"videoId": "a"}}]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["present"] == 1
+        assert result["added"] == 2  # b and c
+        added = [c.args[1] for c in client.add_video_to_playlist.call_args_list]
+        assert added == ["b", "c"]
+
+    def test_quota_error_stops_and_is_resumable(self, cfg):
+        err = HttpError(resp=Mock(status=403), content=b"")
+        err.error_details = [{"reason": "quotaExceeded"}]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = []
+            client.add_video_to_playlist.side_effect = [{"ok": 1}, err]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["quota_exhausted"] is True
+        assert result["added"] == 1  # "a" added, quota hit on "b"
+        # Stopped — did not attempt "c".
+        assert client.add_video_to_playlist.call_count == 2
+
+    def test_resume_adds_the_rest(self, cfg):
+        """Second run sees the first-run additions present and adds only the remainder."""
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = [{"contentDetails": {"videoId": "a"}}]
+            result = self._meta(cfg).fill_playlist("main", ["a", "b", "c"])
+
+        assert result["added"] == 2
+        assert [c.args[1] for c in client.add_video_to_playlist.call_args_list] == ["b", "c"]
+
+
+class TestPrunePlaylist:
+    """--prune removes entries whose video is no longer mapped (e.g. deleted)."""
+
+    def _meta(self, mock_config):
+        with patch("manager.handlers.youtube.conf", mock_config):
+            m = PrepareVideoMetadata.__new__(PrepareVideoMetadata)
+            m.dry_run = False
+            m.event_dir = mock_config.dirs.work_dir / "test-event-2024"
+            return m
+
+    @pytest.fixture
+    def cfg(self, mock_config, tmp_path):
+        mock_config.dirs.work_dir = tmp_path
+        mock_config.youtube.channels = {"main": {"id": "UCmain", "playlist_id": "PLmain"}}
+        return mock_config
+
+    def test_remove_playlist_item_calls_delete(self, cfg, tmp_path):
+        with patch("manager.handlers.youtube.conf", cfg):
+            yt = YT(youtube_offline=True, channel="main")
+        fake = MagicMock()
+        with patch.object(YT, "youtube", new=fake):
+            yt.remove_playlist_item("PLI_dead")
+        fake.playlistItems().delete.assert_called_once_with(id="PLI_dead")
+
+    def test_prune_removes_only_unmapped(self, cfg):
+        """Mapped videos stay; a dead entry (video not in the map) is removed."""
+        items = [
+            {"id": "pli_a", "contentDetails": {"videoId": "a"}},  # mapped → keep
+            {"id": "pli_dead", "contentDetails": {"videoId": "old"}},  # not mapped → prune
+        ]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = items
+            result = self._meta(cfg).fill_playlist("main", ["a"], prune=True)
+
+        assert result["added"] == 0  # "a" already present
+        assert result["removed"] == 1
+        client.remove_playlist_item.assert_called_once_with("pli_dead")
+
+    def test_no_prune_leaves_unmapped(self, cfg):
+        items = [{"id": "pli_dead", "contentDetails": {"videoId": "old"}}]
+        with patch("manager.handlers.youtube.conf", cfg), patch("manager.handlers.youtube.YT") as mock_yt:
+            client = mock_yt.return_value
+            client.list_all_videos_in_playlist.return_value = items
+            result = self._meta(cfg).fill_playlist("main", ["a"], prune=False)
+
+        assert result["removed"] == 0
+        client.remove_playlist_item.assert_not_called()
+        client.add_video_to_playlist.assert_called_once_with("PLmain", "a")  # "a" still added

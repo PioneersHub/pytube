@@ -7,6 +7,7 @@ This file can be used for multiple use cases like:
 - etc.
 """
 
+import json
 from contextlib import suppress
 from pathlib import Path
 
@@ -16,9 +17,61 @@ from pytanis.pretalx.models import Submission
 
 from manager import conf, logger
 from manager.config import get_event_dir
-from manager.handlers import sized_text, teaser_text
+from manager.handlers import sized_text, summary_from_transcript, teaser_text
 from manager.models.sessions import Organization, PretalxSession, SessionRecord, SpeakerInfo
 from manager.utils.common import SafeConfig, ensure_directory, load_json, save_json
+
+
+def unmangle_submission_type(data: dict) -> dict:
+    """Restore the pre-validation shape of ``submission_type``.
+
+    pytanis' ``Submission.mangle_submission_type`` validator is not idempotent: it
+    replaces the submission_type object by its ``name``. Validating already-stored
+    (i.e. already mangled) session data a second time therefore hits
+    ``getattr(<MultiLingualStr>, "name", None)`` and silently nulls the field, which
+    makes the resulting record unloadable. Re-nest the value so the validator can
+    unwrap it correctly again.
+    """
+    submission_type = data.get("submission_type")
+    submission_type_id = data.get("submission_type_id")
+    if isinstance(submission_type, dict) and "name" not in submission_type and isinstance(submission_type_id, int):
+        return {**data, "submission_type": {"id": submission_type_id, "name": submission_type}}
+    return data
+
+
+def load_session_record(path: Path) -> SessionRecord:
+    """Load a SessionRecord, keeping ``submission_type`` intact.
+
+    Validating a stored record runs pytanis' non-idempotent
+    ``mangle_submission_type`` again, which nulls the field (see
+    ``unmangle_submission_type``). Anything that then writes the record back —
+    ``add_descriptions``, the YouTube metadata step, the publisher — would persist
+    that null and make the record permanently unloadable. Re-nesting the value
+    before validation lets the validator unwrap it correctly instead.
+
+    Use this everywhere instead of ``SessionRecord.model_validate_json``.
+    """
+    raw = json.loads(path.read_text())
+    session = raw.get("pretalx_session", {}).get("session")
+    if isinstance(session, dict):
+        raw["pretalx_session"]["session"] = unmangle_submission_type(session)
+    return SessionRecord.model_validate(raw)
+
+
+def load_transcript(code: str, root: Path | None) -> str | None:
+    """Return the transcript text for a talk, or None if unavailable.
+
+    Layout: one folder per talk named with the 6-char Pretalx code, containing
+    `transcript.md`. Matches the first directory whose name starts with the code.
+    """
+    if not root:
+        return None
+    for d in sorted(root.iterdir()):
+        if d.is_dir() and d.name[:6] == code:
+            transcript_file = d / "transcript.md"
+            if transcript_file.exists():
+                return transcript_file.read_text()
+    return None
 
 
 class Records:
@@ -283,7 +336,7 @@ class Records:
         p_session = PretalxSession(
             pretalx_id=data["code"],
             title=data["title"],
-            session=Submission.model_validate(data),
+            session=Submission.model_validate(unmangle_submission_type(data)),
             speakers=[x["code"] for x in data["speakers"]],
         )
 
@@ -337,7 +390,17 @@ class Records:
         )
         # Records don't have answers, so pass empty list
         add_attr(record, self.qmap, [])
-        record_path.write_text(record.model_dump_json(indent=4))
+
+        # pytanis' `mangle_submission_type` validator mutates the Submission in place
+        # every time it runs, and running it twice nulls submission_type (see
+        # `unmangle_submission_type`). Restore both fields from the source data so the
+        # stored record stays loadable.
+        record_data = json.loads(record.model_dump_json())
+        session_data = record_data.get("pretalx_session", {}).get("session")
+        if isinstance(session_data, dict):
+            session_data["submission_type"] = data.get("submission_type")
+            session_data["submission_type_id"] = data.get("submission_type_id")
+        record_path.write_text(json.dumps(record_data, indent=4, ensure_ascii=False))
 
         if is_new:
             logger.debug(f"Created new record for {code}")
@@ -346,50 +409,93 @@ class Records:
 
         return is_new
 
-    def add_descriptions(self, replace=False) -> dict[str, int]:
+    @staticmethod
+    def _apply_descriptions(data: SessionRecord, replace: bool, transcripts_root: Path | None) -> bool:
+        """Generate teaser/short/long texts for one record in place.
+
+        If a transcript is available for the talk, the short/long descriptions are
+        summarized from it; otherwise they use the abstract-based prompt. The teaser
+        always uses the abstract-based prompt. Returns whether any text was (re)generated.
+        """
+        # noinspection PyUnresolvedReferences
+        speakers = "\n".join([f"{s.name} ({s.job}\nbiography:\n{s.biography})" for s in data.speakers])
+        info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
+
+        need_teaser = not data.sm_teaser_text or replace
+        need_short = not data.sm_short_text or replace
+        need_long = not data.sm_long_text or replace
+
+        if need_teaser:
+            data.sm_teaser_text = teaser_text(info, max_tokens=50)
+
+        transcript = load_transcript(data.pretalx_id, transcripts_root)
+        if transcript:
+            grounding = f"Title: {data.title}\nSpeakers: {', '.join(s.name for s in data.speakers)}"
+            logger.info(f"Using transcript summary for {data.pretalx_id}")
+            if need_short:
+                data.sm_short_text = summary_from_transcript(transcript, grounding, max_tokens=300, max_words=90)
+            if need_long:
+                data.sm_long_text = summary_from_transcript(transcript, grounding, max_tokens=700, max_words=250)
+        else:
+            if need_short:
+                data.sm_short_text = sized_text(info, max_tokens=100)
+            if need_long:
+                data.sm_long_text = sized_text(info, max_tokens=300)
+
+        return need_teaser or need_short or need_long
+
+    def add_descriptions(self, replace=False, progress_callback=None) -> dict[str, int]:
         """Add descriptions to all confirmed sessions.
 
         Args:
             replace: Whether to replace existing descriptions
+            progress_callback: Optional callable invoked once per record as
+                ``callback(current, total, code, title, status)`` where status is
+                one of "start", "generated", "skipped" or "error". Generation takes
+                tens of seconds per talk, so callers should report "start" to show
+                which session is running.
 
         Returns:
             Dictionary with statistics: {"processed": int, "added": int, "skipped": int}
         """
+
+        def report(idx, code, title, status):
+            if progress_callback:
+                progress_callback(idx, total_records, code, title, status)
+
         stats = {"processed": 0, "added": 0, "skipped": 0}
         records = list(self.records.glob("*.json"))
         total_records = len(records)
 
         logger.info(f"Adding AI-generated descriptions to {total_records} records...")
 
+        # Optional transcript-based summaries: if `transcripts.dir` is set, talks that
+        # have a transcript get a high-quality summary from it; others keep the
+        # abstract-based description. A configured-but-missing dir is a config error.
+        transcripts_dir = SafeConfig(conf).get("transcripts.dir", "")
+        transcripts_root = Path(transcripts_dir).expanduser() if transcripts_dir else None
+        if transcripts_root and not transcripts_root.is_dir():
+            raise FileNotFoundError(f"transcripts.dir is set but not a directory: {transcripts_root}")
+        if transcripts_root:
+            logger.info(f"Transcript summaries enabled from {transcripts_root}")
+
         for idx, x in enumerate(records, 1):
             try:
-                data = SessionRecord.model_validate_json(x.read_text())
+                data = load_session_record(x)
             except Exception as e:
                 stats["processed"] += 1
                 stats["skipped"] += 1
                 try:
                     jdata = load_json(x)
-                    logger.error(f"Error adding descriptions to {jdata.get('pretalx_id', 'unknown')}: {e}")
+                    code = jdata.get("pretalx_id", x.stem)
                 except Exception:
-                    logger.error(f"Error adding descriptions to {x.name}: {e}")
+                    code = x.stem
+                logger.error(f"Error adding descriptions to {code}: {e}")
+                report(idx, code, "", "error")
                 continue
-            # noinspection PyUnresolvedReferences
-            speakers = "\n".join([f"{x.name} ({x.job}\nbiography:\n{x.biography})" for x in data.speakers])
-            info = f"title:{data.title}\nspeaker(s):\n{speakers}\ndescription:\n{data.abstract}\n{data.description}"
-            if not data.sm_teaser_text or replace:
-                data.sm_teaser_text = teaser_text(info, max_tokens=50)
-            if not data.sm_short_text or replace:
-                data.sm_short_text = sized_text(info, max_tokens=100)
-            if not data.sm_long_text or replace:
-                data.sm_long_text = sized_text(info, max_tokens=300)
-            # Check if any descriptions were actually added
-            descriptions_added = False
-            if not data.sm_teaser_text or replace:
-                descriptions_added = True
-            if not data.sm_short_text or replace:
-                descriptions_added = True
-            if not data.sm_long_text or replace:
-                descriptions_added = True
+
+            report(idx, data.pretalx_id, data.title, "start")
+            descriptions_added = self._apply_descriptions(data, replace, transcripts_root)
 
             (self.records / f"{data.pretalx_id}.json").write_text(data.model_dump_json(indent=4))
 
@@ -397,9 +503,11 @@ class Records:
             if descriptions_added:
                 stats["added"] += 1
                 logger.info(f"[{idx}/{total_records}] Added descriptions to {data.pretalx_id}")
+                report(idx, data.pretalx_id, data.title, "generated")
             else:
                 stats["skipped"] += 1
                 logger.debug(f"[{idx}/{total_records}] Skipped {data.pretalx_id} (descriptions already exist)")
+                report(idx, data.pretalx_id, data.title, "skipped")
 
         logger.info(f"Description generation complete: {stats['added']} added, {stats['skipped']} skipped")
         return stats

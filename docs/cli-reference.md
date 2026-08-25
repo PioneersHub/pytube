@@ -20,20 +20,108 @@ These options can be used with any command:
 
 - `-v, --verbose`: Enable verbose output for debugging
 - `-q, --quiet`: Suppress non-essential output
+- `--version`: Show the installed version
 - `--help`: Show help for any command
 
 ## Commands Overview
 
+Every command, with its options. Details follow in the sections below.
+
+| Command | Options | Purpose |
+|---|---|---|
+| `pytube assistant` | — | Interactive, guided workflows |
+| `pytube setup` | `--validate-only` `--fix` `--json` | Configuration wizard |
+| `pytube validate` | `--fix` | Validate config; `--fix` creates missing directories |
+| `pytube status` | `--detailed` | Overall pipeline status |
+| **Records** | | |
+| `pytube records fetch` | — | Download sessions + speakers from Pretalx |
+| `pytube records generate-descriptions` | `--replace` `--dry-run` | Generate teaser/short/long texts |
+| `pytube records show [SESSION_ID]` | — | List records or show one |
+| **Video files** | | |
+| `pytube video bulk-download` | `--account` (repeatable) `--limit` `--dry-run` | Download raw streams from Vimeo accounts |
+| `pytube video map-recordings` | `--dry-run` `--force` | Write the filename → room/day/period mapping |
+| `pytube video map-to-channels` | `--dry-run` | Assign sessions to channels → `tracks_map.json` |
+| `pytube video move-to-channel-dirs` | `--dry-run` `--force` | Move files into the channel upload folders |
+| `pytube video report` | — | List videos without a channel assignment |
+| `pytube video list` | — | List video files found |
+| `pytube video status` | — | Video processing status |
+| `pytube video organize` | `--dry-run` | **Deprecated** — use `map-to-channels` |
+| `pytube video download` | `--client-id` `--limit` | **Not implemented** — use `bulk-download` |
+| **YouTube** | | |
+| `pytube youtube map` | `--channel` `--filter-channel` | Match uploaded videos to sessions |
+| `pytube youtube update` | `--template` `--event-name` `--channel` `--dry-run` `--show-body` `--limit` `--yes` `--force` | Write titles/descriptions to YouTube |
+| `pytube youtube schedule` | `--start` `--interval` (`0` = one shared date) `--preview` | Set publishing date (local; sent by `update`) |
+| `pytube youtube fill-playlists` | `--channel` `--prune` `--yes` `--force` | Add every mapped video to each channel's playlist (`--prune` also removes unmapped/deleted) |
+| `pytube youtube channels` | — | List configured channels |
+| **Notifications** | | |
+| `pytube notify check` | `--auto-post` `--channel` `--offline` | Detect published videos, queue notifications |
+| `pytube notify email` | `--dry-run` | Send queued speaker emails |
+| `pytube notify social` | `--dry-run` | Post queued social media updates |
+| `pytube notify run` | — | Full notification workflow |
+
+Commands that need network access: `records fetch` (Pretalx), `video bulk-download`
+(Vimeo), `youtube map` / `youtube update`, and `notify` (unless `--offline`).
+`youtube map` opens a browser for OAuth on first use and caches the token at
+`youtube.channels.<name>.token_path`, falling back to `youtube.token_path`; see
+[One OAuth token per channel](#one-oauth-token-per-channel) for how the other
+commands authenticate.
+
+### One OAuth token per channel
+
+PyCon DE and PyData are separate YouTube channels owned by **different Google
+accounts**. Give each channel its own `token_path` in `config_local.yaml`:
+
+```yaml
+youtube:
+  channels:
+    pyconde:
+      token_path: ".secrets/token_pyconde.json"
+    pydata:
+      token_path: ".secrets/token_pydata.json"
 ```
-pytube
-├── assistant     # Interactive assistant
-├── setup         # Configuration wizard
-├── records       # Manage Pretalx records
-├── youtube       # YouTube operations
-├── notify        # Monitor and send notifications
-├── video         # Video file operations
-└── status        # Show system status
-```
+
+Without a per-channel path both channels share `youtube.token_path`, and
+authorizing the second channel **overwrites the first channel's token** — the
+first channel then needs a fresh browser authorization on its next command.
+
+`youtube map` creates one client per channel, so `--channel pyconde` only ever
+touches the pyconde token — provided that key is set; without it, `map` silently
+falls back to the shared `youtube.token_path`. A run **without** `--channel` walks
+every configured channel and authenticates each against its own token file,
+opening a browser only for channels whose token is missing or no longer
+refreshable; authorize each with the matching Google account.
+
+> **Note — tokens expire about every 7 days, and that is accepted.**
+> While the Google Cloud OAuth consent screen is in publishing status
+> **Testing**, Google expires refresh tokens after roughly seven days. Moving the
+> app to **In production** would stop that, but it requires going through Google's
+> app verification — deliberately **not** done here, because the effort outweighs
+> re-authorizing occasionally.
+>
+> This only affects `youtube map`, the one command that reuses a cached token.
+> Roughly weekly it will open a browser and ask for authorization again. That is
+> expected, not a misconfiguration: the refresh failure is caught and turned
+> into a browser prompt automatically, so the command continues once you have
+> signed in — with the Google account **belonging to that channel**.
+
+Which commands authenticate, and how:
+
+| Command | Authentication | Browser prompt |
+|---|---|---|
+| `youtube map` | Cached token, per channel | Only when the token is missing or can no longer be refreshed |
+| `youtube update` | Interactive OAuth, no token cache | **Every run**, once per channel |
+| `youtube schedule` | None — rewrites local record files only | Never |
+| `notify *` | API key (`youtube.api_key`) | Never |
+
+So `youtube update` ignores `token_path` entirely and re-prompts on every
+invocation regardless of token expiry; sign in with the account owning the channel
+you are targeting.
+
+Each channel's playlist snapshot under
+`{work_dir}/{event_slug}/videos/youtube_<channel>_playlist.json` is only rewritten
+by a run covering that channel. After changing a playlist on YouTube, re-run
+`youtube map` for that channel before reading the file — otherwise it still shows
+the state of the previous run.
 
 ## Interactive Assistant
 
@@ -77,7 +165,7 @@ The setup wizard will guide you through:
 - Event information (name, URL, program link)
 - Pretalx connection configuration
 - YouTube API credentials
-- AI service selection (OpenAI, Anthropic, Google, Cohere)
+- AI service selection (OpenAI, Anthropic)
 - Social media platform configuration
 - Storage directory setup
 
@@ -113,40 +201,72 @@ OpenAI API key
 
 ### pytube records fetch
 
-Fetch all sessions and speakers from Pretalx.
+Fetch all sessions and speakers from Pretalx. This command only downloads and
+stores records; AI descriptions are generated by a separate command (see
+`generate-descriptions` below).
 
 ```bash
 pytube records fetch [OPTIONS]
 
 Options:
-  --replace-descriptions    Replace existing AI-generated descriptions
-  --skip-descriptions      Skip AI description generation
-  --help                   Show help message
+  --help    Show help message
 ```
 
 **Example:**
 ```bash
-# Fetch all data and generate descriptions
+# Fetch all sessions and speakers
 pytube records fetch
-
-# Fetch data but skip AI descriptions
-pytube records fetch --skip-descriptions
-
-# Re-generate all descriptions
-pytube records fetch --replace-descriptions
 ```
 
-### pytube records enhance
+### pytube records generate-descriptions
 
-Add or update AI-generated descriptions for existing records.
+Generate AI teaser/description texts for the fetched records.
 
 ```bash
-pytube records enhance [OPTIONS]
+pytube records generate-descriptions [OPTIONS]
 
 Options:
+  --replace    Replace existing AI-generated descriptions
   --dry-run    Show what would be updated without making changes
   --help       Show help message
 ```
+
+**Example:**
+```bash
+# Generate descriptions for records that don't have them yet
+pytube records generate-descriptions
+
+# Re-generate and overwrite all descriptions
+pytube records generate-descriptions --replace
+
+# Preview without writing
+pytube records generate-descriptions --dry-run
+```
+
+**Progress output.** Generation takes tens of seconds per talk (a local model needs
+roughly 70 s for the three texts), so the command prints one line per session plus
+a live bar showing which session is currently running:
+
+```
+Found 145 records to process
+[1/145] ✓ 333HDN From Hard Problems to Proven Solutions… (34s)
+[2/145] ✓ 37AESH In Praise of Documentation: Tools, Tips… (37s)
+[3/145] • BQPEUG Opening Session — already had texts
+⠹ 39MHWT From Ticket to Draft… ━━━━━━━━━╸────────── 3/145 0:01:52
+```
+
+`✓` generated, `•` skipped because the fields were already filled, `✗` record
+could not be read. The run is safe to interrupt with `Ctrl-C`: each record is
+written immediately after it is generated, and a later run continues with the
+remaining ones.
+
+**Transcript-based summaries (optional):** if `transcripts.dir` is set in config,
+each talk that has a transcript (`<transcripts.dir>/<CODE…>/transcript.md`) gets
+its short/long description summarized from the transcript via the
+`ai_service.prompts.description_from_transcript` prompt (recommended provider: Anthropic
+Claude). Talks without a transcript keep the abstract-based description; the
+teaser always uses the abstract-based prompt. A configured-but-missing
+`transcripts.dir` is treated as a configuration error.
 
 ### pytube records show
 
@@ -179,7 +299,6 @@ pytube youtube map [OPTIONS]
 
 Options:
   --channel TEXT             YouTube channel name from config
-  --include-do-not-record    Include videos marked as do_not_record (dangerous!)
   --filter-channel TEXT      Only map videos assigned to this channel
   --help                     Show help message
 ```
@@ -195,8 +314,6 @@ pytube youtube map --channel pycon
 # Only map videos assigned to pydata channel
 pytube youtube map --filter-channel pydata
 
-# Include do_not_record videos (NOT RECOMMENDED)
-pytube youtube map --include-do-not-record
 ```
 
 This command:
@@ -215,50 +332,140 @@ Update YouTube video metadata from records.
 pytube youtube update [OPTIONS]
 
 Options:
-  --template TEXT      Jinja2 template file for descriptions [default: youtube_2024.txt]
+  --template TEXT      Jinja2 template file for descriptions [default: youtube_2026.txt]
+                       Looked up in projects/<slug>/ first, then the bundled
+                       templates in src/manager/templates/.
   --event-name TEXT    Event name for the template
-  --channel TEXT       Target YouTube channel
-  --dry-run           Preview changes without updating YouTube
-  --help              Show help message
+  --channel TEXT       Only build and send videos on this channel
+  --dry-run            Show what would be sent; writes nothing, sends nothing
+  --show-body N        With --dry-run: dump the full request body for the first
+                       N videos [default: 1]
+  --limit N            Send at most N videos per channel (quota safety)
+  --yes                Skip the confirmation prompt (for scripted runs)
+  --force              Send even if the estimated quota exceeds the daily budget
+  --help               Show help message
 ```
+
+Which videos are processed is driven by `pretalx_yt_map.json` — the talks that
+are both uploaded to YouTube and resolved to a Pretalx code. A talk with a
+channel assignment but no uploaded video is skipped.
 
 **Example:**
 ```bash
-# Update with default template
-pytube youtube update
-
-# Use custom template and event name
-pytube youtube update --template custom.txt --event-name "PyCon 2024"
-
-# Preview changes
+# Read the generated descriptions before spending any API quota
 pytube youtube update --dry-run
+
+# Inspect the exact request body for the first three videos
+pytube youtube update --dry-run --show-body 3
+
+# Pilot: send a small sample first and check it on YouTube
+pytube youtube update --channel pyconde --limit 5
+
+# Send the rest, one channel at a time
+pytube youtube update --channel pyconde
 ```
+
+#### The live send
+
+Each `videos.update` costs 50 quota units against a daily budget of 10000
+(`youtube.quota` in config). Before sending, the command prints the estimate
+(`N videos → N×50 of 10000 units`), refuses to start a run that would exceed the
+budget unless `--force` is given, and asks for confirmation unless `--yes` is
+passed. `--limit N` caps how many are sent per channel — the safe way to pilot a
+handful before committing quota to all of them.
+
+The body sent is exactly the one `--dry-run` prints. Authentication uses the
+channel's own cached OAuth token (from `youtube map`), so a live send does not
+open a browser as long as the token is valid.
+
+Failures are reported, not swallowed: a per-channel results table shows
+updated/failed counts, a quota error stops the run rather than burning the rest
+of the budget, a failed video stays queued for a retry, and the command exits
+non-zero if anything failed. After sending, each video is read back from YouTube
+to confirm its privacy status landed.
+
+#### What --dry-run guarantees
+
+Nothing is written to disk and nothing is sent: no records are rewritten, no
+video records are created, and no OAuth flow is started. The metadata is built
+in memory and printed as a table (code, video id, channel, privacy, publish
+date, description length, tag count, title), followed by the request body for
+the first `--show-body` videos.
+
+That body is exactly what a real run sends. Every field of `snippet` and
+`status` is always included, because YouTube **deletes any property it does not
+receive** within a part that is being updated — sending a partial `snippet`
+would silently wipe the video's tags and language settings. The values come from
+`youtube.video_defaults` (see [Projects & Configuration](projects.md)).
+
+Setting a publish date forces `privacyStatus` to `private`, which is the only
+state in which YouTube accepts `publishAt`; the video becomes public when that
+time passes.
 
 ### pytube youtube schedule
 
-Set publishing schedule for videos.
+Set the publishing date on the queued videos. This writes `status.publish_at`
+locally and re-queues the records — **no API quota**. The date only reaches
+YouTube on the next `youtube update`, which sends `publishAt` and forces the
+video to `private` (YouTube then publishes it publicly when the time arrives).
 
 ```bash
 pytube youtube schedule [OPTIONS]
 
 Options:
-  --start TEXT      Start date/time (ISO format or 'now+5m')
-  --interval TEXT   Publishing interval (e.g., 4h, 1d, 30m) [default: 4h]
-  --preview        Show publishing schedule without applying
-  --help           Show help message
+  --start TEXT      Start date/time. ISO 8601 or 'now+5m'/'now+2h'. A value
+                    without an offset (e.g. 2026-08-03T18:00) is read in the
+                    event timezone (event.timezone, default Europe/Berlin),
+                    not UTC.
+  --interval TEXT   Spacing between releases (4h, 1d, 30m). Use 0 for one
+                    shared date — all videos go public together. [default: 4h]
+  --preview         Show the real per-video schedule; write nothing
+  --help            Show help message
 ```
 
 **Example:**
 ```bash
-# Schedule to start in 5 minutes, publish every 4 hours
-pytube youtube schedule --start now+5m --interval 4h
+# One coordinated release: every video public at the same local time
+pytube youtube schedule --start "2026-08-03T18:00" --interval 0 --preview
+pytube youtube schedule --start "2026-08-03T18:00" --interval 0
 
-# Schedule for specific date/time
-pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
-
-# Preview schedule
-pytube youtube schedule --preview
+# Staggered: one per day starting the given date
+pytube youtube schedule --start "2026-08-03T18:00" --interval 1d
 ```
+
+Videos are ordered deterministically by Pretalx code, so `--preview` matches the
+applied run. After scheduling, run `youtube update` (a full send, ~50 quota units
+per video) to transmit the dates — plan it for a day with quota headroom.
+
+### pytube youtube fill-playlists
+
+Add every mapped video to each channel's playlist, so both playlists carry all
+videos — each channel's own plus the other's.
+
+```bash
+pytube youtube fill-playlists [OPTIONS]
+
+Options:
+  --channel TEXT   Only fill this channel's playlist
+  --prune          Also remove entries whose video is no longer mapped
+                   (clears dead placeholders left by deleted videos)
+  --yes            Skip the confirmation prompt
+  --force          Run even if the estimate exceeds the daily quota budget
+  --help           Show help message
+```
+
+Each `playlistItems` insert or delete costs 50 quota units. The command reads the
+current membership and inserts only what is missing, so it never creates
+duplicates and is **safe to re-run**: a run stopped by a quota error (or
+`--force` over budget) finishes on the next run — e.g. after the daily reset
+(midnight Pacific). Authentication uses each playlist's owning-channel token; the
+videos being added may belong to the other channel (any public video can be added
+to a playlist you own).
+
+With `--prune`, entries whose video is not in the current mapping are removed as
+well — YouTube leaves a dead `[Deleted video]` placeholder when a video is
+deleted, and this clears it. Together, insert + prune make the playlist hold
+exactly the mapped videos.
 
 ### pytube youtube channels
 
@@ -332,7 +539,9 @@ pytube notify run
 
 ### pytube video download
 
-Download videos from Vimeo.
+**Not implemented.** The per-video download loop was never written; the command
+used to print a success message without fetching anything and now exits with an
+error instead. Use [`pytube video bulk-download`](#pytube-video-bulk-download).
 
 ```bash
 pytube video download [OPTIONS]
@@ -343,12 +552,45 @@ Options:
   --help             Show help message
 ```
 
-### pytube video assign-channels
+### pytube video bulk-download
+
+Download raw long-stream sources from the Vimeo accounts configured under
+`vimeo.raw_sources` in `config_local.yaml` (stage 1 of the auto-cut pipeline).
+
+```bash
+pytube video bulk-download [OPTIONS]
+
+Options:
+  --account TEXT      Restrict to named account(s); default = all configured (repeatable)
+  --limit INTEGER     Max videos per account (for smoke tests)
+  --dry-run           Print the download plan; don't fetch anything
+  --help              Show help message
+```
+
+> Not needed for editions where finished cuts are provided directly (e.g. from a
+> Google Drive release folder). Use only for the raw → auto-cut workflow.
+
+### pytube video map-recordings
+
+Scan raw recording filenames and write the room/day/period mapping YAML (path
+from `pretalx.recording_mapping_yaml`). Hand-edit the result to fix typos or
+classify filenames the scanner skipped.
+
+```bash
+pytube video map-recordings [OPTIONS]
+
+Options:
+  --dry-run    Print the mapping without writing the YAML
+  --force      Overwrite existing mapping YAML (hand edits will be lost)
+  --help       Show help message
+```
+
+### pytube video map-to-channels
 
 Assign videos to YouTube channels based on track information.
 
 ```bash
-pytube video assign-channels [OPTIONS]
+pytube video map-to-channels [OPTIONS]
 
 Options:
   --dry-run    Show what channels would be assigned without creating files
@@ -358,10 +600,10 @@ Options:
 **Example:**
 ```bash
 # Assign videos to channels
-pytube video assign-channels
+pytube video map-to-channels
 
 # Preview assignments without creating files
-pytube video assign-channels --dry-run
+pytube video map-to-channels --dry-run
 ```
 
 This command:
@@ -372,12 +614,12 @@ This command:
 - Optionally uses AI (Claude/OpenAI) to analyze unmatched videos
 - Handles `do_not_record` sessions → `no_publishing` channel
 
-### pytube video move
+### pytube video move-to-channel-dirs
 
 Move videos to channel directories based on assignments.
 
 ```bash
-pytube video move [OPTIONS]
+pytube video move-to-channel-dirs [OPTIONS]
 
 Options:
   --dry-run    Show what would be moved without actually moving files
@@ -388,13 +630,13 @@ Options:
 **Example:**
 ```bash
 # Move videos to channel directories
-pytube video move
+pytube video move-to-channel-dirs
 
 # Preview moves without actually moving files
-pytube video move --dry-run
+pytube video move-to-channel-dirs --dry-run
 
 # Force move even if files exist at destination
-pytube video move --force
+pytube video move-to-channel-dirs --force
 ```
 
 This command:
@@ -419,7 +661,7 @@ This command:
 
 ### pytube video organize (Deprecated)
 
-**[DEPRECATED]** Use `assign-channels` instead.
+**[DEPRECATED]** Use `map-to-channels` instead.
 
 ```bash
 pytube video organize [OPTIONS]
@@ -430,8 +672,8 @@ Options:
 ```
 
 This command is deprecated. Use the new workflow:
-1. `pytube video assign-channels` - Assign videos to channels
-2. `pytube video move` - Move videos to channel directories
+1. `pytube video map-to-channels` - Assign videos to channels
+2. `pytube video move-to-channel-dirs` - Move videos to channel directories
 
 ### pytube video list
 
@@ -448,6 +690,23 @@ Show video processing status.
 ```bash
 pytube video status
 ```
+
+## Validate Command
+
+### pytube validate
+
+Validate the configuration without running the setup wizard.
+
+```bash
+pytube validate [OPTIONS]
+
+Options:
+  --fix     Attempt to fix issues (creates missing directories)
+  --help    Show help message
+```
+
+Not to be confused with `pytube setup --validate-only`, which runs the wizard's
+validation and can emit JSON. `pytube validate` is the quick standalone check.
 
 ## Status Command
 
@@ -481,11 +740,11 @@ pytube status --detailed
 pytube records fetch
 
 # 2. Assign videos to channels based on track information
-pytube video assign-channels
+pytube video map-to-channels
 
 # 3. Move videos to channel-specific directories
-pytube video move --dry-run  # Preview first
-pytube video move            # Actually move files
+pytube video move-to-channel-dirs --dry-run  # Preview first
+pytube video move-to-channel-dirs            # Actually move files
 
 # 4. Generate report of any unassigned videos
 pytube video report
@@ -501,7 +760,7 @@ pytube youtube map
 pytube youtube update
 
 # 8. Schedule publishing
-pytube youtube schedule --start "2024-05-01T10:00:00" --interval 6h
+pytube youtube schedule --start "2026-05-01T10:00:00" --interval 6h
 
 # 9. Monitor and notify
 pytube notify check --auto-post
@@ -514,14 +773,14 @@ pytube notify check --auto-post
 pytube video status
 
 # Assign videos to channels (dry-run first)
-pytube video assign-channels --dry-run
-pytube video assign-channels
+pytube video map-to-channels --dry-run
+pytube video map-to-channels
 
 # Preview what files will be moved
-pytube video move --dry-run
+pytube video move-to-channel-dirs --dry-run
 
 # Move videos to channel directories
-pytube video move
+pytube video move-to-channel-dirs
 
 # Check for any unassigned videos
 pytube video report
@@ -553,16 +812,12 @@ pytube -v records fetch
 
 ## Environment Variables
 
-The CLI respects these environment variables:
-
-- `PYTUBE_CONFIG`: Path to alternative config file
-- `PYTUBE_VERBOSE`: Set to "1" for verbose output by default
-- `NO_COLOR`: Disable colored output
+The CLI itself reads no environment variables. `NO_COLOR` works because the
+underlying `rich` console honours it. Verbosity is controlled with `-v/--verbose`
+and `-q/--quiet`, the config file with `config_local.yaml` — there is no
+`PYTUBE_CONFIG` override.
 
 ## Exit Codes
 
 - `0`: Success
-- `1`: General error
-- `2`: Configuration error
-- `3`: API error
-- `4`: File not found
+- `1`: Any error (configuration, API, missing file — all use the same code)

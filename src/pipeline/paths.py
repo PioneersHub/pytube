@@ -33,10 +33,18 @@ CustomDumper.add_representer(str, str_presenter)
 
 
 class WorkPaths:
+    """Project data locations for the pipeline.
+
+    Shares one configured root with the manager CLI (`dirs.work_dir`, normally
+    `projects/`). This used to hardcode `.work`, so the two halves of the
+    codebase wrote to different directories for the same event.
+    """
+
     def __init__(self, config):
         self.config = config
         self.root = Path(__file__).resolve().parents[2]
-        self.work_dir = self.root / ".work"
+        work_dir = config.dirs.work_dir
+        self.work_dir = Path(work_dir) if Path(work_dir).is_absolute() else self.root / work_dir
         self.event_slug = config.pretalx.event_slug
         self.event_dir = self.work_dir / self.event_slug
 

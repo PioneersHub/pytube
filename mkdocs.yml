@@ -12,6 +12,7 @@ repo_url: https://github.com/PioneersHub/pytube
 nav:
   - index.md
   - installation.md
+  - Projects & Configuration: projects.md
   - Step by Step Guide: step-by-step.md
   - CLI Reference: cli-reference.md
   - scripts.md

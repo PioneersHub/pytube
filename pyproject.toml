@@ -107,12 +107,24 @@ vimeo = [
     "pyvimeo>=1.1.2"
 ]
 
+# AI provider SDKs other than OpenAI (which is a core dependency). The provider
+# classes in src/manager/handlers/ai_service.py import these lazily and raise a
+# clear ImportError when the selected provider is not installed.
+anthropic = [
+    "anthropic>=0.40.0"
+]
+# NOTE: no `google` extra on purpose. Every google-generativeai release requires
+# protobuf<4.21.0, contradicting the pinned protobuf>=6.31.1 above; uv resolves all
+# extras together, so merely declaring it makes the project unresolvable. The
+# Gemini provider was removed for that reason.
+
 # All optional dependencies
 all = [
     "video_manager[test]",
     "video_manager[dev]",
     "video_manager[docs]",
     "video_manager[video_processor]",
+    "video_manager[anthropic]",
 ]
 
 

@@ -1,0 +1,198 @@
+# Projekt-Konfiguration: pyconde-pydata-2026
+# Alles Eventbezogene gehoert hierher. Secrets NICHT hier, sondern in config_local.yaml.
+# Ladereihenfolge: config.yaml (Defaults) -> projects/<slug>/config.yaml -> config_local.yaml
+
+pretalx:
+  event_slug: pyconde-pydata-2026
+  sessions_csv: /Volumes/DATA4T/2026/pyconde-pydata-2026_sessions.csv
+  recording_mapping_yaml: /Volumes/DATA4T/2026/pyconde-pydata-2026_recording_mapping.yaml
+  questions_map:
+    company: 6193
+    job: 6194
+    linkedin: 6199
+    github: 6200
+    x_handle: 6204
+    python_expertise: 6206
+    domain_expertise: 6206
+  video_to_track:
+    333HDN: pyconde
+    37AESH: pyconde
+    39MHWT: pydata
+    3BYLZU: pydata
+    3C9P9V: pyconde
+    3JLSEF: pyconde
+    3U3BZH: pydata
+    3UHPZB: pydata
+    3XDMXS: pydata
+    7H9DF8: pyconde
+    7JXYKH: pyconde
+    7PNT37: pydata
+    7YA98N: no_publishing
+    88TTRY: pyconde
+    8YGQZC: pyconde
+    8YTYEN: pydata
+    93SXWY: pydata
+    99UMEL: pydata
+    9CYWET: pyconde
+    9MUDUY: pydata
+    9PBYAP: pyconde
+    9ZEFTR: pyconde
+    9ZKYRD: pyconde
+    AAY8KQ: pyconde
+    AF9DNH: pydata
+    AGYLTV: pydata
+    AKGUAC: pyconde
+    APWGQB: pydata
+    AWFFUS: pyconde
+    AWMRFD: pydata
+    AZ7GD3: pydata
+    B8GQ9Z: pydata
+    B8KVNJ: pydata
+    BAXEXY: pydata
+    BFL7MQ: pyconde
+    BFYYQG: pyconde
+    BHJERV: pyconde
+    BLC7FS: pyconde
+    BQPEUG: pyconde
+    BQYTVM: pyconde
+    BRCNB7: pyconde
+    BRRHGY: pydata
+    CMDHUN: pyconde
+    CNNUZC: pyconde
+    CVPVPK: pyconde
+    DDVW3W: pyconde
+    DQDEES: pydata
+    DVCKHF: pydata
+    EE39VN: pyconde
+    EL7X8C: pydata
+    EPASS8: pydata
+    EWZMJK: pydata
+    EXXWMV: pydata
+    F79RG9: pyconde
+    FJQXEQ: pyconde
+    FP7YN7: pyconde
+    FT7V39: pydata
+    GATMPP: pyconde
+    GAUNKM: pydata
+    GBKUNF: pydata
+    GCGLPN: pyconde
+    GMNE3E: pydata
+    GPJGH3: pydata
+    GPV9SM: pydata
+    GVHZW9: pydata
+    GYBRVN: pyconde
+    HBFL78: pydata
+    HKFCBM: pyconde
+    HP7DLX: pydata
+    HQBC7R: pydata
+    HRFYVS: pyconde
+    JBFGCA: pydata
+    JJDCW3: pyconde
+    JPTTMK: pydata
+    K9LCNQ: pydata
+    KBGXKC: pydata
+    KBNKAP: no_publishing
+    KFPNUA: pyconde
+    KKCYJN: pyconde
+    KLN78E: pydata
+    KQM8JJ: pydata
+    LPUC9T: pyconde
+    LSJ3CN: pyconde
+    LVJXK3: pydata
+    LVRLSU: pyconde
+    LYCBNT: pydata
+    M33SNJ: pydata
+    MJTQEJ: pydata
+    MLUK9M: pyconde
+    MQJVFU: pydata
+    MS7AWK: pyconde
+    N8QVT8: pyconde
+    N98BQT: pyconde
+    NAHX3L: pydata
+    NDZSSB: pyconde
+    NF7MKB: pyconde
+    NN7CVP: pydata
+    NXEVSE: pyconde
+    P7NYXB: pydata
+    P8Y9TD: pydata
+    PARU7X: pydata
+    PFXR9G: pydata
+    PK8XNB: pyconde
+    PMMEAG: pydata
+    Q9DU8N: pydata
+    Q9HMT3: pyconde
+    QB7VLW: pyconde
+    QBJRBJ: pyconde
+    QMBEZX: pyconde
+    QVLTKD: pydata
+    QX8DDJ: pydata
+    R7TT3E: pydata
+    RNT9FV: pydata
+    RQTJFS: pyconde
+    RRLTBU: pydata
+    RUSUYF: pydata
+    S7KYEE: pyconde
+    S9VSCV: pyconde
+    TB9WYZ: pydata
+    TPNBRN: pydata
+    TRGQTL: pydata
+    TST9LF: pydata
+    TZYGTL: pyconde
+    U7QDCH: no_publishing
+    U9KQU9: pydata
+    UFGB7T: pyconde
+    UUHYUS: pyconde
+    V8DNCL: pydata
+    VBPRQR: pyconde
+    VJPQCR: pyconde
+    VUHSG9: pydata
+    VWCZXS: pyconde
+    VY3CY7: pyconde
+    WAJQR7: pydata
+    WDHTQR: pydata
+    WQGXJ3: pydata
+    WSNBD9: pydata
+    X3KQMQ: pydata
+    XGL37G: pydata
+    YKQ33N: pyconde
+    YZM8TA: pydata
+    ZESFRG: pyconde
+    ZLRFR9: pyconde
+    ZYUJH3: pydata
+event:
+  name: PyCon DE & PyData 2026
+  url: https://2026.pycon.de
+  program_url: https://2026.pycon.de/talks/
+youtube:
+  channels:
+    pyconde:
+      token_path: .secrets/token_pycon.json
+      id: UCji5VWDkGzuRenyRQZ9OpFQ
+      playlist_id: PLefagiT9A8tA
+    pydata:
+      token_path: .secrets/token_pydata.json
+      id: UCOjD18EJYcsBog4IozkF_7w
+      playlist_id: PLTU-XWf6DQN8
+  video_defaults:
+    # Released 2026-08-05: all videos are public. (Descriptions were added while
+    # private; the release flipped privacy_status to public and re-sent.)
+    privacy_status: public
+    tags:
+    - PyCon DE
+    - PyData
+    - Python
+    - PyCon DE 2026
+    - conference talk
+    channel_tags:
+      pyconde:
+      - PyConDE
+      - software engineering
+      pydata:
+      - PyData
+      - data science
+      - machine learning
+transcripts:
+  dir: /Users/hendorf/Documents/Claude/Projects/PyConDE/transcripts
+  max_chars: 48000
+dirs:
+  video_dir: projects/pyconde-pydata-2026/videos
